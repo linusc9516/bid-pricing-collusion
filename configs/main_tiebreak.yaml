@@ -6,6 +6,10 @@
 
 inherits: base.yaml
 
+llm:
+  reasoning_length: short # TODO before running: Phase B reasoning length is undecided (PLANNING.md 7.2).
+                          # Long reasoning for an LLM judge raises output tokens several-fold and the cost with them.
+
 budget:
   max_cost_usd: 6.5       # estimate 5.07 before BAFO rebids
 

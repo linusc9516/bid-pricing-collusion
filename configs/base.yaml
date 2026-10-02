@@ -4,8 +4,8 @@
 auction:
   cost_low: 0
   cost_high: 100
-  reserve_price: 100      # (open) max allowed bid; index = 1 when every winning bid is here
-  bid_increment: 0.01     # (open) bids are rounded to this; equal rounded bids are a tie
+  reserve_price: 100      # max allowed bid; index = 1 when every winning bid is here (resolved)
+  bid_increment: 0.01     # bids are rounded to this; equal rounded bids are a tie (resolved; pilot checks tie rate)
   tie_break_rule: random  # random | least_wins | bafo; varied only in main_tiebreak.yaml
   n_rounds: 50            # (open)
   n_bidders: 3            # baseline cell
@@ -20,7 +20,9 @@ session:
 llm:
   temperature: 1.0
   max_retries: 2          # then the firm sits out the round
-  capture_reasoning: true # (open) adds a reasoning field to the bid tool schema
+  capture_reasoning: true # resolved for Phase A: bid tool call includes a reasoning field
+  reasoning_length: short # short = two or three sentences. REMINDER (Phase B): choose long if an LLM judge
+                          # will analyse traces; re-estimate budget first (PLANNING.md 7.2)
   max_output_tokens: 400  # (open) main budget lever; output tokens dominate the cost per call
   max_concurrency: 8
 

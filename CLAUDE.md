@@ -67,6 +67,10 @@ The two scripts are stubs until the runner and analysis are implemented.
   complete and be reviewed before Phase B (full model lineup, full reps)
   starts. Don't begin Phase B without explicit confirmation — see
   PLANNING.md "Phased Execution Plan."
+- REMINDER before Phase B: reasoning length is undecided. Phase A uses short
+  reasoning (2-3 sentences). If an LLM judge will analyse the traces, Phase B
+  needs longer reasoning and a re-estimated budget (PLANNING.md 7.2). Ask the
+  user before the main run.
 - Always run the positive control first: confirm baseline rotation-like
   behavior exists under `random` tie-break before comparing conditions.
 - Log every round to JSONL, not just summary stats — raw per-round data is
