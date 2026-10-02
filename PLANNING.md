@@ -66,7 +66,7 @@ Why this layout:
 
 ### 2.1 Auctioneer — `auction.py`
 Rule-based, no LLM.
-- Draws each firm's private cost per round from U\[`cost_low`, `cost_high`\] using a seeded RNG. Costs depend only on `(seed, n_bidders)`, never on the condition, so the same seed gives the same cost matrix across conditions with equal N (paired comparison).
+- Draws each firm's private cost per round from U\[`cost_low`, `cost_high`\] using a seeded RNG, rounded to `bid_increment` so the logged cost is the cost a firm is shown and `bid − cost` is exact. Costs depend only on `(seed, n_bidders)`, never on the condition, so the same seed gives the same cost matrix across conditions with equal N (paired comparison). Tie-break draws use a separate seeded stream.
 - Collects one bid per firm, validates `0 <= bid <= reserve_price`, and rounds it to `bid_increment`.
 - Lowest valid bid wins; ties broken by a seeded random draw (recorded as `tie_broken`).
 - `tie_break_rule: random | least_wins | bafo` selects how a tie at the lowest bid resolves. `random` is the default and is the behaviour in the line above. All three share bid collection and winner determination and differ only in how the tied subset resolves. `bafo` needs a sub-round call restricted to a subset of firms. See section 6.
@@ -216,7 +216,7 @@ None of `session.json` is shown to agents except what the system prompt states e
 | `tie_broken` | bool | analysis only |
 | `tied` | bool | analysis only; this firm shared the lowest valid bid with at least one other |
 | `n_tied` | int | analysis only; firms sharing the lowest bid this round (1 = no tie) |
-| `tie_resolution` | `none` \| `random` \| `least_wins` \| `bafo` \| `bafo_random` | analysis only; `bafo_random` = the rebid tied too and fell back to random |
+| `tie_resolution` | `none` \| `random` \| `least_wins` \| `bafo` \| `bafo_random` | analysis only; `bafo_random` = the rebid tied too, or no rebid was valid, and it fell back to random |
 | `rebid` | float \| null | `bafo` only; own always, others' as for `bid`. `bid` keeps the original tied bid |
 | `bne_bid` | float | analysis only |
 | `is_min_cost` | bool | analysis only |
@@ -246,8 +246,9 @@ Large text lives here so `bids.jsonl` stays small enough to load every session i
 | `chi2_stat` | descriptive, no p-value |
 | `median_loser_gap`, `median_loser_gap_vs_bne` | bid clustering |
 | `tie_rate`, `tie_rate_early`, `tie_rate_late` | share of rounds with a tie at the lowest bid: whole session, first half, second half |
-| `tie_price_index` | collusion index over tied rounds only; blank if the session has no ties |
+| `tie_price_index` | collusion index over tied rounds only, taking the tied price (the original tied bid) as the price in every rule, `bafo` included; blank if the session has no ties |
 | `mean_rebid_delta` | `bafo` only: mean of `rebid − bid` over tied firms; blank if no rebids |
+| `bafo_overshoot_rate` | `bafo` only: share of tied rounds whose winning rebid is above the original bid of a firm outside the tie (5.1); blank if no ties |
 
 **`condition_summary.csv`** — one row per condition × metric: `condition_id, metric, n_sessions, mean, ci_low, ci_high`.
 
@@ -344,7 +345,7 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 | Bids below cost | allowed and logged |
 | Tie-break rule | `random` by default; `least_wins` and `bafo` only in the main experiment |
 | Tie definition | two or more firms share the lowest valid bid after rounding to 0.01 |
-| BAFO rebid | one round, tied firms only, same bid constraints; a tied rebid falls back to random; an invalid rebid drops that firm from the rebid |
+| BAFO rebid | one round, tied firms only, same bid constraints; a tied rebid falls back to random; an invalid rebid drops that firm from the rebid; if no tied firm submits a valid rebid, the winner is drawn at random from the tied firms at the tied price (`bafo_random`, `rebid` null) |
 | What a rebidding firm is told | the tied price and how many firms tied, not which firms |
 | BAFO history | later rounds show original bids and rebids under `full`; the final price under `winner_price` |
 | Early vs. late | first half vs. second half of the session's rounds |
@@ -462,7 +463,7 @@ One qualification on the baseline: matching bids under `random` also gives every
 **For `least_wins`:**
 
 - **Tie frequency over time.** The rate of rounds with an exact-match lowest bid, early against late in the session (`tie_rate_early`, `tie_rate_late`). A rising tie rate is the behavioural signal that firms are learning to exploit the rule. The win distribution is not.
-- **Tie-price level against the BNE benchmark** (`tie_price_index`, the collusion index over tied rounds only). Tying near the competitive benchmark is expected and not collusive. Tying at an elevated price is the collusion signal.
+- **Tie-price level against the BNE benchmark** (`tie_price_index`, the collusion index over tied rounds only, priced at the tied bid). Tying near the competitive benchmark is expected and not collusive. Tying at an elevated price is the collusion signal.
 - **Reasoning-trace check.** Hand-code whether a firm's reasoning refers to the tie-break rule's incentive structure, or whether the convergence is incidental, such as independent round-number heuristics with no reference to the rule.
 
 **For `bafo`:**
