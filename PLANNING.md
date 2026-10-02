@@ -258,7 +258,7 @@ Each step is testable before the next starts. Steps 1–4 cost nothing.
 
 1. **`schema` + `bne`** — unit tests against the closed form; Monte Carlo check that the expected winning bid matches.
 2. **`auction` + scripted bidders** — run complete sessions with BNE, markup, overbid and rotation bidders. Then the three tie-break rules with `match` bidders, and the check that BNE bidders give identical logs under all three.
-3. **`analysis`** — must reproduce the table in 2.7: index ≈ 0 for BNE bidders; negative, not clipped, for markup bidders; high index with lowest-cost-wins share ≈ 1 for overbid (not labelled collusive); high index with share ≈ 1/n for the rotating cartel. Holm and the permutation test get unit tests against hand-computed cases. Tie metrics must reproduce the `match` table in 2.7. Do not proceed until all hold.
+3. **`analysis`** — must reproduce the table in 2.7: index ≈ 0 for BNE bidders; negative, not clipped, for markup bidders; high index with lowest-cost-wins share ≈ 1 for overbid (not labelled collusive); high index with share ≈ 1/n for the rotating cartel. Holm and the permutation test get unit tests against hand-computed cases. Tie metrics must reproduce the `match` table in 2.7. Do not proceed until all hold. Holm, the permutation test and the bootstrap are only needed for Phase B and can wait until after the pilot (7.1); the per-session metrics are needed for Phase A.
 4. **`prompts`** — snapshot test per condition and per tie-break rule, plus a leak test asserting that values hidden under a condition never appear in the prompt text.
 5. **`llm`** — tests against a mocked client; then one live call per model to confirm tool calling works.
 6. **`runner`** — dry-run estimate, resume, spend cap.
@@ -266,6 +266,33 @@ Each step is testable before the next starts. Steps 1–4 cost nothing.
 8. **Commit `configs/analysis.yaml`**, then the main experiment, then the supporting ablations under the same `--run-id`, then report.
 
 Section 7 splits the paid steps into two phases. Step 7 is Phase A and is the go/no-go check; step 8 is Phase B and needs explicit confirmation. With 5 short sessions, the pilot's estimate of session-to-session spread is rough; treat it as a sanity check on the session count, not a power calculation.
+
+### 4.1 Scope, size and token estimate per step
+
+Estimates made on 3 October 2026 from the module list in section 1, before any code exists. Line counts are code plus tests. Token counts are total consumption including reading files, running tests and debugging, not only the code written (about 60,000 to 100,000 tokens of the total). Treat them as a range, not a budget; unclear specs and failing acceptance checks push towards the top.
+
+| Step | Modules and tests | Est. lines | Est. tokens | Needed for Phase A | API spend |
+|---|---|---|---|---|---|
+| 1 | `schema.py`, `bne.py`, tests against the closed form and a Monte Carlo check | ~400 | 100–200k | yes | none |
+| 2 | `auction.py` (seeded costs, rounding, the three tie rules, BAFO sub-round), `bidders.py` (scripted bidders), tests incl. the `match` and BNE-identity checks | ~1,000 | 400–700k | yes | none |
+| 3a | `analysis/metrics.py`: per-session index, delta, lowest-cost-wins share, repeat-win rate, chi-square, clustering, tie metrics, with tests against the 2.7 tables | ~550 | 250–450k | yes | none |
+| 3b | `analysis/stats.py` (bootstrap, permutation test, Holm) and `analysis/report.py` (tables, plots), with tests | ~600 | 250–450k | no, Phase B | none |
+| 4 | `prompts.py`, `prompts/bidder_system.md`, snapshot and leak tests | ~500 | 250–450k | yes | none |
+| 5 | `llm.py`, mocked-client tests, one live call per model | ~450 | 250–450k | yes | a few cents |
+| 6 | `runner.py`, `scripts/run_experiment.py`, `scripts/analyze.py`, dry-run, resume and spend-cap tests | ~800 | 400–700k | yes (analyze script reduced to raw numbers) | none |
+| **Total** | | **~4,300** | **~1.9–3.4M** | | |
+
+Steps 2 and 3 are the expensive ones because they must reproduce known answers from the scripted bidders. For comparison, the literature review used about 1.25 million tokens.
+
+### 4.2 How to run the build
+
+- **Fresh session for the build.** This planning conversation is long, and every turn re-reads it. `CLAUDE.md` and this file hold the context a new session needs.
+- **Order:** steps 1, 2 and 3a first (no API, and they anchor everything else), then 4, 5, 6, then the pilot (step 7). Step 3b waits until after Phase A, so plotting is not built before there is real data to plot.
+- **Gate between steps:** `uv run pytest` and `uv run ruff check src/` pass, and the acceptance check in section 4 for that step holds, before the next step starts. Commit after each step.
+- **Before step 5:** verify the OpenRouter slugs and tool-calling support for the three Phase A models (5.3). The fourth model is only needed for Phase B.
+- **Before step 7:** confirm the bid increment check is in the pilot report (5.1) and that `configs/pilot.yaml` still matches 7.1.
+- **Cost outside the build:** Phase A itself is estimated at about $0.44 of OpenRouter credit (5.4).
+
 
 ## 5. Open questions and risks
 
