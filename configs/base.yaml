@@ -5,11 +5,13 @@ auction:
   cost_low: 0
   cost_high: 100
   reserve_price: 100      # (open) max allowed bid; index = 1 when every winning bid is here
+  bid_increment: 0.01     # (open) bids are rounded to this; equal rounded bids are a tie
+  tie_break_rule: random  # random | least_wins | bafo; varied only in main_tiebreak.yaml
   n_rounds: 50            # (open)
   n_bidders: 3            # baseline cell
 
 session:
-  n_sessions: 18
+  n_sessions: 18          # main experiment; supporting ablations override to 9
   base_seed: 20261002     # session k uses base_seed + k
   info_condition: full    # full | winner_price | winner_only
   history_window: null    # null = whole session; 0 = no history at all (one-shot control)
@@ -19,6 +21,7 @@ llm:
   temperature: 1.0
   max_retries: 2          # then the firm sits out the round
   capture_reasoning: true # (open) adds a reasoning field to the bid tool schema
+  max_output_tokens: 400  # (open) main budget lever; output tokens dominate the cost per call
   max_concurrency: 8
 
 prompt:
@@ -26,7 +29,9 @@ prompt:
   version: v0
 
 budget:
-  max_cost_usd: 10        # runner aborts if cumulative spend exceeds this
+  max_cost_usd: 1         # per config; the runner aborts when a config's spend exceeds its cap.
+                          # Each experiment config sets its own. Total across configs is 9.0
+                          # of the 10.0 available (PLANNING.md section 5.4).
 
 output:
   log_dir: logs

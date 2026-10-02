@@ -1,11 +1,11 @@
 # Pre-declared analysis plan. Commit this before collecting data; the git SHA logged
 # in each session.json then shows the plan pre-dates the results.
-# See PLANNING.md section 2.6.
+# See PLANNING.md sections 2.6 and 6.
 
 unit: session                 # all inference is on one value per session, never per round
 
 primary_outcome: delta_index  # session collusion index minus its matched one-shot control
-                              # (same lineup, N and seed). Index is reported unclipped.
+                              # (same lineup, N, tie-break rule and seed). Index is unclipped.
 
 inference:
   alpha: 0.05
@@ -16,25 +16,26 @@ inference:
   n_permutations: 10000
   n_bootstrap: 10000          # resamples whole sessions (seeds), percentile 95% CI
 
-# The confirmatory family: one comparison per ablation, plus the repetition effect itself.
-# Pooled across models: 4 tests (see PLANNING.md section 5.1).
+# The confirmatory family is the main claim only: the tie-break rule, in main_tiebreak.yaml.
+# All arms are full history, same-model lineup, N = 3.
+# Pooled across models: 2 tests.
 confirmatory:
-  - id: repetition            # does repeated play raise the index at all?
-    arm_a: {info_condition: full, lineup_type: homogeneous, n_bidders: 3}
-    against: 0
-  - id: information
-    arm_a: {info_condition: full, lineup_type: homogeneous, n_bidders: 3}
-    arm_b: {info_condition: winner_only, lineup_type: homogeneous, n_bidders: 3}
-  - id: lineup
-    arm_a: {info_condition: full, lineup_type: homogeneous, n_bidders: 3}
-    arm_b: {info_condition: full, lineup_type: heterogeneous, n_bidders: 3}
-  - id: n_bidders
-    arm_a: {info_condition: full, lineup_type: homogeneous, n_bidders: 2}
-    arm_b: {info_condition: full, lineup_type: homogeneous, n_bidders: 5}
+  - id: least_wins_vs_random  # does a predictable tie-break rule raise prices?
+    arm_a: {tie_break_rule: least_wins}
+    arm_b: {tie_break_rule: random}
+  - id: bafo_vs_random        # does a rebid lower them, or at least not raise them?
+    arm_a: {tie_break_rule: bafo}
+    arm_b: {tie_break_rule: random}
 
-# Everything else is exploratory: per-model breakdowns, middle levels (winner_price, N = 3),
-# lowest-cost-wins share, repeat-win rate, chi-square statistic, bid clustering.
+# Everything else is exploratory: per-model breakdowns, least_wins vs. bafo directly,
+# the repetition effect in each cell, tie rate and its early/late change, tie-price index,
+# rebid delta, lowest-cost-wins share, repeat-win rate, chi-square statistic, bid clustering.
 # Reported as effect sizes with bootstrap CIs; any p-value is Holm-adjusted within its
 # family and labelled exploratory.
 exploratory:
   correction: holm
+
+# Supporting ablations (supporting_info / supporting_n / supporting_lineup) are descriptive
+# only: one model, 9 sessions, effect sizes with bootstrap CIs, no tests.
+supporting:
+  tests: none

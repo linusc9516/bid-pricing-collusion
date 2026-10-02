@@ -1,0 +1,22 @@
+# Supporting ablation: same-model vs. mixed lineup. Reduced scale: one mixed lineup,
+# 9 sessions. Descriptive context for the main claim, not a confirmatory result.
+# A mixed lineup needs several models by definition, so this is the one supporting
+# ablation that is not DeepSeek-only. The same-model arm is the `random` cells of
+# main_tiebreak.yaml. Model-to-firm-slot assignment is randomised per session.
+# history_window 0 is the matched one-shot control: same seeds, so same costs and
+# same slot assignment as the repeated arm.
+
+inherits: base.yaml
+
+session:
+  n_sessions: 9
+
+budget:
+  max_cost_usd: 0.3       # estimate 0.20
+
+cells:
+  - id: hetero-deepseek-gpt-oss-glm      # (open) which models make up the mixed lineup
+    lineup: {type: heterogeneous, models: [deepseek, gpt-oss, glm]}
+
+sweep:
+  history_window: [null, 0]

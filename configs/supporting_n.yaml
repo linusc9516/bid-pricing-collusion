@@ -1,0 +1,20 @@
+# Supporting ablation: number of bidders. Reduced scale: DeepSeek only, 9 sessions.
+# Descriptive context for the main claim, not a confirmatory result.
+# N = 3 is the DeepSeek `random` cell of main_tiebreak.yaml and is not rerun here.
+# history_window 0 is the matched one-shot control at each N.
+
+inherits: base.yaml
+
+session:
+  n_sessions: 9
+
+budget:
+  max_cost_usd: 0.8       # estimate 0.62
+
+cells:
+  - id: homog-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+
+sweep:
+  n_bidders: [2, 5]
+  history_window: [null, 0]

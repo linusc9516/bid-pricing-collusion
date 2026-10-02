@@ -1,0 +1,24 @@
+# Main experiment: tie-break rule. This is the paper's central claim and gets the full
+# treatment: every model, 18 sessions per condition, and a matched one-shot control
+# (history_window 0) for every rule and model on the same seeds.
+# Baseline cell otherwise: full history, same-model lineup, N = 3.
+# 4 models x 3 rules x 2 (repeated, control) = 24 cells. See PLANNING.md section 6.
+
+inherits: base.yaml
+
+budget:
+  max_cost_usd: 6.5       # estimate 5.07 before BAFO rebids
+
+cells:
+  - id: homog-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: homog-gpt-oss
+    lineup: {type: homogeneous, model: gpt-oss}
+  - id: homog-glm
+    lineup: {type: homogeneous, model: glm}
+  - id: homog-qwen
+    lineup: {type: homogeneous, model: qwen}
+
+sweep:
+  tie_break_rule: [random, least_wins, bafo]
+  history_window: [null, 0]

@@ -1,15 +1,17 @@
-# Pilot: baseline cell, each model in self-play, a few sessions.
-# Purpose: parse-failure rate, tokens per call, bid sanity, cost-range check.
-# Each cell also runs as a one-shot control (history_window 0), so a model that
-# overbids in isolation shows up here, before the full sweep.
+# Pilot: baseline cell (random tie-break), each model in self-play, repeated and one-shot.
+# Purpose: parse-failure rate, tokens per call (the budget depends on output length),
+# bid sanity, cost-range check, how often bids tie at the 0.01 grid, and the
+# session-to-session spread used to judge whether 18 sessions is enough.
+# Uses its own seeds, so pilot sessions are never part of the analysed data.
 
 inherits: base.yaml
 
 session:
-  n_sessions: 3
+  n_sessions: 6
+  base_seed: 990000       # disjoint from the main experiment's seeds
 
 budget:
-  max_cost_usd: 2
+  max_cost_usd: 1.0       # estimate 0.56
 
 cells:
   - id: pilot-deepseek

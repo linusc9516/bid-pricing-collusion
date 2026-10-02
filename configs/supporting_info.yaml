@@ -1,0 +1,20 @@
+# Supporting ablation: information revelation. Reduced scale: DeepSeek only, 9 sessions.
+# Descriptive context for the main claim, not a confirmatory result.
+# The `full` level and the one-shot control are the DeepSeek `random` cells of
+# main_tiebreak.yaml (same seeds; the first 9 of its 18 sessions), so run under the same
+# --run-id and after it.
+
+inherits: base.yaml
+
+session:
+  n_sessions: 9
+
+budget:
+  max_cost_usd: 0.4       # estimate 0.29
+
+cells:
+  - id: homog-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+
+sweep:
+  info_condition: [winner_price, winner_only]
