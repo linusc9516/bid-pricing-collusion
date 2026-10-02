@@ -1,0 +1,32 @@
+# --- merged from ~/.gitignore_global ---
+venv/
+.venv/
+__pycache__/
+node_modules/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+.env
+
+# --- repo-specific ---
+# secrets
+.env.*
+!.env.example
+
+# raw experiment output and API response caches
+logs/*
+!logs/.gitkeep
+.cache/
+
+# local config overrides
+configs/*.local.yaml
+
+# python
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/

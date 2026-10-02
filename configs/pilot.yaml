@@ -1,0 +1,25 @@
+# Pilot: baseline cell, each model in self-play, a few sessions.
+# Purpose: parse-failure rate, tokens per call, bid sanity, cost-range check.
+# Each cell also runs as a one-shot control (history_window 0), so a model that
+# overbids in isolation shows up here, before the full sweep.
+
+inherits: base.yaml
+
+session:
+  n_sessions: 3
+
+budget:
+  max_cost_usd: 2
+
+cells:
+  - id: pilot-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: pilot-gpt-oss
+    lineup: {type: homogeneous, model: gpt-oss}
+  - id: pilot-glm
+    lineup: {type: homogeneous, model: glm}
+  - id: pilot-qwen
+    lineup: {type: homogeneous, model: qwen}
+
+sweep:
+  history_window: [null, 0]

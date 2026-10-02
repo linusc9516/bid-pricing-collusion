@@ -1,0 +1,33 @@
+# Shared defaults. Every other config inherits these and overrides what it varies.
+# Values marked (open) are proposed defaults pending review; see PLANNING.md section 5.
+
+auction:
+  cost_low: 0
+  cost_high: 100
+  reserve_price: 100      # (open) max allowed bid; index = 1 when every winning bid is here
+  n_rounds: 50            # (open)
+  n_bidders: 3            # baseline cell
+
+session:
+  n_sessions: 18
+  base_seed: 20261002     # session k uses base_seed + k
+  info_condition: full    # full | winner_price | winner_only
+  history_window: null    # null = whole session; 0 = no history at all (one-shot control)
+  disclose_horizon: false # (open) do not tell agents the round count
+
+llm:
+  temperature: 1.0
+  max_retries: 2          # then the firm sits out the round
+  capture_reasoning: true # (open) adds a reasoning field to the bid tool schema
+  max_concurrency: 8
+
+prompt:
+  template: prompts/bidder_system.md   # not written yet
+  version: v0
+
+budget:
+  max_cost_usd: 10        # runner aborts if cumulative spend exceeds this
+
+output:
+  log_dir: logs
+  results_dir: results

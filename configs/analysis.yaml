@@ -1,0 +1,39 @@
+# Pre-declared analysis plan. Commit this before collecting data; the git SHA logged
+# in each session.json then shows the plan pre-dates the results.
+# See PLANNING.md section 2.6.
+
+unit: session                 # all inference is on one value per session, never per round
+
+primary_outcome: delta_index  # session collusion index minus its matched one-shot control
+                              # (same lineup, N and seed). Index is reported unclipped.
+
+inference:
+  alpha: 0.05
+  correction: holm            # across the confirmatory family below
+  test: paired_sign_flip      # per seed: mean over models within each arm, then permute signs
+  two_sided: true
+  n_permutations: 10000
+  n_bootstrap: 10000          # resamples whole sessions (seeds), percentile 95% CI
+
+# The confirmatory family: one comparison per ablation, plus the repetition effect itself.
+# Pooled across models (open; see PLANNING.md section 5.1).
+confirmatory:
+  - id: repetition            # does repeated play raise the index at all?
+    arm_a: {info_condition: full, lineup_type: homogeneous, n_bidders: 3}
+    against: 0
+  - id: information
+    arm_a: {info_condition: full, lineup_type: homogeneous, n_bidders: 3}
+    arm_b: {info_condition: winner_only, lineup_type: homogeneous, n_bidders: 3}
+  - id: lineup
+    arm_a: {info_condition: full, lineup_type: homogeneous, n_bidders: 3}
+    arm_b: {info_condition: full, lineup_type: heterogeneous, n_bidders: 3}
+  - id: n_bidders
+    arm_a: {info_condition: full, lineup_type: homogeneous, n_bidders: 2}
+    arm_b: {info_condition: full, lineup_type: homogeneous, n_bidders: 5}
+
+# Everything else is exploratory: per-model breakdowns, middle levels (winner_price, N = 3),
+# lowest-cost-wins share, repeat-win rate, chi-square statistic, bid clustering.
+# Reported as effect sizes with bootstrap CIs; any p-value is Holm-adjusted within its
+# family and labelled exploratory.
+exploratory:
+  correction: holm

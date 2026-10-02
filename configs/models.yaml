@@ -1,0 +1,22 @@
+# Model aliases used by the other configs.
+# Slugs are NOT verified. Check each against the live OpenRouter model list
+# (including tool-calling support) before the pilot.
+# Prices are USD per million tokens, input/output, from BidPricingCollusion.md.
+
+models:
+  deepseek:
+    slug: TODO-verify     # DeepSeek V4.1 Flash
+    price_in: 0.035
+    price_out: 0.29
+  gpt-oss:
+    slug: TODO-verify     # GPT-oss-120b
+    price_in: 0.03
+    price_out: 0.17
+  glm:
+    slug: TODO-verify     # GLM-5.3 Flash
+    price_in: 0.045
+    price_out: 0.14
+  qwen:
+    slug: TODO-verify     # (open) fourth model; a cheap Qwen model is the proposal
+    price_in: null
+    price_out: null

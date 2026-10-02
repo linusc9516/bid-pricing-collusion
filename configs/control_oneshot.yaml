@@ -1,0 +1,25 @@
+# Required control: one-shot bidding (no repeated-game history).
+# Same prompt, seeds and round count as the repeated sessions, but history_window: 0,
+# so no history is shown (own history included). Agents are stateless per round, so
+# each round is an independent one-shot auction on the same cost matrix as the
+# matched repeated session (same seed, same N).
+# Covers every homogeneous cell; the mixed lineups get theirs in ablation_lineup.yaml.
+# The three info levels share one control, since nothing is shown under any of them.
+
+inherits: base.yaml
+
+session:
+  history_window: 0
+
+cells:
+  - id: homog-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: homog-gpt-oss
+    lineup: {type: homogeneous, model: gpt-oss}
+  - id: homog-glm
+    lineup: {type: homogeneous, model: glm}
+  - id: homog-qwen
+    lineup: {type: homogeneous, model: qwen}
+
+sweep:
+  n_bidders: [2, 3, 5]

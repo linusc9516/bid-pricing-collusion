@@ -1,0 +1,16 @@
+# Ablation 2: homogeneous vs. heterogeneous lineup.
+# The homogeneous arm is the baseline cell from ablation_info.yaml (info_condition: full)
+# and is not rerun here. Model-to-firm-slot assignment is randomised per session.
+# history_window 0 is the matched one-shot control for each mixed lineup: same seeds,
+# so same costs and same slot assignment as the repeated arm.
+
+inherits: base.yaml
+
+cells:
+  - id: hetero-deepseek-gpt-oss-glm      # (open) which models make up the mixed lineup
+    lineup: {type: heterogeneous, models: [deepseek, gpt-oss, glm]}
+  - id: hetero-deepseek-gpt-oss-qwen
+    lineup: {type: heterogeneous, models: [deepseek, gpt-oss, qwen]}
+
+sweep:
+  history_window: [null, 0]

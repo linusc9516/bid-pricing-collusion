@@ -1,0 +1,22 @@
+# Scripted bidders only. No API calls. Validates the harness and the metrics.
+# Expected readings (collusion index is unclipped; LCW = lowest-cost-wins share):
+#   bne       index ~ 0                        LCW ~ 1    competitive
+#   markup    index < 0 (-0.70/-0.30/-0.10)    LCW ~ 1    below BNE; checks nothing clips at 0
+#   overbid   index > 0 ( 0.40/ 0.55/ 0.63)    LCW ~ 1    high prices, no coordination
+#   rotation  index ~ 1                        LCW ~ 1/n  rotating cartel
+# Values in brackets are at N = 2 / 3 / 5. Only `rotation` may be labelled collusive.
+
+inherits: base.yaml
+
+cells:
+  - id: dummy-bne
+    lineup: {type: scripted, bidder: bne}
+  - id: dummy-markup                     # b(c) = min(c + markup, reserve_price)
+    lineup: {type: scripted, bidder: markup, markup: 10}
+  - id: dummy-overbid                    # b(c) = c + shade * (cost_high - c); BNE is shade = 1/n
+    lineup: {type: scripted, bidder: overbid, shade: 0.7}
+  - id: dummy-rotation
+    lineup: {type: scripted, bidder: rotation}
+
+sweep:
+  n_bidders: [2, 3, 5]
