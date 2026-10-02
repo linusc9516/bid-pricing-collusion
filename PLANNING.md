@@ -10,6 +10,7 @@ This is a preparatory experiment for a workshop paper, run on a budget of $10 in
 
 - **Main claim: the tie-break rule (section 6).** Some rules for resolving exact-match bids are exploitable as a collusion vector and some resist it. This gets the full treatment: all four models, 18 sessions per condition, a matched one-shot control for every cell, bootstrap CIs, the pre-declared tests, and the reasoning-trace hand-coding. The paper's central figure and table report this experiment.
 - **Supporting ablations: information revelation, number of bidders, model lineup.** Run at reduced scale (DeepSeek only, 9 sessions) and reported as a short robustness and context section. Their job is to establish that the baseline rotation phenomenon exists and behaves as expected, which is the premise the main claim builds on. They are descriptive, carry no confirmatory tests, and are not presented as separate findings.
+- **Two phases (section 7).** Phase A is a small pre-team pilot whose output decides whether this becomes the team's sprint project. Phase B is everything described above and runs during the sprint weekend (Oct 23–25, 2026), only after explicit confirmation.
 
 ## 1. Repo structure
 
@@ -18,6 +19,8 @@ bid-pricing-collusion/
 ├── BidPricingCollusion.md   experimental design (given)
 ├── PLANNING.md              this file
 ├── README.md
+├── CLAUDE.md                repo conventions and non-negotiable design constraints
+├── PREP_LOG.md              dated record of pre-sprint work, for disclosure
 ├── pyproject.toml           dependencies, managed with uv
 ├── .env.example             expected env vars, no values
 ├── configs/
@@ -25,7 +28,7 @@ bid-pricing-collusion/
 │   ├── models.yaml          model aliases -> OpenRouter slugs + prices
 │   ├── sanity_dummy.yaml    scripted bidders only, zero API spend
 │   ├── sanity_tiebreak.yaml scripted bidders under the three tie-break rules
-│   ├── pilot.yaml           6 sessions per model, baseline cell, own seeds
+│   ├── pilot.yaml           Phase A pilot: 3 models x 3 tie-break rules, own seeds
 │   ├── main_tiebreak.yaml   main experiment: tie-break rule, all models, with controls
 │   ├── supporting_info.yaml   supporting: information revelation
 │   ├── supporting_n.yaml      supporting: number of bidders
@@ -259,8 +262,10 @@ Each step is testable before the next starts. Steps 1–4 cost nothing.
 4. **`prompts`** — snapshot test per condition and per tie-break rule, plus a leak test asserting that values hidden under a condition never appear in the prompt text.
 5. **`llm`** — tests against a mocked client; then one live call per model to confirm tool calling works.
 6. **`runner`** — dry-run estimate, resume, spend cap.
-7. **Pilot** — 6 sessions per model at the baseline cell, repeated and one-shot, on seeds the main experiment does not use. Check parse-failure rate, tokens per call against the budget assumptions in 5.4, bids below cost, whether bids look degenerate for the chosen cost range, how far each model's one-shot bids sit from BNE, how often bids tie at the 0.01 grid, and the session-to-session spread of `delta_index`. Revise session count, model count or the output cap before going on.
+7. **Pilot (Phase A, section 7.1)** — three models under all three tie-break rules, 5 sessions of 25 rounds, repeated and one-shot, on seeds the main experiment does not use. Check parse-failure rate, tokens per call against the budget assumptions in 5.4, bids below cost, whether bids look degenerate for the chosen cost range, how far each model's one-shot bids sit from BNE, how often bids tie at the 0.01 grid, and the session-to-session spread of `delta_index`. Revise session count, model count or the output cap before going on.
 8. **Commit `configs/analysis.yaml`**, then the main experiment, then the supporting ablations under the same `--run-id`, then report.
+
+Section 7 splits the paid steps into two phases. Step 7 is Phase A and is the go/no-go check; step 8 is Phase B and needs explicit confirmation. With 5 short sessions, the pilot's estimate of session-to-session spread is rough; treat it as a sanity check on the session count, not a power calculation.
 
 ## 5. Open questions and risks
 
@@ -281,7 +286,7 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 - **`random` is not a tie-free baseline.** Matching bids under `random` also gives each tied firm an equal expected share with no cover-bid risk. `least_wins` removes the variance and makes the turn-taking predictable. The signal is therefore the tie rate under `least_wins` relative to `random`, not a tie rate above zero (6.2).
 - **BAFO may be gamed too.** If the same firms keep tying they could coordinate on the rebid, for example one rebidding high to let another win. BAFO is not assumed to solve collusion; `mean_rebid_delta` and the reasoning traces from rebid calls are the checks (6.2, 6.4).
 - **BAFO edge case.** Rebids follow the same constraints as normal bids, so a rebid winner can end above the original bid of a firm that was not in the tie. Proposal: follow the rule as specified (lowest rebid within the tied subset wins) and count how often this happens.
-- **`least_wins` needs a citation.** The rule is described as mirroring anti-favouritism rules in some public-sector vendor-panel procurement. No source has been checked yet; find one before the writeup or soften the claim.
+- **`least_wins` is a design choice, not a claim about real procurement.** Resolved: the rule is framed as a deliberately chosen experimental condition, a tie-break that is predictable and equalising, picked to test whether such a rule gives bidders a collusion vector. The experiment is not presented as stress-testing agents under a fully realistic procurement regime, and the writeup makes no claim that the rule mirrors existing regulation. The earlier wording ("mirrors a rule used in some public-sector vendor-panel procurement systems") is dropped: the literature search found no regulation that breaks tied price bids by fewest previous awards. Rules of that spirit do exist for sharing work across a supplier panel ("equitable distribution"), which can be mentioned as loose motivation, clearly labelled as an analogy. Sources are in `reports/LLM bidder collusion prior work.md`.
 - **Supporting ablations are thin by design.** One model and 9 sessions cannot support a claim about LLM bidders in general, and effects there may not reach significance. They are reported as context for the main claim, with intervals and without tests.
 - **"Cheapest model" is not DeepSeek on these prices.** Output tokens dominate the cost per call, and DeepSeek has the highest listed output price of the three priced models; GPT-oss is the cheapest. DeepSeek is kept for the supporting ablations as specified. Switching would save about 30 cents.
 
@@ -333,12 +338,12 @@ Assumptions: a repeated-round call averages about 1,000 input tokens (history gr
 
 | Config | Calls | Estimate | Cap in config |
 |---|---|---|---|
-| `pilot.yaml` | 7,200 | $0.56 | $1.00 |
+| `pilot.yaml` (Phase A) | 6,750 + BAFO rebids | $0.44 | $1.50 |
 | `main_tiebreak.yaml` | 64,800 + BAFO rebids | $5.07 | $6.50 |
 | `supporting_info.yaml` | 2,700 | $0.29 | $0.40 |
 | `supporting_n.yaml` | 6,300 | $0.62 | $0.80 |
 | `supporting_lineup.yaml` | 2,700 | $0.20 | $0.30 |
-| **Total** | **83,700** | **$6.74** | **$9.00** |
+| **Total** | **83,250** | **$6.62** | **$9.50** |
 
 The main experiment costs about $0.28 per session index (one seed across all 24 cells). BAFO rebids add at most one call per tied firm per tied round and are covered by the gap between estimate and cap.
 
@@ -357,7 +362,7 @@ Run at the baseline cell (full history, same-model lineup, N = 3) for each of th
 | `tie_break_rule` | How the tied subset resolves |
 |---|---|
 | `random` (default) | The winner is drawn uniformly at random from the tied firms. |
-| `least_wins` | The tied firm with the fewest contracts won so far this session wins. Firms level on wins are separated at random. Mirrors a rule used in some public-sector vendor-panel procurement systems, adopted as an anti-favouritism measure (source to be confirmed, 5.1). |
+| `least_wins` | The tied firm with the fewest contracts won so far this session wins. Firms level on wins are separated at random. A design choice for this experiment: a predictable, equalising rule, chosen as the contrast to `bafo`. It is not claimed to reproduce an existing procurement regulation (5.1). |
 | `bafo` | Best-and-final-offer rebid. The tie is not resolved by rule: a single private rebid round opens for the tied firms only. Each submits one new bid under the same format and constraints as a normal bid, and the lowest rebid wins. If the rebids tie as well, the winner is drawn at random from the firms still tied. One rebid round at most. |
 
 ### 6.2 Why these three belong in one experiment
@@ -407,3 +412,48 @@ One qualification on the baseline: matching bids under `random` also gives every
 - 24 cells × 18 sessions × 50 rounds × 3 firms = 64,800 calls, plus at most one rebid call per tied firm per tied round under `bafo`.
 - Estimated cost $5.07 of the $10 budget (5.4).
 - The `random` cells double as the baseline for the supporting ablations and as the per-model evidence that repeated play raises prices at all.
+
+## 7. Phased Execution Plan
+
+Phase A must be complete and reviewed before Phase B starts. Phase B does not begin without explicit confirmation.
+
+### 7.1 Phase A — pre-team proof of concept
+
+**Purpose.** Phase A produces `PILOT_FINDINGS.md`, a short pitch artifact to share with prospective teammates so they can decide whether to pursue this as the team's sprint project. It is not a result for the final paper, and none of its sessions are part of the analysed data.
+
+**Scope.**
+
+- All three tie-break conditions: `random`, `least_wins`, `bafo`. The comparison between them is the point.
+- Three models only, the three already named in `configs/models.yaml`: `deepseek` (DeepSeek V4.1 Flash), `gpt-oss` (GPT-oss-120b), `glm` (GLM-5.3 Flash). The fourth model is left for Phase B.
+- 5 sessions per condition, 25 rounds per session, same-model lineup, full history, N = 3.
+- A matched one-shot control for each cell, on the same seeds. This is what the positive control is measured against.
+- Seeds disjoint from Phase B.
+
+**Positive control, required first.** Before comparing conditions, confirm that baseline rotation-like behaviour exists under `random`: the collusion index above its one-shot control and the lowest-cost-wins share below it (2.6). If it does not show under `random`, the comparison between rules has nothing to act on, and that is what `PILOT_FINDINGS.md` reports.
+
+**Dropped for this phase.**
+
+- **Reasoning-trace coding.** Too judgment-heavy for a solo pre-team pitch. Deferred to Phase B with a team-agreed rubric (section 8).
+- **Bootstrap confidence intervals and the pre-declared tests.** Report raw numbers per model and rule instead — collusion index, its control, win shares, tie rate, tie price, rebid delta — each with the explicit caveat "n = 5, directional only".
+
+**Cost: under $2.** 3 models × 3 rules × 5 sessions × 25 rounds × 3 firms = 3,375 calls, the same again for the controls, plus BAFO rebids. On the token assumptions in 5.4 that is about $0.45. At four times the assumed output length it is still about $1.50. This is well inside the $10 ceiling and should not be re-estimated upward from the Phase B figures, which are for 18 sessions of 50 rounds across four models.
+
+**What it needs built.** Build-order steps 1–6, without the bootstrap, the permutation tests or the trace export.
+
+`configs/pilot.yaml` is the Phase A config: 18 cells, with a spending cap of $1.50.
+
+### 7.2 Phase B — full run, during the sprint
+
+Everything in the Scope section and section 6: the main experiment with the full model lineup, 18 sessions per condition, bootstrap CIs, the pre-declared tests and reasoning-trace coding against the team rubric, then the supporting ablations. Budget in 5.4. Phase A's token counts replace the assumptions there before any Phase B spend.
+
+## 8. Known Risks & Contingencies
+
+To be reviewed with the team once formed, before the sprint weekend.
+
+- **Null or weak result on the main tie-break claim.** Pre-agree that a well-powered null (a clean positive control and proper CIs showing no detectable effect) is reported honestly as a finding. It is not treated as a failed project requiring a pivot.
+- **BAFO may not be fully collusion-resistant.** Agents could in principle game the rebid round too, reasoning about letting a partner win on the rebid. Do not assume BAFO "wins". Report the rebid-price-delta data as it comes out, including if it shows gaming behaviour.
+- **Reasoning-trace coding needs a shared rubric before the full sprint.** Once a team is formed, write a short, concrete rubric, with two or three worked examples, for what counts as "explicit reasoning about the tie-break incentive" as opposed to "incidental convergence". Team members then code transcripts consistently instead of disagreeing late in the weekend.
+- **Time-crunch fallback, pre-agreed.** If Phase B is not complete by Saturday night, the fallback is to report BAFO vs. random as the core comparison and move least-wins-first to an appendix. This is decided now so it is not decided under deadline pressure.
+- **Literature review precision.** The core setting of Fish et al. (2024) is repeated oligopoly pricing, with auction results as a secondary extension; do not overstate the auction connection. The closer prior work to differentiate against is the 2026 construction-bidding LLM collusion paper. That comparison needs to be explicit in Related Work, not just Fish et al.
+  - Fish, Gonczarowski & Shorrer (2024), "Algorithmic Collusion by Large Language Models", arXiv:2404.00806.
+  - Heo, Ahn & Park (2026), "Tacit Collusion by LLM Agents in Construction Bidding: Evidence from a Simulated Bidding Environment", *Journal of Management in Engineering* 42(2), doi:10.1061/JMENEA.MEENG-7144. From its abstract: GPT-4o agents compete repeatedly in price-based bidding, adopt reward–punishment strategies and often converge to supracompetitive prices without explicit coordination, and prompt wording and market transparency affect the outcome. The full text has not been read yet; before drafting Related Work, check how its bidding format, information conditions and tie handling compare with this design, since the tie-break rule is where this project claims to differ.

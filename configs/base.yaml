@@ -30,7 +30,7 @@ prompt:
 
 budget:
   max_cost_usd: 1         # per config; the runner aborts when a config's spend exceeds its cap.
-                          # Each experiment config sets its own. Total across configs is 9.0
+                          # Each experiment config sets its own. Total across configs is 9.5
                           # of the 10.0 available (PLANNING.md section 5.4).
 
 output:

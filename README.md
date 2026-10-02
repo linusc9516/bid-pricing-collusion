@@ -2,9 +2,13 @@
 
 Can the rule an auction uses to break exact-match bids hand LLM bidders an easy way to collude, and can a different rule take it away? Firm-agents bid repeatedly in a first-price sealed-bid procurement auction (lowest bid wins) with private costs drawn fresh each round. They are told only to maximise cumulative profit; there is no communication channel, and the auctioneer is deterministic code. The main experiment compares three tie-break rules: random, least-wins-first, and a best-and-final-offer rebid. Prices are measured with a collusion index (0 at the competitive Bayes-Nash benchmark, 1 at the reserve price, negative below the benchmark), and every condition is compared with a one-shot control that shows no history, so that models which simply bid high are not mistaken for models that collude.
 
-Design: [`BidPricingCollusion.md`](BidPricingCollusion.md). Build plan, budget and open questions: [`PLANNING.md`](PLANNING.md).
+Design: [`BidPricingCollusion.md`](BidPricingCollusion.md). Build plan, budget and open questions: [`PLANNING.md`](PLANNING.md). [`CLAUDE.md`](CLAUDE.md) documents repo conventions and the non-negotiable design constraints for anyone, human or Claude Code, working on the codebase.
 
 > **Status: scaffolding only.** Modules under `src/bidrig/` are stubs; the commands below describe the intended interface.
+
+## Disclosure
+
+The design was done before the sprint weekend (Oct 23–25, 2026), and a pre-team feasibility pilot (Phase A in `PLANNING.md` section 7) is planned for before it. [`PREP_LOG.md`](PREP_LOG.md) is the dated record of what has actually been done; the pilot is logged there once it has run. The full ablation sweep and the analysis are conducted during the sprint.
 
 ## Setup
 
@@ -26,11 +30,12 @@ Without uv: `python -m venv .venv`, activate it, then `pip install -e ".[dev]"`.
 uv run python scripts/run_experiment.py configs/sanity_dummy.yaml
 uv run python scripts/run_experiment.py configs/sanity_tiebreak.yaml
 
-# 2. Pilot: 6 sessions per model at the baseline cell, on its own seeds
+# 2. Phase A pilot: three models under all three tie-break rules, on its own seeds
 uv run python scripts/run_experiment.py configs/pilot.yaml --dry-run   # call + cost estimate
 uv run python scripts/run_experiment.py configs/pilot.yaml
 
-# 3. Main experiment, then the supporting ablations, under one run id
+# 3. Phase B, only after Phase A is reviewed: main experiment, then the
+#    supporting ablations, under one run id
 uv run python scripts/run_experiment.py configs/main_tiebreak.yaml     --run-id run1
 uv run python scripts/run_experiment.py configs/supporting_info.yaml   --run-id run1
 uv run python scripts/run_experiment.py configs/supporting_n.yaml      --run-id run1
@@ -39,7 +44,7 @@ uv run python scripts/run_experiment.py configs/supporting_lineup.yaml --run-id 
 
 Run the sanity checks first and confirm the scripted bidders read as expected before spending on LLM calls: BNE bidders near 0, markup bidders negative, the overbidding bidder high but not flagged as collusive, the rotating cartel flagged, and bid-matching bidders rotating exactly under least-wins-first. Commit `configs/analysis.yaml` before the main experiment; it pre-declares the comparisons. Runs are resumable: completed sessions are skipped.
 
-The budget is $10 of OpenRouter credits. Each config carries its own spending cap ($9.00 in total against an estimate of $6.74), and the estimate depends on how many tokens the models write per call, which the pilot measures. See `PLANNING.md` section 5.4.
+The budget is $10 of OpenRouter credits. Each config carries its own spending cap ($9.50 in total against an estimate of $6.62), and the estimate depends on how many tokens the models write per call, which the pilot measures. See `PLANNING.md` section 5.4.
 
 ## Experiments
 

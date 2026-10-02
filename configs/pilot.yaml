@@ -1,17 +1,22 @@
-# Pilot: baseline cell (random tie-break), each model in self-play, repeated and one-shot.
-# Purpose: parse-failure rate, tokens per call (the budget depends on output length),
-# bid sanity, cost-range check, how often bids tie at the 0.01 grid, and the
-# session-to-session spread used to judge whether 18 sessions is enough.
+# Phase A pilot: pre-team proof of concept (PLANNING.md section 7.1).
+# Three models x three tie-break rules, 5 sessions of 25 rounds, each with a matched
+# one-shot control (history_window 0). 18 cells, 6,750 calls plus BAFO rebids.
+# Output is PILOT_FINDINGS.md: raw numbers, "n = 5, directional only". Not a paper result.
+# Also measures what the Phase B budget depends on: tokens per call, parse-failure rate,
+# and how often bids tie at the 0.01 grid.
 # Uses its own seeds, so pilot sessions are never part of the analysed data.
 
 inherits: base.yaml
 
+auction:
+  n_rounds: 25
+
 session:
-  n_sessions: 6
+  n_sessions: 5
   base_seed: 990000       # disjoint from the main experiment's seeds
 
 budget:
-  max_cost_usd: 1.0       # estimate 0.56
+  max_cost_usd: 1.5       # estimate 0.44; about 1.46 at four times the assumed output length
 
 cells:
   - id: pilot-deepseek
@@ -20,8 +25,7 @@ cells:
     lineup: {type: homogeneous, model: gpt-oss}
   - id: pilot-glm
     lineup: {type: homogeneous, model: glm}
-  - id: pilot-qwen
-    lineup: {type: homogeneous, model: qwen}
 
 sweep:
+  tie_break_rule: [random, least_wins, bafo]
   history_window: [null, 0]
