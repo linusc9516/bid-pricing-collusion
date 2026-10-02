@@ -43,11 +43,16 @@ Run the sanity check first and confirm the scripted bidders read as expected bef
 
 All vary one factor from the baseline cell (full history, same-model lineup, N = 3).
 
-| Ablation | Levels | What it tests |
-|---|---|---|
-| Information revelation | all bids + winner / winner + price / winner only | The minimum signal needed for rotation to emerge; hiding losing bids is a cheap policy lever |
-| Model lineup | same-model self-play / mixed models | Whether rotation is a same-model artifact or survives heterogeneity |
-| Number of bidders | 2 / 3 / 5 | Whether coordination decays as N grows, as IO theory predicts |
+| Ablation                    | Levels                                                    | What it tests                                                                                |
+| --------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Information revelation      | all bids + winner / winner + price / winner only          | The minimum signal needed for rotation to emerge; hiding losing bids is a cheap policy lever |
+| Model lineup                | same-model self-play / mixed models                       | Whether rotation is a same-model artifact or survives heterogeneity                          |
+| Number of bidders           | 2 / 3 / 5                                                 | Whether coordination decays as N grows, as IO theory predicts                                |
+| Tie-break rule (ablation 4) | random (existing default) / least-wins-first / BAFO rebid | Whether the rule for resolving exact-match bids creates a collusion vector or resists one    |
+
+**Ablation 4, tie-break rule.** Exact ties at the lowest bid are broken at random by default. Least-wins-first gives the contract to the tied firm with the fewest wins so far, which lets firms rotate by simply matching bids, with none of the execution risk of cover-bidding. BAFO instead reopens one private rebid among the tied firms, so tying high earns no guaranteed win. The two are a deliberate contrast: the finding is not "tie-breaks are bad" but "some tie-break designs are exploitable and some are not". BAFO is not assumed collusion-proof; firms could learn to coordinate on the rebid.
+
+These two conditions need different metrics from the win-pattern statistics. Under least-wins-first the rule forces uniform wins whenever firms tie, so win uniformity is not diagnostic; use tie frequency over the session, the tie price against the competitive benchmark, and the reasoning traces. Under BAFO the win-pattern statistics remain valid, with one addition: the rebid price against the original tied bid. Details in [`PLANNING.md`](PLANNING.md) section 6. The config and the pre-declared comparisons for this ablation are not set up yet.
 
 **One-shot control (required).** Each lineup × N is also run with no history shown, on the same seeds and cost draws. It is the only thing separating "bids high in isolation" from "bids high because of repeated play".
 
