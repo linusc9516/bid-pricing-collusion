@@ -4,7 +4,7 @@ Can the rule an auction uses to break exact-match bids hand LLM bidders an easy 
 
 Design: [`BidPricingCollusion.md`](BidPricingCollusion.md). Build plan, budget and open questions: [`PLANNING.md`](PLANNING.md). [`CLAUDE.md`](CLAUDE.md) documents repo conventions and the non-negotiable design constraints for anyone, human or Claude Code, working on the codebase.
 
-> **Status: scaffolding only.** Modules under `src/bidrig/` are stubs; the commands below describe the intended interface.
+> **Status: core built, no API calls yet.** The schema, BNE benchmark, auctioneer, scripted bidders and per-session metrics are implemented and tested. The prompt builder, LLM wrapper, runner and the two scripts are still stubs, so the run commands below describe the intended interface.
 
 ## Disclosure
 

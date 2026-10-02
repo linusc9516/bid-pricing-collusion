@@ -2,7 +2,7 @@
 
 Source of truth for the auction environment is `BidPricingCollusion.md`. This file is the build plan: structure, components, data schema, build order, and the decisions that are still open. Where the two differ on what the paper claims, the Scope section below is current.
 
-**Status:** scaffolding only. No experiment logic is implemented yet.
+**Status:** build steps 1, 2 and 3a are done (schema, BNE benchmark, auctioneer, scripted bidders, per-session metrics). Steps 3b to 6 are not started, and no API call has been made.
 
 ## Scope: what the paper claims
 

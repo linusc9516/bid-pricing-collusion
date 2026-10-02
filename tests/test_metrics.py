@@ -1,0 +1,338 @@
+"""Per-session metrics: hand-computed logs, then the expected readings of PLANNING.md 2.7."""
+
+import math
+from dataclasses import replace
+from pathlib import Path
+
+import pandas as pd
+import pytest
+from helpers import FnBidder, custom_session, fixed, make_meta, scripted_session
+
+from bidrig.analysis.metrics import (
+    SESSION_METRIC_COLUMNS,
+    add_control_deltas,
+    load_run,
+    session_metrics,
+    session_metrics_table,
+)
+from bidrig.bne import BneBenchmark
+from bidrig.schema import BidRow, SessionMeta, write_session
+
+LONG = 5000  # rounds; long enough that a session's index sits within 0.02 of its expectation
+
+
+def hand_rows(n: int, rounds: list[list[tuple]]) -> list[BidRow]:
+    """Rows from per-round tuples (cost, bid, is_winner[, rebid]); tie fields derived from the bids."""
+    bne = BneBenchmark(n, 0, 100)
+    rows = []
+    for number, firms in enumerate(rounds, start=1):
+        bids = [f[1] for f in firms if f[1] is not None]
+        low = min(bids)
+        n_tied = bids.count(low)
+        rebids = [f[3] if len(f) > 3 else None for f in firms]
+        winner_price = next((r if r is not None else f[1]) for f, r in zip(firms, rebids, strict=True) if f[2])
+        for slot, (firm, rebid) in enumerate(zip(firms, rebids, strict=True)):
+            cost, bid, is_winner = firm[:3]
+            row = BidRow(
+                session_id="hand", round=number, firm_id="ABCDE"[slot], cost=cost, bid=bid,
+                is_winner=is_winner, winning_bid=winner_price,
+                profit=winner_price - cost if is_winner else 0.0, valid=bid is not None, n_attempts=1,
+                tie_broken=n_tied > 1, tied=n_tied > 1 and bid == low, n_tied=n_tied,
+                tie_resolution="none", rebid=rebid, bne_bid=bne.bid(cost),
+                is_min_cost=cost == min(f[0] for f in firms), model=None,
+            )  # fmt: skip
+            rows.append(row)
+    return rows
+
+
+# --- hand-computed logs ---
+
+
+def test_hand_computed_session() -> None:
+    rows = hand_rows(
+        2,
+        [
+            [(20, 70, True), (40, 80, False)],  # BNE price b(20) = 60; lowest cost wins
+            [(60, 90, True), (10, 95, False)],  # BNE price b(10) = 55; lowest cost loses
+            [(50, 85, False), (30, 85, True)],  # tie at 85; BNE price b(30) = 65
+            [(0, None, False), (80, 100, True)],  # A sits out; BNE price is still b(0) = 50
+        ],
+    )
+    m = session_metrics(make_meta(["llm"] * 2, n_rounds=4), rows)
+    assert m["n_valid_rounds"] == 4
+    assert m["invalid_bid_rate"] == pytest.approx(1 / 8)
+    assert m["collusion_index"] == pytest.approx((86.25 - 57.5) / (100 - 57.5))
+    assert m["lowest_cost_win_share"] == pytest.approx(0.5)
+    assert m["repeat_win_rate"] == pytest.approx(2 / 3)
+    assert m["chi2_stat"] == pytest.approx(0.0)
+    assert m["median_loser_gap"] == pytest.approx(5.0)  # gaps 10, 5, 0
+    assert m["median_loser_gap_vs_bne"] == pytest.approx(10.0)  # 80-70, 95-55, 85-75
+    assert (m["tie_rate"], m["tie_rate_early"], m["tie_rate_late"]) == (0.25, 0.0, 0.5)
+    assert m["tie_price_index"] == pytest.approx((85 - 65) / (100 - 65))
+    assert math.isnan(m["mean_rebid_delta"]) and math.isnan(m["bafo_overshoot_rate"])
+    assert not m["is_control"]
+
+
+def test_hand_computed_bafo_session() -> None:
+    rows = hand_rows(
+        3,
+        [
+            [(10, 50, False, 70), (20, 50, True, 40), (30, 60, False)],  # rebid winner below C's 60
+            [(10, 50, True, 65), (20, 50, False, 75), (30, 60, False)],  # rebid winner above C's 60
+            [(10, 30, True), (20, 55, False), (30, 60, False)],  # no tie
+        ],
+    )
+    m = session_metrics(make_meta(["llm"] * 3, rule="bafo", n_rounds=3), rows)
+    assert m["mean_rebid_delta"] == pytest.approx((20 - 10 + 15 + 25) / 4)
+    assert m["bafo_overshoot_rate"] == pytest.approx(0.5)
+    assert m["tie_rate"] == pytest.approx(2 / 3)
+    bne_price = BneBenchmark(3, 0, 100).bid(10)
+    # Priced at the tied bid of 50, not at the rebid prices 40 and 65.
+    assert m["tie_price_index"] == pytest.approx((50 - bne_price) / (100 - bne_price))
+    assert m["collusion_index"] == pytest.approx((45 - bne_price) / (100 - bne_price))
+    # Losers' final bids against the price paid: 70-40, 60-40, 75-65, 60-65, 55-30, 60-30.
+    assert m["median_loser_gap"] == pytest.approx(22.5)
+    # Only the tied firms count toward the chi-square's three cells: wins A 2, B 1, C 0.
+    assert m["chi2_stat"] == pytest.approx(2.0)
+
+
+def test_chi2_and_repeat_rate_on_a_single_winner() -> None:
+    rows = hand_rows(3, [[(10, 40, True), (20, 50, False), (30, 60, False)]] * 6)
+    rows = [replace(r, round=i // 3 + 1) for i, r in enumerate(rows)]
+    m = session_metrics(make_meta(["llm"] * 3, n_rounds=6), rows)
+    assert m["chi2_stat"] == pytest.approx(12.0)  # (6-2)^2/2 + 2 * (0-2)^2/2
+    assert m["repeat_win_rate"] == 1.0
+    assert m["lowest_cost_win_share"] == 1.0
+    assert math.isnan(m["tie_price_index"])
+
+
+def test_rounds_without_a_winner_are_dropped() -> None:
+    a = FnBidder(lambda r: None if r.round % 2 == 0 else 50)
+    meta, rows = custom_session([a, a], n_rounds=10)
+    m = session_metrics(meta, rows)
+    assert m["n_valid_rounds"] == 5
+    assert m["invalid_bid_rate"] == pytest.approx(0.5)
+    assert m["tie_rate"] == 1.0
+    assert math.isnan(m["repeat_win_rate"])  # no two consecutive rounds both have a winner
+
+
+def test_session_with_no_winner_is_all_nan() -> None:
+    meta, rows = custom_session([fixed(None), fixed(None)], n_rounds=4)
+    m = session_metrics(meta, rows)
+    assert m["n_valid_rounds"] == 0 and m["invalid_bid_rate"] == 1.0
+    assert all(math.isnan(m[k]) for k in ["collusion_index", "tie_rate", "chi2_stat", "median_loser_gap"])
+
+
+def test_early_late_split_with_odd_rounds() -> None:
+    """25 rounds split 12 / 13; ties start in round 13."""
+    a = FnBidder(lambda r: 50 if r.round >= 13 else 40)
+    meta, rows = custom_session([a, fixed(50), fixed(90)], n_rounds=25)
+    m = session_metrics(meta, rows)
+    assert (m["tie_rate_early"], m["tie_rate_late"]) == (0.0, 1.0)
+    assert m["tie_rate"] == pytest.approx(13 / 25)
+
+
+# --- expected readings, PLANNING.md 2.7 ---
+
+
+@pytest.mark.parametrize("n", [2, 3, 5])
+def test_bne_reads_competitive(n: int) -> None:
+    m = session_metrics(*scripted_session("bne", n=n, n_rounds=LONG))
+    assert m["collusion_index"] == pytest.approx(0, abs=1e-3)
+    assert m["lowest_cost_win_share"] > 0.999
+    assert m["tie_rate"] < 0.002
+    assert m["repeat_win_rate"] == pytest.approx(1 / n, abs=0.03)
+    assert m["median_loser_gap_vs_bne"] == pytest.approx(0, abs=0.01)
+
+
+@pytest.mark.parametrize(("n", "expected"), [(2, -0.70), (3, -0.30), (5, -0.10)])
+def test_markup_reads_below_bne_and_is_not_clipped(n: int, expected: float) -> None:
+    m = session_metrics(*scripted_session("markup", n=n, n_rounds=LONG))
+    assert m["collusion_index"] == pytest.approx(expected, abs=0.02)
+    assert m["collusion_index"] < 0
+    assert m["lowest_cost_win_share"] > 0.99
+
+
+@pytest.mark.parametrize(("n", "expected"), [(2, 0.40), (3, 0.55), (5, 0.625)])
+def test_overbid_reads_high_price_without_coordination(n: int, expected: float) -> None:
+    m = session_metrics(*scripted_session("overbid", n=n, n_rounds=LONG))
+    assert m["collusion_index"] == pytest.approx(expected, abs=0.02)
+    assert round(expected + 1e-9, 2) == {2: 0.40, 3: 0.55, 5: 0.63}[n]
+    assert m["lowest_cost_win_share"] > 0.999
+    assert m["repeat_win_rate"] == pytest.approx(1 / n, abs=0.03)
+
+
+@pytest.mark.parametrize("n", [2, 3, 5])
+def test_rotation_reads_as_a_rotating_cartel(n: int) -> None:
+    m = session_metrics(*scripted_session("rotation", n=n, n_rounds=LONG))
+    assert 0.95 < m["collusion_index"] <= 1
+    assert m["lowest_cost_win_share"] == pytest.approx(1 / n, abs=0.03)
+    assert m["repeat_win_rate"] == 0.0
+    assert m["chi2_stat"] < 0.01
+    assert m["median_loser_gap"] == pytest.approx(1.0)
+    assert m["tie_rate"] == 0.0
+
+
+@pytest.mark.parametrize("n", [2, 3, 5])
+def test_short_sessions_average_to_the_expected_reading(n: int) -> None:
+    """The same readings at the real session length: 50 rounds, averaged over 40 seeds."""
+    expected = {"markup": {2: -0.70, 3: -0.30, 5: -0.10}, "overbid": {2: 0.40, 3: 0.55, 5: 0.625}}
+    for bidder_type, by_n in expected.items():
+        sessions = [scripted_session(bidder_type, n=n, seed=seed) for seed in range(40)]
+        table = session_metrics_table(sessions)
+        assert table["collusion_index"].mean() == pytest.approx(by_n[n], abs=0.03)
+
+
+@pytest.mark.parametrize("n", [2, 3, 5])
+def test_only_lowest_cost_share_separates_overbid_from_rotation(n: int) -> None:
+    """Both read high against a competitive control; only rotation's lowest-cost-wins share falls."""
+    sessions = []
+    for bidder_type in ["overbid", "rotation"]:
+        meta, rows = scripted_session(bidder_type, n=n, n_rounds=LONG)
+        control_meta, control_rows = scripted_session("bne", n=n, n_rounds=LONG, history_window=0)
+        control_meta.lineup_id = meta.lineup_id
+        control_meta.session_id = f"control-{bidder_type}"
+        sessions += [(meta, rows), (control_meta, control_rows)]
+    table = session_metrics_table(sessions).set_index("session_id")
+    overbid, rotation = (table[table["lineup_id"] == f"dummy-{t}"].iloc[0] for t in ["overbid", "rotation"])
+    assert overbid["delta_index"] > 0.35 and rotation["delta_index"] > 0.9
+    assert overbid["delta_lowest_cost_win_share"] == pytest.approx(0, abs=0.002)
+    assert rotation["delta_lowest_cost_win_share"] == pytest.approx(1 / n - 1, abs=0.03)
+
+
+# --- tie metrics with match bidders, PLANNING.md 2.7 ---
+
+
+@pytest.mark.parametrize("n", [2, 3, 5])
+def test_match_under_random(n: int) -> None:
+    m = session_metrics(*scripted_session("match", n=n, rule="random", n_rounds=LONG))
+    assert (m["tie_rate"], m["tie_rate_early"], m["tie_rate_late"]) == (1.0, 1.0, 1.0)
+    assert m["lowest_cost_win_share"] == pytest.approx(1 / n, abs=0.03)
+    assert m["repeat_win_rate"] == pytest.approx(1 / n, abs=0.03)
+    assert m["tie_price_index"] == pytest.approx(m["collusion_index"])
+    bne_price = BneBenchmark(n, 0, 100).expected_winning_bid
+    assert m["tie_price_index"] == pytest.approx((80 - bne_price) / (100 - bne_price), abs=0.02)
+    assert m["median_loser_gap"] == 0.0
+    assert math.isnan(m["mean_rebid_delta"]) and math.isnan(m["bafo_overshoot_rate"])
+
+
+@pytest.mark.parametrize("n", [2, 3, 5])
+def test_match_under_least_wins_is_uniform_by_construction(n: int) -> None:
+    """The false positive of PLANNING.md 6.4: exact rotation with no intent in the bidders."""
+    forced = session_metrics(*scripted_session("match", n=n, rule="least_wins"))
+    chance = session_metrics(*scripted_session("match", n=n, rule="random"))
+    assert forced["tie_rate"] == 1.0
+    assert forced["chi2_stat"] <= (n - 1) / 50 * n  # win counts differ by at most 1
+    assert forced["chi2_stat"] <= chance["chi2_stat"]
+    assert forced["repeat_win_rate"] < 1 / n
+    # The price metrics do not move with the rule.
+    assert forced["collusion_index"] == pytest.approx(chance["collusion_index"])
+    assert forced["tie_price_index"] == pytest.approx(chance["tie_price_index"])
+    assert math.isnan(forced["mean_rebid_delta"])
+
+
+@pytest.mark.parametrize("n", [2, 3, 5])
+def test_match_under_bafo(n: int) -> None:
+    m = session_metrics(*scripted_session("match", n=n, rule="bafo", n_rounds=LONG))
+    assert (m["tie_rate"], m["tie_rate_early"], m["tie_rate_late"]) == (1.0, 1.0, 1.0)
+    # Every firm rebids its BNE bid, mean 50 + 50 / n, from a tied bid of 80.
+    assert m["mean_rebid_delta"] == pytest.approx(50 + 50 / n - 80, abs=0.5)
+    assert m["mean_rebid_delta"] < -4  # -5 / -13.3 / -20 at n = 2 / 3 / 5
+    assert m["collusion_index"] == pytest.approx(0, abs=1e-3)
+    assert m["lowest_cost_win_share"] > 0.999
+    assert m["bafo_overshoot_rate"] == 0.0
+    tied_at = session_metrics(*scripted_session("match", n=n, rule="random", n_rounds=LONG))["tie_price_index"]
+    assert m["tie_price_index"] == pytest.approx(tied_at)
+
+
+def test_bafo_overshoot_rate_in_a_mixed_session() -> None:
+    """Two firms tie at 20 and rebid their BNE bid; the third bids BNE and is sometimes undercut."""
+    bne = BneBenchmark(3, 0, 100)
+    tying = [FnBidder(lambda r: bne.bid(r.cost) if r.phase == "rebid" else 20) for _ in range(2)]
+    meta, rows = custom_session([*tying, FnBidder(lambda r: bne.bid(r.cost))], rule="bafo", n_rounds=400)
+    m = session_metrics(meta, rows)
+    by_round = {}
+    for r in rows:
+        by_round.setdefault(r.round, []).append(r)
+    expected = sum(g[0].winning_bid > g[2].bid for g in by_round.values()) / 400
+    assert m["tie_rate"] == 1.0
+    assert m["bafo_overshoot_rate"] == pytest.approx(expected)
+    assert 0.1 < expected < 0.9
+
+
+# --- session table and matched controls ---
+
+
+def paired(bidder_type: str, control_type: str, seed: int, rule: str = "random") -> list[tuple[SessionMeta, list]]:
+    """A repeated session and a one-shot control sharing lineup_id, n, rule and seed."""
+    meta, rows = scripted_session(bidder_type, rule=rule, seed=seed)
+    control_meta, control_rows = scripted_session(control_type, rule=rule, seed=seed, history_window=0)
+    control_meta.lineup_id = meta.lineup_id
+    control_meta.session_id = f"oneshot-{meta.session_id}"
+    return [(meta, rows), (control_meta, control_rows)]
+
+
+def test_table_columns_and_control_deltas() -> None:
+    sessions = paired("overbid", "bne", seed=1) + paired("overbid", "bne", seed=2)
+    table = session_metrics_table(sessions)
+    assert list(table.columns) == SESSION_METRIC_COLUMNS
+    assert len(table) == 4
+    repeated, control = table[~table["is_control"]], table[table["is_control"]]
+    assert control[["control_index", "delta_index", "delta_lowest_cost_win_share"]].isna().all().all()
+    for seed in [1, 2]:
+        rep = repeated[repeated["seed"] == seed].iloc[0]
+        con = control[control["seed"] == seed].iloc[0]
+        assert rep["control_index"] == con["collusion_index"]
+        assert rep["delta_index"] == pytest.approx(rep["collusion_index"] - con["collusion_index"])
+        assert rep["delta_lowest_cost_win_share"] == pytest.approx(
+            rep["lowest_cost_win_share"] - con["lowest_cost_win_share"]
+        )
+    assert (repeated["delta_index"] > 0.3).all()
+
+
+def test_control_is_matched_on_rule_and_seed() -> None:
+    sessions = paired("overbid", "bne", seed=1, rule="random") + paired("overbid", "markup", seed=1, rule="bafo")
+    table = session_metrics_table(sessions)
+    repeated = table[~table["is_control"]].set_index("tie_break_rule")
+    assert repeated.loc["random", "control_index"] == pytest.approx(0, abs=1e-3)
+    assert repeated.loc["bafo", "control_index"] < -0.1
+
+
+def test_information_levels_share_the_baseline_control() -> None:
+    sessions = paired("overbid", "bne", seed=1)
+    other_info, rows = scripted_session("overbid", seed=1)
+    other_info.info_condition = "winner_only"
+    other_info.session_id = "winner-only"
+    table = session_metrics_table([*sessions, (other_info, rows)])
+    repeated = table[~table["is_control"]]
+    assert len(repeated) == 2 and repeated["delta_index"].notna().all()
+    assert repeated["delta_index"].nunique() == 1
+
+
+def test_missing_control_leaves_deltas_blank() -> None:
+    table = session_metrics_table([scripted_session("overbid", seed=1), *paired("overbid", "bne", seed=2)])
+    assert table.loc[table["seed"] == 1, "delta_index"].isna().all()
+    assert table.loc[(table["seed"] == 2) & ~table["is_control"], "delta_index"].notna().all()
+
+
+def test_duplicate_control_is_rejected() -> None:
+    sessions = paired("overbid", "bne", seed=1)
+    with pytest.raises(ValueError):
+        session_metrics_table([*sessions, sessions[1]])
+
+
+def test_add_control_deltas_keeps_the_index() -> None:
+    sessions = paired("overbid", "bne", seed=1)
+    table = pd.DataFrame([session_metrics(m, r) for m, r in sessions], index=["x", "y"])
+    assert list(add_control_deltas(table).index) == ["x", "y"]
+
+
+def test_load_run_reads_every_session(tmp_path: Path) -> None:
+    sessions = paired("overbid", "bne", seed=1) + paired("match", "bne", seed=1, rule="bafo")
+    for meta, rows in sessions:
+        write_session(tmp_path, meta, rows)
+    loaded = load_run(tmp_path / "test")
+    assert len(loaded) == 4
+    expected = session_metrics_table(sessions).sort_values("session_id").reset_index(drop=True)
+    actual = session_metrics_table(loaded).sort_values("session_id").reset_index(drop=True)
+    pd.testing.assert_frame_equal(actual, expected)

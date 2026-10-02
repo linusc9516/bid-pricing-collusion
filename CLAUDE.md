@@ -21,7 +21,7 @@ Dependencies are managed with uv (`uv sync` once; then prefix commands with `uv 
 - `uv run python scripts/analyze.py logs/<run_id>` — logs to result tables
 - Lint: `uv run ruff check src/` (fix with `uv run ruff check --fix src/` before committing)
 
-The two scripts are stubs until the runner and analysis are implemented.
+The two scripts are stubs until the runner is implemented (build step 6).
 
 ## Code style
 - Comments: one-line docstrings stating units, ranges, and return semantics —
@@ -100,7 +100,8 @@ configs/
   supporting_n.yaml      supporting ablation: number of bidders
   supporting_lineup.yaml supporting ablation: same-model vs. mixed lineup
 prompts/                 bidder system prompt template (not written yet)
-src/bidrig/              all modules are stubs so far
+src/bidrig/              schema, bne, auction, scripted bidders and analysis/metrics are built;
+                         prompts, llm, runner, analysis/stats and analysis/report are stubs
   schema.py              session / bid-row / call-row dataclasses
   bne.py                 closed-form BNE benchmark
   auction.py             rule-based auctioneer
@@ -112,7 +113,7 @@ src/bidrig/              all modules are stubs so far
 scripts/
   run_experiment.py      CLI: run a config
   analyze.py             CLI: logs -> results
-tests/                   test_scaffold.py (import smoke test)
+tests/                   one test file per built module; helpers.py builds scripted sessions
 logs/                    raw per-session output (gitignored)
 results/                 aggregated tables and figures
 ```
