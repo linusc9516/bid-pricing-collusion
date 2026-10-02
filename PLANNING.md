@@ -192,6 +192,7 @@ One directory per session: `logs/<run_id>/<condition_id>/<session_id>/`
 | `history_window` | int \| null | null = whole session; 0 = no history (one-shot control) |
 | `temperature` | float | |
 | `prompt_version` | str | |
+| `providers` | map of model alias to pinned host and quantisation | fixed for the whole session (5.5) |
 | `git_sha` | str | |
 | `started_at`, `finished_at` | ISO 8601 | |
 | `status` | `running` \| `complete` \| `failed` | |
@@ -278,7 +279,7 @@ Estimates made on 3 October 2026 from the module list in section 1, before any c
 | 3a | `analysis/metrics.py`: per-session index, delta, lowest-cost-wins share, repeat-win rate, chi-square, clustering, tie metrics, with tests against the 2.7 tables | ~550 | 250–450k | yes | none |
 | 3b | `analysis/stats.py` (bootstrap, permutation test, Holm) and `analysis/report.py` (tables, plots), with tests | ~600 | 250–450k | no, Phase B | none |
 | 4 | `prompts.py`, `prompts/bidder_system.md`, snapshot and leak tests | ~500 | 250–450k | yes | none |
-| 5 | `llm.py`, mocked-client tests, one live call per model | ~450 | 250–450k | yes | a few cents |
+| 5 | `llm.py`, mocked-client tests, the smoke test in 5.5 (one call per pinned host) | ~450 | 250–450k | yes | a few cents |
 | 6 | `runner.py`, `scripts/run_experiment.py`, `scripts/analyze.py`, dry-run, resume and spend-cap tests | ~800 | 400–700k | yes (analyze script reduced to raw numbers) | none |
 | **Total** | | **~4,300** | **~1.9–3.4M** | | |
 
@@ -289,9 +290,9 @@ Steps 2 and 3 are the expensive ones because they must reproduce known answers f
 - **Fresh session for the build.** This planning conversation is long, and every turn re-reads it. `CLAUDE.md` and this file hold the context a new session needs.
 - **Order:** steps 1, 2 and 3a first (no API, and they anchor everything else), then 4, 5, 6, then the pilot (step 7). Step 3b waits until after Phase A, so plotting is not built before there is real data to plot.
 - **Gate between steps:** `uv run pytest` and `uv run ruff check src/` pass, and the acceptance check in section 4 for that step holds, before the next step starts. Commit after each step.
-- **Before step 5:** the slugs and tool-calling support for all four models were verified on 3 October 2026 (5.3). Phase A uses two of them; the other two are only needed for Phase B. Decide provider pinning (5.3) before the first live call.
+- **Before step 5:** the slugs and tool-calling support for all four models were verified on 3 October 2026 (5.3). Phase A uses two of them; the other two are only needed for Phase B. Provider pinning for Phase A is decided (5.5); run the pre-pilot smoke test there before the first live call.
 - **Before step 7:** confirm the bid increment check is in the pilot report (5.1) and that `configs/pilot.yaml` still matches 7.1.
-- **Cost outside the build:** Phase A itself is estimated at about $0.50 of OpenRouter credit, well inside its $10 budget (5.4).
+- **Cost outside the build:** Phase A itself is estimated at about $1.49 at 1,000 output tokens per call, inside a $2 tripwire and the $10 Phase A budget (5.4, 5.5).
 
 
 ## 5. Open questions and risks
@@ -353,7 +354,7 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 
 - **Model slugs.** All four slugs in `configs/models.yaml` were verified against the live OpenRouter list on 3 October 2026, and each supports tool calling: `deepseek/deepseek-v4.1-flash`, `openai/gpt-oss-120b`, `z-ai/glm-5.3-flash`, `qwen/qwen3.7-flash`. The listed prices differ from the design document's: DeepSeek's output is $0.60 against $0.29 assumed, and GLM's is $0.90 against $0.14. `configs/models.yaml` now carries the listed prices.
 - **Reasoning models bill hidden thinking as output.** The Qwen3.7 Flash listing advertises reasoning support, and the other models may too. The request must limit reasoning effort, or the 400-token output cap and the budget estimates will not hold; check tokens per call in the pilot.
-- **Provider routing.** The endpoint lists show 31 providers for DeepSeek V4.1 Flash, 23 for GPT-oss-120b and 34 for GLM-5.3 Flash, with output prices spanning several-fold and quantisations from fp4 to fp32; Qwen3.7 Flash has one (Alibaba). Some GPT-oss endpoints do not support tool calling. Require tool-capable providers, log the provider and its quantisation per call, and decide before the pilot whether to pin one provider per model: pinning fixes cost and makes runs reproducible, at the price of choosing a host. The headline listed price is the cheapest endpoint, not a guaranteed rate.
+- **Provider routing.** The endpoint lists show 31 providers for DeepSeek V4.1 Flash, 23 for GPT-oss-120b and 34 for GLM-5.3 Flash, with output prices spanning several-fold and quantisations from fp4 to fp32; Qwen3.7 Flash has one (Alibaba). Some GPT-oss endpoints do not support tool calling. Require tool-capable providers, log the provider and its quantisation per call, and decide before the pilot whether to pin one provider per model: pinning fixes cost and makes runs reproducible, at the price of choosing a host. The headline listed price is the cheapest endpoint, not a guaranteed rate. Decided for the two Phase A models in 5.5; Phase B hosts are not chosen yet.
 - **Raw data is not in git.** `logs/` is gitignored; back it up elsewhere before the writeup.
 - **Control prompt still says "repeated".** The one-shot control keeps the prompt identical, so it isolates the effect of observed history, not of being told the auction repeats. A model that bids high purely on the repeated framing will look the same in both arms and be read as overbidding.
 - **Scenario role-play.** A model may bid collusively because it recognises a "cartel" scenario. The reasoning-trace hand-coding is the only check on this; keep the prompt free of any cartel-adjacent vocabulary.
@@ -362,11 +363,11 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 
 **Phase A budget: $10 of OpenRouter credits.** **Phase B budget: not set yet**, expected to be much higher if needed, and decided after Phase A measures tokens per call. Every figure below is an estimate from assumed token counts, not a measurement; the pilot replaces them.
 
-Assumptions: a repeated-round call averages about 1,000 input tokens (history grows through the session; about 610 over Phase A's 25 rounds) and 250 output tokens; a one-shot control call about 250 in and 250 out. Prices are the OpenRouter listing prices of 3 October 2026 in `configs/models.yaml` (DeepSeek $0.02 in and $0.60 out, GPT-oss $0.037 and $0.17, GLM $0.026 and $0.90, Qwen3.7 Flash $0.03 and $0.13 per million tokens). Actual prices depend on provider routing (5.3).
+Assumptions: a repeated-round call averages about 1,000 input tokens (history grows through the session; about 610 over Phase A's 25 rounds) and 250 output tokens in the Phase B estimates (Phase A is costed at 1,000 output tokens, see 5.5); a one-shot control call about 250 in and 250 out. Prices are the OpenRouter listing prices of 3 October 2026 in `configs/models.yaml` (DeepSeek $0.02 in and $0.60 out, GPT-oss $0.037 and $0.17, GLM $0.026 and $0.90, Qwen3.7 Flash $0.03 and $0.13 per million tokens). Actual prices depend on provider routing (5.3).
 
 | Config | Phase | Calls | Estimate | Cap in config |
 |---|---|---|---|---|
-| `pilot.yaml` | A | 4,500 + BAFO rebids | $0.49 | $10 (the Phase A budget) |
+| `pilot.yaml` | A | 4,500 + BAFO rebids | $1.49 (at 1,000 output tokens per call) | $2 tripwire, inside the $10 Phase A budget |
 | `main_tiebreak.yaml` | B | 64,800 + BAFO rebids | $8.44 | placeholder $6.50, to be set |
 | `supporting_info.yaml` | B | 2,700 | $0.46 | placeholder $0.40, to be set |
 | `supporting_n.yaml` | B | 6,300 | $1.04 | placeholder $0.80, to be set |
@@ -375,9 +376,45 @@ Assumptions: a repeated-round call averages about 1,000 input tokens (history gr
 
 The Phase B caps in the configs were set when the whole project had $10 and the models had placeholder prices. At live prices they sit below the estimates and would stop the runs early, so they are placeholders until the Phase B budget is set. The main experiment costs about $0.47 per session index (one seed across all 24 cells). BAFO rebids add at most one call per tied firm per tied round and are not in the estimates.
 
-- **Phase A is not budget-constrained.** Two models, 4,500 calls: about $0.49 at 250 output tokens per call, $0.75 at 400 and $1.79 at 1,000, against a $10 budget. The headroom would allow longer reasoning or more sessions in Phase A if wanted; neither is planned.
+- **Phase A is costed at 1,000 output tokens per call, as a stress case for reasoning models.** With the pinned hosts in 5.5 (Morph for DeepSeek, Crusoe for GPT-oss) that is about $1.49 for 4,500 calls; at 250 output tokens it is $0.42 and at 400 it is $0.64. It reaches the $2 tripwire at about 1,350 output tokens per call. The rest of the $10 budget is left for a rerun or a pivot. Phase B estimates below still assume 250 until Phase A measures tokens per call.
 - **Output length is the Phase B cost driver.** At 400 output tokens per call the main experiment is about $12.81 (supporting ablations $2.96), and at 1,000 about $30.31. `max_output_tokens: 400` is the guard; models that spend hidden reasoning tokens may still exceed the estimates.
 - **Levers if Phase B comes in above the budget that is set:** tighten the output cap; pin cheaper providers (5.3); drop GLM, the most expensive model per call after its real price (about $4.5 for the main experiment without it); drop to 15 sessions, the low end of the planned range.
+
+### 5.5 Phase A model providers and routing
+
+Chosen on 3 October 2026 from OpenRouter's live endpoint lists, with cost a secondary concern. Listings change, so re-run the endpoint check on the day of the pilot.
+
+| Model | Slug | Primary | Fallback |
+|---|---|---|---|
+| `deepseek` | `deepseek/deepseek-v4.1-flash` | **Morph**: fp8, $0.021 in and $0.383 out per M, 100% uptime | **DeepInfra**: fp8, $0.14 and $0.42, 99.9% |
+| `gpt-oss` | `openai/gpt-oss-120b` | **Crusoe**: bf16, $0.05 and $0.25, 100% uptime | **AkashML**: bf16, $0.037 and $0.187, 99.9% |
+
+**Why these four hosts.** Each supports tool calling and `tool_choice` (needed for the forced bid call), `seed` (reproducibility) and reasoning controls, allows well over the 400-token output cap, runs fp8 or bf16 weights, and reported at least 99.9% uptime. Uptime is a 30-minute snapshot, and the latency and throughput fields were empty, so hosts could not be ranked on speed.
+
+**Avoided, and why.**
+- GPT-oss endpoints without tool support (DigitalOcean, Amazon Bedrock, Google, SiliconFlow).
+- Endpoints flagged degraded when checked (Together, Novita, Mara, Mancer, and the cheapest DeepInfra GPT-oss listing at about 72% uptime).
+- DeepSeek on fp4 hosts (Decart, Sail Research), a different precision from the other runs.
+- DeepSeek hosts without `seed` support (DeepSeek's own endpoint, Modal, Together, Fireworks). The first-party endpoint is the reference implementation but has an unknown quantisation and costs $0.60 per M output; use it only if fidelity to the official model matters more than reproducibility. At that price Phase A would cost about $2.11 at 1,000 output tokens per call.
+
+**Routing rules.**
+- Restrict each model to its two vetted hosts, and require providers that support every parameter in the request (tools, tool choice, seed).
+- Log the serving provider on every call (`calls.jsonl`) and record the pinned host and quantisation per model in `session.json` (`providers`).
+- Never switch hosts inside a session. If the primary fails, abandon the session and rerun it from scratch on the fallback, flagged as such, because a mid-session switch would confound the session.
+- The spend tracker should use the serving host's price, not the headline listing price.
+
+**Cost and tripwire.** Phase A is costed at 1,000 output tokens per call: about $1.49 for the pair (Morph $0.88, Crusoe $0.61). The pilot cap is a $2 tripwire inside the $10 Phase A budget, leaving about $8 for a rerun or a pivot. See 5.4.
+
+**Pre-pilot smoke test** (a few cents, once per host, before the first pilot call). Send one forced tool call to each of the four hosts with a seed and a low reasoning effort, and check that:
+1. a tool call comes back and parses;
+2. the seed is accepted;
+3. the reasoning-effort setting is honoured, judged by the output tokens used;
+4. the response names the serving provider;
+5. the price charged matches the listed rate.
+
+Record the result in `PREP_LOG.md`. If a host fails, swap in the fallback and note it.
+
+**Phase B hosts are not chosen.** GLM-5.3 Flash has 34 endpoints (Z.AI's own is fp8 at $0.15 in and $0.50 out); Qwen3.7 Flash has a single provider (Alibaba).
 
 ## 6. Main experiment — tie-break rule
 
@@ -464,11 +501,11 @@ Phase A must be complete and reviewed before Phase B starts. Phase B does not be
 - **Reasoning-trace coding.** Too judgment-heavy for a solo pre-team pitch. Deferred to Phase B with a team-agreed rubric (section 8). Short reasoning is still logged in Phase A, so traces exist for drafting that rubric.
 - **Bootstrap confidence intervals and the pre-declared tests.** Report raw numbers per model and rule instead — collusion index, its control, win shares, tie rate, tie price, rebid delta — each with the explicit caveat "n = 5, directional only".
 
-**Cost: about $0.50, inside a $10 budget.** 2 models × 3 rules × 5 sessions × 25 rounds × 3 firms = 2,250 repeated calls and the same again for the controls, 4,500 in all, plus BAFO rebids. On the token assumptions in 5.4 and listed prices that is about $0.49; at 400 output tokens per call about $0.75, and at 1,000 about $1.79. This should not be re-estimated upward from the Phase B figures, which are for 18 sessions of 50 rounds across four models.
+**Cost: about $1.50 at 1,000 output tokens per call, with a $2 tripwire inside a $10 budget.** 2 models × 3 rules × 5 sessions × 25 rounds × 3 firms = 2,250 repeated calls and the same again for the controls, 4,500 in all, plus BAFO rebids. With the hosts pinned in 5.5 that is about $1.49 at 1,000 output tokens per call, $0.64 at 400 and $0.42 at 250. This should not be re-estimated upward from the Phase B figures, which are for 18 sessions of 50 rounds across four models.
 
 **What it needs built.** Build-order steps 1–6, without the bootstrap, the permutation tests or the trace export.
 
-`configs/pilot.yaml` is the Phase A config: 12 cells, with a spending cap of $10, the Phase A budget.
+`configs/pilot.yaml` is the Phase A config: 12 cells, with a spending cap of $2, a tripwire inside the $10 Phase A budget.
 
 ### 7.2 Phase B — full run, during the sprint
 
