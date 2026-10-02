@@ -222,6 +222,14 @@ None of `session.json` is shown to agents except what the system prompt states e
 | `is_min_cost` | bool | analysis only |
 | `model` | str \| null | analysis only |
 
+Conventions for `bids.jsonl`:
+
+- `tie_broken` and `tie_resolution` are round-level and repeat on every row of the round; `tied` is firm-level. `tie_broken` is true exactly when `n_tied > 1`.
+- `tie_resolution` reads `least_wins` whenever that rule decided the round, including when firms level on wins were separated at random.
+- `n_tied` is 0 and `winning_bid` is null in a round with no valid bid. `rebid` is null outside a rebid and for an invalid rebid.
+- `n_attempts` counts the bid phase only. An invalid rebid leaves `valid` true; failed rebid attempts are in `calls.jsonl`.
+- A bid is range-checked before rounding, then rounded half-up to `bid_increment`. `bne_bid` is the unrounded closed form.
+
 ### `calls.jsonl` — one row per LLM attempt, analysis only
 
 `session_id, round, firm_id, attempt, phase, model, provider, prompt, raw_response, reasoning, parsed_bid, error, prompt_tokens, completion_tokens, latency_ms`
@@ -249,6 +257,16 @@ Large text lives here so `bids.jsonl` stays small enough to load every session i
 | `tie_price_index` | collusion index over tied rounds only, taking the tied price (the original tied bid) as the price in every rule, `bafo` included; blank if the session has no ties |
 | `mean_rebid_delta` | `bafo` only: mean of `rebid − bid` over tied firms; blank if no rebids |
 | `bafo_overshoot_rate` | `bafo` only: share of tied rounds whose winning rebid is above the original bid of a firm outside the tie (5.1); blank if no ties |
+
+Conventions for `session_metrics.csv`:
+
+- `n_valid_rounds` is the number of rounds with a winner, and every rate is a share of those rounds. `invalid_bid_rate` is the share of firm-round rows with `valid = false`.
+- The control is matched on `lineup_id`, `n_bidders`, `tie_break_rule` and `seed`. `info_condition` is not part of the key, because the information levels share the baseline's control (5.2).
+- `repeat_win_rate` is the share of rounds, from the second on, whose winner also won the round before. The column holds the raw rate; 1/n is the benchmark it is read against.
+- `tie_rate_early` covers rounds 1 to `n_rounds // 2` and `tie_rate_late` the rest, so 25 rounds split 12 / 13.
+- `median_loser_gap` and `median_loser_gap_vs_bne` use a loser's final bid, which under `bafo` is its rebid where it made one.
+- `mean_rebid_delta` is pooled over every valid rebid in the session, not a mean of per-round means.
+- Every metric is computed under every rule; which ones may be read under which rule is in 6.4.
 
 **`condition_summary.csv`** — one row per condition × metric: `condition_id, metric, n_sessions, mean, ci_low, ci_high`.
 
@@ -336,6 +354,7 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 | Pooling | pooled across models (`inference.pooling: pooled`); per-model variant on branch `per-model-tests` |
 | History window | whole session, no truncation (avoids a window-length confound; about 3k tokens at N = 5, round 50) |
 | Horizon disclosure | round count not told to agents, to avoid end-game unravelling |
+| Current round number | not stated in the prompt; it is internal bookkeeping. The one-shot control must read like round 1 of a repeated session, and a round counter with no history would break that. History rows are still listed in order, so a firm in a repeated session can count them |
 | Fourth model | Qwen3.7 Flash (`qwen/qwen3.7-flash`), $0.03 in and $0.13 out per million tokens, checked against the live OpenRouter list on 3 October 2026; Phase B only |
 | Mixed lineup | DeepSeek + GPT-oss + GLM at N = 3; slot assignment randomised per session |
 | Temperature | 1.0 |
