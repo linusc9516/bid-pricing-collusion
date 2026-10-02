@@ -60,7 +60,7 @@ These two conditions need different metrics from the win-pattern statistics. Und
 
 - **High prices are not collusion.** The collusion index rises if a model just overbids. Read it against its one-shot control and beside the lowest-cost-wins share, which stays near 1 under uniform overbidding and falls toward 1/N under rotation. A cell counts as consistent with tacit rotation only if the index exceeds its control and that share falls.
 - **The index is not a 0–1 scale.** It is negative when bids are below the competitive benchmark, and is reported unclipped.
-- **Four confirmatory comparisons, Holm-corrected:** repeated vs. one-shot, full vs. winner-only history, same-model vs. mixed lineup, N = 2 vs. 5. All are on the index minus its control and are declared in `configs/analysis.yaml`. Everything else is exploratory.
+- **Four confirmatory comparisons, Holm-corrected:** repeated vs. one-shot, full vs. winner-only history, same-model vs. mixed lineup, N = 2 vs. 5. All are on the index minus its control and are declared in `configs/analysis.yaml`. Each is pooled across models; per-model results are exploratory. The branch `per-model-tests` holds the variant that tests each model separately. Everything else is exploratory.
 - **The session is the unit of analysis.** Rounds within a session are not independent, so every metric is one number per session before any interval or test. The per-session chi-square on win counts is a descriptive statistic, not a test.
 
 ## Results and analysis
