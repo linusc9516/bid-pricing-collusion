@@ -1,6 +1,6 @@
 # Model aliases used by the other configs.
-# Slugs are NOT verified. Check each against the live OpenRouter model list
-# (including tool-calling support) before the pilot.
+# Only the qwen slug is verified (against the live OpenRouter list on 2026-10-03: one provider,
+# tool calling supported). Check the other three, including tool-calling support, before the pilot.
 # Prices are USD per million tokens, input/output, from BidPricingCollusion.md.
 
 models:
@@ -17,6 +17,6 @@ models:
     price_in: 0.045
     price_out: 0.14
   qwen:
-    slug: TODO-verify     # (open) fourth model; a cheap Qwen model is the proposal
-    price_in: null
-    price_out: null
+    slug: qwen/qwen3.7-flash   # Qwen3.7 Flash, fourth model (Phase B only); verified 2026-10-03
+    price_in: 0.03        # OpenRouter list price; cached input is 0.006
+    price_out: 0.13

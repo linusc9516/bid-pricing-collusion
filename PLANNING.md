@@ -334,7 +334,7 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 | Pooling | pooled across models (`inference.pooling: pooled`); per-model variant on branch `per-model-tests` |
 | History window | whole session, no truncation (avoids a window-length confound; about 3k tokens at N = 5, round 50) |
 | Horizon disclosure | round count not told to agents, to avoid end-game unravelling |
-| Fourth model | a cheap Qwen model (the doc names Qwen in the mixed lineup); slug and price not yet filled in |
+| Fourth model | Qwen3.7 Flash (`qwen/qwen3.7-flash`), $0.03 in and $0.13 out per million tokens, checked against the live OpenRouter list on 3 October 2026; Phase B only |
 | Mixed lineup | DeepSeek + GPT-oss + GLM at N = 3; slot assignment randomised per session |
 | Temperature | 1.0 |
 | Output cap | `max_output_tokens: 400`; reasoning asked for in two or three sentences in Phase A. Phase B reasoning length is open (7.2) |
@@ -351,7 +351,8 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 
 ### 5.3 Operational risks
 
-- **Model slugs are unverified.** The four OpenRouter slugs in `configs/models.yaml` are placeholders. Verify each against the live model list, including tool-calling support, before the pilot.
+- **Model slugs.** The Qwen slug (`qwen/qwen3.7-flash`) was verified against the live OpenRouter list on 3 October 2026, with a single provider (Alibaba) and tool calling supported. The other three slugs in `configs/models.yaml` are still placeholders: verify each against the live list, including tool-calling support, before the pilot.
+- **Reasoning models bill hidden thinking as output.** The Qwen3.7 Flash listing advertises reasoning support, and the other models may too. The request must limit reasoning effort, or the 400-token output cap and the budget estimates will not hold; check tokens per call in the pilot.
 - **Provider routing.** OpenRouter may serve one model from several providers with different quantisation. Log the provider per call; consider pinning.
 - **Raw data is not in git.** `logs/` is gitignored; back it up elsewhere before the writeup.
 - **Control prompt still says "repeated".** The one-shot control keeps the prompt identical, so it isolates the effect of observed history, not of being told the auction repeats. A model that bids high purely on the repeated framing will look the same in both arms and be read as overbidding.
@@ -361,22 +362,22 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 
 $10 of OpenRouter credits. Every figure below is an estimate from assumed token counts, not a measurement; the pilot replaces them.
 
-Assumptions: a repeated-round call averages about 1,000 input tokens (history grows through the session) and 250 output tokens; a one-shot control call about 250 in and 250 out. Prices are those listed in `configs/models.yaml`. The fourth model has no price yet and is costed like DeepSeek, the dearest of the three.
+Assumptions: a repeated-round call averages about 1,000 input tokens (history grows through the session) and 250 output tokens; a one-shot control call about 250 in and 250 out. Prices are those listed in `configs/models.yaml`. The fourth model, Qwen3.7 Flash, is priced at its OpenRouter list rate ($0.03 in, $0.13 out).
 
 | Config | Calls | Estimate | Cap in config |
 |---|---|---|---|
 | `pilot.yaml` (Phase A) | 6,750 + BAFO rebids | $0.44 | $1.50 |
-| `main_tiebreak.yaml` | 64,800 + BAFO rebids | $5.07 | $6.50 |
+| `main_tiebreak.yaml` | 64,800 + BAFO rebids | $4.37 | $6.50 |
 | `supporting_info.yaml` | 2,700 | $0.29 | $0.40 |
 | `supporting_n.yaml` | 6,300 | $0.62 | $0.80 |
 | `supporting_lineup.yaml` | 2,700 | $0.20 | $0.30 |
-| **Total** | **83,250** | **$6.62** | **$9.50** |
+| **Total** | **83,250** | **$5.92** | **$9.50** |
 
-The main experiment costs about $0.28 per session index (one seed across all 24 cells). BAFO rebids add at most one call per tied firm per tied round and are covered by the gap between estimate and cap.
+The main experiment costs about $0.24 per session index (one seed across all 24 cells). BAFO rebids add at most one call per tied firm per tied round and are covered by the gap between estimate and cap.
 
-- **Output length decides whether this fits.** At 1,000 output tokens per call instead of 250, the main experiment alone is about $16. `max_output_tokens: 400` is the guard; models that spend hidden reasoning tokens may still exceed the estimate.
+- **Output length decides whether this fits.** At the 400-token cap the main experiment is about $6.15, which still fits its $6.50 cap; at 1,000 output tokens per call instead of 250 it is about $15. `max_output_tokens: 400` is the guard; models that spend hidden reasoning tokens may still exceed the estimate.
 - **Levers if the pilot comes in high, in order:** tighten the output cap; drop to three models ($3.54 for the main experiment at 18 sessions); drop to 15 sessions, the low end of the planned range.
-- **If it comes in low:** more sessions in the main experiment is the best use. Three models at 27 sessions costs about the same as four at 20.
+- **If it comes in low:** more sessions in the main experiment is the best use. Four models at 20 sessions costs about $4.86, and three models at 27 about $5.32.
 
 ## 6. Main experiment — tie-break rule
 
@@ -437,7 +438,7 @@ One qualification on the baseline: matching bids under `random` also gives every
 
 - 4 models × 3 rules = 12 experimental cells, each with a matched one-shot control on the same seeds: 24 cells.
 - 24 cells × 18 sessions × 50 rounds × 3 firms = 64,800 calls, plus at most one rebid call per tied firm per tied round under `bafo`.
-- Estimated cost $5.07 of the $10 budget (5.4).
+- Estimated cost $4.37 of the $10 budget (5.4).
 - The `random` cells double as the baseline for the supporting ablations and as the per-model evidence that repeated play raises prices at all.
 
 ## 7. Phased Execution Plan

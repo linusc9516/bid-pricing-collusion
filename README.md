@@ -44,7 +44,7 @@ uv run python scripts/run_experiment.py configs/supporting_lineup.yaml --run-id 
 
 Run the sanity checks first and confirm the scripted bidders read as expected before spending on LLM calls: BNE bidders near 0, markup bidders negative, the overbidding bidder high but not flagged as collusive, the rotating cartel flagged, and bid-matching bidders rotating exactly under least-wins-first. Commit `configs/analysis.yaml` before the main experiment; it pre-declares the comparisons. Runs are resumable: completed sessions are skipped.
 
-The budget is $10 of OpenRouter credits. Each config carries its own spending cap ($9.50 in total against an estimate of $6.62), and the estimate depends on how many tokens the models write per call, which the pilot measures. See `PLANNING.md` section 5.4.
+The budget is $10 of OpenRouter credits. Each config carries its own spending cap ($9.50 in total against an estimate of $5.92), and the estimate depends on how many tokens the models write per call, which the pilot measures. See `PLANNING.md` section 5.4.
 
 ## Experiments
 

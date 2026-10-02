@@ -11,7 +11,7 @@ llm:
                           # Long reasoning for an LLM judge raises output tokens several-fold and the cost with them.
 
 budget:
-  max_cost_usd: 6.5       # estimate 5.07 before BAFO rebids
+  max_cost_usd: 6.5       # estimate 4.37 before BAFO rebids; 6.15 at the 400-token output cap
 
 cells:
   - id: homog-deepseek
