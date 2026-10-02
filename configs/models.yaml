@@ -1,22 +1,22 @@
 # Model aliases used by the other configs.
-# Only the qwen slug is verified (against the live OpenRouter list on 2026-10-03: one provider,
-# tool calling supported). Check the other three, including tool-calling support, before the pilot.
-# Prices are USD per million tokens, input/output, from BidPricingCollusion.md.
+# All four slugs were verified against the live OpenRouter list on 2026-10-03 and support tool calling.
+# Prices are USD per million tokens, input/output: the headline listing price, which is the cheapest
+# endpoint and not a guaranteed rate; actual prices depend on provider routing (PLANNING.md 5.3).
 
 models:
   deepseek:
-    slug: TODO-verify     # DeepSeek V4.1 Flash
-    price_in: 0.035
-    price_out: 0.29
+    slug: deepseek/deepseek-v4.1-flash     # DeepSeek V4.1 Flash
+    price_in: 0.02
+    price_out: 0.60
   gpt-oss:
-    slug: TODO-verify     # GPT-oss-120b
-    price_in: 0.03
+    slug: openai/gpt-oss-120b     # GPT-oss-120b
+    price_in: 0.037
     price_out: 0.17
   glm:
-    slug: TODO-verify     # GLM-5.3 Flash
-    price_in: 0.045
-    price_out: 0.14
+    slug: z-ai/glm-5.3-flash     # GLM-5.3 Flash
+    price_in: 0.02625
+    price_out: 0.90
   qwen:
-    slug: qwen/qwen3.7-flash   # Qwen3.7 Flash, fourth model (Phase B only); verified 2026-10-03
+    slug: qwen/qwen3.7-flash   # Qwen3.7 Flash, Phase B only
     price_in: 0.03        # OpenRouter list price; cached input is 0.006
     price_out: 0.13

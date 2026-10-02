@@ -12,7 +12,7 @@ session:
   n_sessions: 9
 
 budget:
-  max_cost_usd: 0.3       # estimate 0.20
+  max_cost_usd: 0.3       # PLACEHOLDER: Phase B budget not set; estimate at listed prices is 0.42
 
 cells:
   - id: hetero-deepseek-gpt-oss-glm      # (open) which models make up the mixed lineup

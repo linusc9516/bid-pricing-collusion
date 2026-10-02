@@ -30,7 +30,7 @@ Without uv: `python -m venv .venv`, activate it, then `pip install -e ".[dev]"`.
 uv run python scripts/run_experiment.py configs/sanity_dummy.yaml
 uv run python scripts/run_experiment.py configs/sanity_tiebreak.yaml
 
-# 2. Phase A pilot: three models under all three tie-break rules, on its own seeds
+# 2. Phase A pilot: two models under all three tie-break rules, on its own seeds
 uv run python scripts/run_experiment.py configs/pilot.yaml --dry-run   # call + cost estimate
 uv run python scripts/run_experiment.py configs/pilot.yaml
 
@@ -44,7 +44,7 @@ uv run python scripts/run_experiment.py configs/supporting_lineup.yaml --run-id 
 
 Run the sanity checks first and confirm the scripted bidders read as expected before spending on LLM calls: BNE bidders near 0, markup bidders negative, the overbidding bidder high but not flagged as collusive, the rotating cartel flagged, and bid-matching bidders rotating exactly under least-wins-first. Commit `configs/analysis.yaml` before the main experiment; it pre-declares the comparisons. Runs are resumable: completed sessions are skipped.
 
-The budget is $10 of OpenRouter credits. Each config carries its own spending cap ($9.50 in total against an estimate of $5.92), and the estimate depends on how many tokens the models write per call, which the pilot measures. See `PLANNING.md` section 5.4.
+The Phase A budget is $10 of OpenRouter credits (estimated spend about $0.50). The Phase B budget is not set yet and is expected to be much higher if needed; it is decided after Phase A measures tokens per call, which the estimates depend on. See `PLANNING.md` section 5.4.
 
 ## Experiments
 

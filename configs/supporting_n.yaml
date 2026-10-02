@@ -9,7 +9,7 @@ session:
   n_sessions: 9
 
 budget:
-  max_cost_usd: 0.8       # estimate 0.62
+  max_cost_usd: 0.8       # PLACEHOLDER: Phase B budget not set; estimate at listed prices is 1.04
 
 cells:
   - id: homog-deepseek

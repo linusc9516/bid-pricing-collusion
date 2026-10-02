@@ -1,6 +1,7 @@
 # Phase A pilot: pre-team proof of concept (PLANNING.md section 7.1).
-# Three models x three tie-break rules, 5 sessions of 25 rounds, each with a matched
-# one-shot control (history_window 0). 18 cells, 6,750 calls plus BAFO rebids.
+# Two models (the cheapest candidate research models) x three tie-break rules, 5 sessions of
+# 25 rounds, each with a matched one-shot control (history_window 0). 12 cells, 4,500 calls
+# plus BAFO rebids, estimated at about $0.49.
 # Output is PILOT_FINDINGS.md: raw numbers, "n = 5, directional only". Not a paper result.
 # Also measures what the Phase B budget depends on: tokens per call, parse-failure rate,
 # and how often bids tie at the 0.01 grid.
@@ -16,15 +17,13 @@ session:
   base_seed: 990000       # disjoint from the main experiment's seeds
 
 budget:
-  max_cost_usd: 1.5       # estimate 0.44; about 1.46 at four times the assumed output length
+  max_cost_usd: 10        # the Phase A budget; estimate about 0.49, 0.75 at the 400-token output cap
 
 cells:
   - id: pilot-deepseek
     lineup: {type: homogeneous, model: deepseek}
   - id: pilot-gpt-oss
     lineup: {type: homogeneous, model: gpt-oss}
-  - id: pilot-glm
-    lineup: {type: homogeneous, model: glm}
 
 sweep:
   tie_break_rule: [random, least_wins, bafo]

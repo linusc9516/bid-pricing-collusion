@@ -11,7 +11,8 @@ llm:
                           # Long reasoning for an LLM judge raises output tokens several-fold and the cost with them.
 
 budget:
-  max_cost_usd: 6.5       # estimate 4.37 before BAFO rebids; 6.15 at the 400-token output cap
+  max_cost_usd: 6.5       # PLACEHOLDER: Phase B budget not set. Estimate at listed prices is 8.44 (before BAFO
+                          # rebids); this cap would stop the run early. See PLANNING.md 5.4.
 
 cells:
   - id: homog-deepseek

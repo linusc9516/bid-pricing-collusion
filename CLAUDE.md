@@ -63,7 +63,7 @@ The two scripts are stubs until the runner and analysis are implemented.
   computed once per bidder-count condition, not re-derived per round.
 
 ## Workflow
-- Two-phase execution: Phase A (three cheap models, small pilot) must
+- Two-phase execution: Phase A (two cheap models, small pilot) must
   complete and be reviewed before Phase B (full model lineup, full reps)
   starts. Don't begin Phase B without explicit confirmation — see
   PLANNING.md "Phased Execution Plan."
@@ -94,7 +94,7 @@ configs/
   analysis.yaml          pre-declared outcome, comparisons, correction
   sanity_dummy.yaml      scripted bidders, no API calls
   sanity_tiebreak.yaml   scripted bidders under the three tie-break rules
-  pilot.yaml             Phase A pilot: three models, three tie-break rules
+  pilot.yaml             Phase A pilot: two models, three tie-break rules
   main_tiebreak.yaml     main experiment: tie-break rule, with one-shot controls
   supporting_info.yaml   supporting ablation: information revelation
   supporting_n.yaml      supporting ablation: number of bidders
