@@ -71,7 +71,9 @@ pinned host fails, rerun with `--host fallback`, then `--host backup`.
 - Two-phase execution: Phase A (two cheap models, small pilot) must
   complete and be reviewed before Phase B (full model lineup, full reps)
   starts. Don't begin Phase B without explicit confirmation — see
-  PLANNING.md "Phased Execution Plan."
+  PLANNING.md "Phased Execution Plan." The main tie-break experiment is also gated on
+  the pilot's tie manipulation check (configs/analysis.yaml, PLANNING.md 7.1): a failed
+  check blocks it until the user records a redesign.
 - REMINDER before Phase B: thinking mode, output-token cap and reasoning length
   are all TBD (the Phase B configs say TBD and the runner refuses to call models).
   Phase A runs DeepSeek and Qwen with thinking off, gpt-oss at low effort, and a

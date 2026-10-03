@@ -3,21 +3,26 @@ Usage: analyze.py LOG_DIR [--results-dir DIR] [--include-incomplete]
 
 Writes session_metrics.csv, condition_summary.csv (means only; intervals wait for build
 step 3b), non_competitive_bids.csv (bids at the reserve and below cost, kept apart from the
-collusion, tie and rotation measures) and call_summary.csv to results/<run_id>/. confirmatory_tests.csv is not written
-until the tests exist (step 3b).
+collusion, tie and rotation measures), tie_check.csv (the pre-declared tie manipulation check and its
+verdict; thresholds from configs/analysis.yaml) and call_summary.csv to results/<run_id>/.
+confirmatory_tests.csv is not written until the tests exist (step 3b).
 """
 
 import argparse
 from pathlib import Path
 
 import pandas as pd
+import yaml
 
 from bidrig.analysis.metrics import (
     call_summary,
     condition_means,
+    manipulation_verdict,
     non_competitive_bids,
     session_metrics_table,
+    tie_check,
 )
+from bidrig.bne import chance_tie_rate
 from bidrig.schema import SESSION_FILE, read_calls, read_session
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +62,11 @@ def main() -> int:
     calls.to_csv(out / "call_summary.csv", index=False)
     noncompetitive = non_competitive_bids(table)
     noncompetitive.to_csv(out / "non_competitive_bids.csv", index=False)
+    chance = {m.n_bidders: chance_tie_rate(m.n_bidders, m.cost_low, m.cost_high, m.bid_increment) for m, _, _ in loaded}
+    ties = tie_check(table, chance)
+    ties.to_csv(out / "tie_check.csv", index=False)
+    decision = yaml.safe_load((ROOT / "configs" / "analysis.yaml").read_text())["manipulation_check"]["decision"]
+    pooled = ties[ties["lineup_id"] == "pooled"]
 
     wide = summary.pivot(index="condition_id", columns="metric", values="mean")
     with pd.option_context("display.width", 200, "display.max_columns", 20, "display.precision", 3):
@@ -64,9 +74,23 @@ def main() -> int:
         print(wide[[c for c in HEADLINE if c in wide.columns]].to_string())
         print("\nnon-competitive unilateral bids (shares of valid bids; not collusion, tie or rotation measures)\n")
         print(noncompetitive.set_index("condition_id").to_string())
+        print("\ntie manipulation check (repeated sessions; rounds treated as independent, so intervals are optimistic)\n")
+        columns = ["lineup_id", "tie_break_rule", "n_sessions", "rounds", "sessions_with_a_tie", "tie_rate", "tie_ci_low", "tie_ci_high",
+                   "tie_rate_early", "tie_rate_late", "control_tie_rate", "chance_tie_rate", "excess_over_chance"]
+        print(ties[columns].to_string(index=False))
+        if not pooled.empty:
+            row = pooled.iloc[0]
+            verdict = manipulation_verdict(
+                row["tie_rate"], row["excess_over_chance"], decision["proceed_at"], decision["failed_below"],
+                rounds=int(row["rounds"]), min_rounds=decision["min_rounds"],
+            )
+            print(f"\nMANIPULATION CHECK (pooled random + least_wins, repeated): tie rate {row['tie_rate']:.2%} "
+                  f"[{row['tie_ci_low']:.2%}, {row['tie_ci_high']:.2%}] against a chance benchmark of {row['chance_tie_rate']:.2%} "
+                  f"over {int(row['rounds'])} rounds -> {verdict.upper()} (proceed at >= {decision['proceed_at']:.1%}, failed below "
+                  f"{decision['failed_below']:.1%}, needs {decision['min_rounds']} rounds; configs/analysis.yaml)")
         print()
         print(calls.set_index("condition_id").to_string())
-    print(f"\nwrote {out}/session_metrics.csv, condition_summary.csv, non_competitive_bids.csv, call_summary.csv")
+    print(f"\nwrote {out}/session_metrics.csv, condition_summary.csv, non_competitive_bids.csv, tie_check.csv, call_summary.csv")
     return 0
 
 

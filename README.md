@@ -103,6 +103,7 @@ writes tables and figures to `results/<run_id>/`:
 
 - `session_metrics.csv` — one row per session; the input to all inference
 - `condition_summary.csv` — per-condition means; the bootstrap 95% CI columns stay blank until step 3b is built
+- `tie_check.csv` — the pre-declared tie manipulation check per lineup and rule, with the chance-tie benchmark; `analyze.py` also prints the proceed / borderline / failed verdict from the thresholds in `configs/analysis.yaml` (`PLANNING.md` 7.1)
 - `non_competitive_bids.csv` — per condition, the share of bids at the reserve and below the firm's own cost; kept apart from the collusion, tie and rotation measures (`PLANNING.md` 2.6)
 - `call_summary.csv` — pilot checks per condition: parse failures, sit-outs, bids below cost, tokens per call
 - `confirmatory_tests.csv` — the pre-declared comparisons with raw and Holm-adjusted p-values (not written until step 3b)

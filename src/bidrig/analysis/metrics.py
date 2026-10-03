@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 from bidrig.auction import to_ticks
 from bidrig.bne import collusion_index
@@ -43,6 +44,7 @@ SESSION_METRIC_COLUMNS = [
     "median_loser_gap_vs_bne",
     "reserve_bid_rate",
     "below_cost_bid_rate",
+    "bid_cost_corr",
     "tie_rate",
     "tie_rate_early",
     "tie_rate_late",
@@ -85,6 +87,24 @@ def _chi2_stat(win_counts: Sequence[int]) -> float:
         return float("nan")
     expected = total / len(win_counts)
     return float(sum((count - expected) ** 2 / expected for count in win_counts))
+
+
+def _bid_cost_corr(valid_bids: pd.DataFrame) -> float:
+    """Mean over firms of the correlation, across rounds, between a firm's own bid and its own cost; NaN if no firm has 3 bids.
+
+    Near 1 for competitive bidders (a bid is a rising function of cost) and lower when losing bids stop
+    tracking cost, as cover bids do. A firm bidding one price in every round counts as 0: that bid is
+    unrelated to its cost, which is the signature this screen looks for.
+    """
+    correlations = []
+    for _, firm in valid_bids.groupby("firm_id"):
+        if len(firm) < 3:
+            continue
+        if firm["bid"].nunique() == 1 or firm["cost"].nunique() == 1:
+            correlations.append(0.0)
+        else:
+            correlations.append(float(np.corrcoef(firm["cost"], firm["bid"])[0, 1]))
+    return float(np.mean(correlations)) if correlations else float("nan")
 
 
 def session_metrics(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, object]:
@@ -139,6 +159,7 @@ def session_metrics(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, obje
         "median_loser_gap_vs_bne": float((loser_final - losers["bne_bid"]).median()),
         "reserve_bid_rate": _mean(bid_ticks == reserve_ticks),
         "below_cost_bid_rate": _mean(bid_ticks < cost_ticks),
+        "bid_cost_corr": _bid_cost_corr(valid_bids),
         "tie_rate": _mean(tied),
         "tie_rate_early": _mean(tied[early]),
         "tie_rate_late": _mean(tied[~early]),
@@ -268,3 +289,85 @@ def condition_means(table: pd.DataFrame) -> pd.DataFrame:
     summary["ci_low"] = float("nan")
     summary["ci_high"] = float("nan")
     return summary[["condition_id", "metric", "n_sessions", "mean", "ci_low", "ci_high"]]
+
+
+TIE_CHECK_RULES = ("random", "least_wins")  # the arms the decision rule pools (configs/analysis.yaml)
+
+
+def _clopper_pearson(tied: int, rounds: int) -> tuple[float, float]:
+    """Exact 95% interval for a share of `rounds`, treating rounds as independent (optimistic: they are not)."""
+    if rounds == 0:
+        return float("nan"), float("nan")
+    low = 0.0 if tied == 0 else float(stats.beta.ppf(0.025, tied, rounds - tied + 1))
+    high = 1.0 if tied == rounds else float(stats.beta.ppf(0.975, tied + 1, rounds - tied))
+    return low, high
+
+
+def tie_check(table: pd.DataFrame, chance: dict[int, float]) -> pd.DataFrame:
+    """The pilot's tie manipulation check (PLANNING.md 7.1): ties per model and rule, with the chance benchmark.
+
+    One row per (lineup, rule) over repeated sessions, plus pooled rows over all lineups per rule and one
+    row, `pooled`, for the `random` and `least_wins` arms together, which is what the decision rule reads.
+    `chance` maps a bidder count to `bne.chance_tie_rate`. Shares are in [0, 1].
+    """
+    repeated = table[~table["is_control"]]
+    controls = table[table["is_control"]]
+    records = []
+
+    def summarize(label: str, rule: str, sessions: pd.DataFrame, control_sessions: pd.DataFrame) -> None:
+        if sessions.empty:
+            return
+        rounds = int(sessions["n_valid_rounds"].sum())
+        tied = round((sessions["tie_rate"] * sessions["n_valid_rounds"]).sum())
+        low, high = _clopper_pearson(tied, rounds)
+        benchmark = float(np.mean([chance[int(n)] for n in sessions["n_bidders"]]))
+        rate = tied / rounds if rounds else float("nan")
+        records.append(
+            {
+                "lineup_id": label,
+                "tie_break_rule": rule,
+                "n_sessions": len(sessions),
+                "rounds": rounds,
+                "sessions_with_a_tie": int((sessions["tie_rate"] > 0).sum()),
+                "tie_rate": rate,
+                "tie_ci_low": low,
+                "tie_ci_high": high,
+                "tie_rate_early": _mean(sessions["tie_rate_early"].dropna()),
+                "tie_rate_late": _mean(sessions["tie_rate_late"].dropna()),
+                "control_tie_rate": _mean(control_sessions["tie_rate"].dropna()),
+                "chance_tie_rate": benchmark,
+                "excess_over_chance": rate - benchmark,
+            }
+        )
+
+    for (lineup, rule), group in repeated.groupby(["lineup_id", "tie_break_rule"], sort=True):
+        matched = controls[(controls["lineup_id"] == lineup) & (controls["tie_break_rule"] == rule)]
+        summarize(lineup, rule, group, matched)
+    for rule, group in repeated.groupby("tie_break_rule", sort=True):
+        summarize("all", rule, group, controls[controls["tie_break_rule"] == rule])
+    arms = repeated[repeated["tie_break_rule"].isin(TIE_CHECK_RULES)]
+    summarize("pooled", "+".join(TIE_CHECK_RULES), arms, controls[controls["tie_break_rule"].isin(TIE_CHECK_RULES)])
+    return pd.DataFrame(records)
+
+
+def manipulation_verdict(
+    tie_rate: float,
+    excess_over_chance: float,
+    proceed_at: float,
+    failed_below: float,
+    rounds: int | None = None,
+    min_rounds: int = 0,
+) -> str:
+    """`proceed`, `borderline`, `failed` or `insufficient` for the pooled tie rate; thresholds come from configs/analysis.yaml.
+
+    insufficient: fewer than `min_rounds` pooled rounds, too few to decide on. proceed: rate >= proceed_at and
+    above the chance benchmark. failed: rate < failed_below. Anything between, or a rate that chance alone
+    explains, is borderline.
+    """
+    if rounds is not None and rounds < min_rounds:
+        return "insufficient"
+    if not tie_rate >= failed_below:
+        return "failed"
+    if tie_rate >= proceed_at and excess_over_chance > 0:
+        return "proceed"
+    return "borderline"

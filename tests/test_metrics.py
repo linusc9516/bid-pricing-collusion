@@ -12,9 +12,11 @@ from bidrig.analysis.metrics import (
     SESSION_METRIC_COLUMNS,
     add_control_deltas,
     load_run,
+    manipulation_verdict,
     non_competitive_bids,
     session_metrics,
     session_metrics_table,
+    tie_check,
 )
 from bidrig.bne import BneBenchmark
 from bidrig.schema import BidRow, SessionMeta, write_session
@@ -386,3 +388,78 @@ def test_load_run_reads_every_session(tmp_path: Path) -> None:
     expected = session_metrics_table(sessions).sort_values("session_id").reset_index(drop=True)
     actual = session_metrics_table(loaded).sort_values("session_id").reset_index(drop=True)
     pd.testing.assert_frame_equal(actual, expected)
+
+
+# --- bid-cost correlation, the tie manipulation check and its verdict ---
+
+
+def test_bid_cost_corr_by_hand() -> None:
+    """Firm A bids rise with cost (corr 1), firm B's fall (corr -1); a constant bidder would count as 0."""
+    rows = hand_rows(
+        2,
+        [[(10, 60, True), (30, 70, False)], [(20, 70, True), (20, 80, False)], [(30, 80, True), (10, 90, False)]],
+    )
+    assert session_metrics(make_meta(["llm"] * 2, n_rounds=3), rows)["bid_cost_corr"] == pytest.approx(0.0)
+    rows = hand_rows(2, [[(10, 20, True), (30, 50, False)], [(20, 30, True), (20, 50, False)], [(30, 40, True), (10, 50, False)]])
+    assert session_metrics(make_meta(["llm"] * 2, n_rounds=3), rows)["bid_cost_corr"] == pytest.approx(0.5)  # (1 + 0) / 2
+    short = hand_rows(2, [[(10, 20, True), (30, 50, False)], [(20, 30, True), (20, 40, False)]])
+    assert math.isnan(session_metrics(make_meta(["llm"] * 2, n_rounds=2), short)["bid_cost_corr"])  # under 3 bids per firm
+
+
+@pytest.mark.parametrize("n", [2, 3, 5])
+def test_bid_cost_corr_reads_as_expected_for_scripted_bidders(n: int) -> None:
+    corr = {t: session_metrics(*scripted_session(t, n=n, n_rounds=LONG))["bid_cost_corr"] for t in ["bne", "markup", "overbid", "rotation", "match"]}
+    assert corr["bne"] > 0.999 and corr["overbid"] > 0.999  # a bid is a rising function of cost
+    assert corr["markup"] > 0.95  # the cap at the reserve flattens the top of the range
+    assert abs(corr["rotation"]) < 0.1  # 99 or 100 whatever the cost: bids stop tracking cost
+    assert corr["match"] == 0  # one fixed price counts as unrelated to cost
+
+
+def test_tie_check_for_a_tie_free_and_a_tie_only_sessions() -> None:
+    from bidrig.bne import chance_tie_rate
+
+    sessions = []
+    for seed in range(1, 6):
+        for rule in ["random", "least_wins"]:
+            for bidder_type, label in [("bne", "dummy-bne"), ("match", "dummy-match")]:
+                meta, rows = scripted_session(bidder_type, rule=rule, seed=seed, n_rounds=25)
+                sessions.append((meta, rows))
+    table = session_metrics_table(sessions)
+    chance = {3: chance_tie_rate(3, 0, 100, 0.01)}
+    check = tie_check(table, chance).set_index(["lineup_id", "tie_break_rule"])
+    assert check.loc[("dummy-bne", "random"), "tie_rate"] == 0 and check.loc[("dummy-bne", "random"), "sessions_with_a_tie"] == 0
+    assert check.loc[("dummy-match", "least_wins"), "tie_rate"] == 1 and check.loc[("dummy-match", "least_wins"), "sessions_with_a_tie"] == 5
+    assert check.loc[("dummy-bne", "random"), "rounds"] == 125  # 5 sessions x 25 rounds
+    # Zero ties in 125 rounds: the exact upper limit is 1 - 0.025 ** (1 / 125), about 2.9%.
+    assert check.loc[("dummy-bne", "random"), "tie_ci_high"] == pytest.approx(1 - 0.025 ** (1 / 125), rel=1e-6)
+    assert check.loc[("dummy-bne", "random"), "chance_tie_rate"] == pytest.approx(chance[3])
+    pooled = check.loc[("pooled", "random+least_wins")]
+    assert pooled["rounds"] == 500 and pooled["tie_rate"] == pytest.approx(0.5)  # half the sessions never tie, half always
+
+
+def test_tie_check_reads_matched_one_shot_controls() -> None:
+    sessions = []
+    for seed in range(1, 4):
+        meta, rows = scripted_session("match", rule="random", seed=seed, n_rounds=10)
+        control_meta, control_rows = scripted_session("bne", rule="random", seed=seed, n_rounds=10, history_window=0)
+        control_meta.lineup_id = meta.lineup_id
+        control_meta.session_id = f"control-{seed}"
+        sessions += [(meta, rows), (control_meta, control_rows)]
+    check = tie_check(session_metrics_table(sessions), {3: 0.0003}).set_index(["lineup_id", "tie_break_rule"])
+    row = check.loc[("dummy-match", "random")]
+    assert row["tie_rate"] == 1 and row["control_tie_rate"] == 0 and row["excess_over_chance"] == pytest.approx(1 - 0.0003)
+
+
+@pytest.mark.parametrize(
+    ("rate", "excess", "verdict"),
+    [(0.0, 0.0, "failed"), (0.002, 0.002, "failed"), (0.003, 0.003, "borderline"), (0.009, 0.009, "borderline"),
+     (0.01, 0.0099, "proceed"), (0.30, 0.30, "proceed"), (0.02, 0.0, "borderline"), (float("nan"), float("nan"), "failed")],
+)
+def test_manipulation_verdict(rate: float, excess: float, verdict: str) -> None:
+    assert manipulation_verdict(rate, excess, proceed_at=0.01, failed_below=0.003) == verdict
+
+
+def test_manipulation_verdict_needs_enough_rounds() -> None:
+    assert manipulation_verdict(0.2, 0.2, 0.01, 0.003, rounds=18, min_rounds=300) == "insufficient"
+    assert manipulation_verdict(0.0, 0.0, 0.01, 0.003, rounds=750, min_rounds=300) == "failed"
+    assert manipulation_verdict(0.2, 0.2, 0.01, 0.003, rounds=300, min_rounds=300) == "proceed"

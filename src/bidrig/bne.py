@@ -5,6 +5,8 @@ Derivation and the collusion index built on it are in PLANNING.md section 2.4.
 
 from dataclasses import dataclass
 
+import numpy as np
+
 
 @dataclass(frozen=True)
 class BneBenchmark:
@@ -37,3 +39,26 @@ def collusion_index(mean_winning_bid: float, mean_bne_winning_bid: float, reserv
     if headroom == 0:
         return float("nan")
     return (mean_winning_bid - mean_bne_winning_bid) / headroom
+
+
+def chance_tie_rate(
+    n_bidders: int,
+    cost_low: float,
+    cost_high: float,
+    bid_increment: float,
+    n_draws: int = 400_000,
+    seed: int = 0,
+) -> float:
+    """Share of rounds in [0, 1] with an exact tie at the lowest bid if every firm bids its BNE bid on the bid grid.
+
+    The tie rate that fully competitive bidders produce by chance: costs are drawn and rounded to
+    `bid_increment` as the auctioneer does, each bid is the closed-form BNE bid rounded half-up to the
+    increment, and a tie is two or more firms sharing the lowest rounded bid. Monte Carlo with a fixed seed,
+    so it is reproducible; the standard error is under 0.001 at the rates that matter here.
+    """
+    bne = BneBenchmark(n_bidders, cost_low, cost_high)
+    rng = np.random.default_rng(seed)
+    costs = np.floor(rng.uniform(cost_low, cost_high, size=(n_draws, n_bidders)) / bid_increment + 0.5) * bid_increment
+    bids = costs + (bne.cost_high - costs) / n_bidders
+    ticks = np.floor(bids / bid_increment + 0.5)
+    return float(((ticks == ticks.min(axis=1, keepdims=True)).sum(axis=1) > 1).mean())

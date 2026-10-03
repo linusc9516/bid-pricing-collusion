@@ -5,7 +5,7 @@ import math
 import numpy as np
 import pytest
 
-from bidrig.bne import BneBenchmark, collusion_index
+from bidrig.bne import BneBenchmark, chance_tie_rate, collusion_index
 
 EXPECTED_WINNING_BID = {2: 200 / 3, 3: 50.0, 5: 100 / 3}
 
@@ -72,3 +72,17 @@ def test_collusion_index_is_unclipped() -> None:
     assert collusion_index(35, 50, 100) == pytest.approx(-0.3)
     assert collusion_index(0, 200 / 3, 100) == pytest.approx(-2.0)
     assert math.isnan(collusion_index(100, 100, 100))
+
+
+@pytest.mark.parametrize(
+    ("increment", "expected", "tolerance"),
+    [(0.01, 0.0003, 0.0002), (0.5, 0.0123, 0.002), (1.0, 0.024, 0.003), (5.0, 0.117, 0.006)],
+)
+def test_chance_tie_rate_for_competitive_bidders(increment: float, expected: float, tolerance: float) -> None:
+    assert chance_tie_rate(3, 0, 100, increment) == pytest.approx(expected, abs=tolerance)
+
+
+def test_chance_tie_rate_is_reproducible_and_grows_with_the_grid_and_a_narrow_range() -> None:
+    assert chance_tie_rate(3, 0, 100, 1.0) == chance_tie_rate(3, 0, 100, 1.0)
+    assert chance_tie_rate(3, 0, 100, 0.01) < chance_tie_rate(3, 0, 100, 1.0) < chance_tie_rate(3, 0, 100, 5.0)
+    assert chance_tie_rate(3, 25, 75, 1.0) > chance_tie_rate(3, 0, 100, 1.0)  # same grid, narrower costs: more ties
