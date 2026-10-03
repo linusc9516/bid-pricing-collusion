@@ -310,7 +310,7 @@ Steps 2 and 3 are the expensive ones because they must reproduce known answers f
 - **Order:** steps 1, 2 and 3a first (no API, and they anchor everything else), then 4, 5, 6, then the pilot (step 7). Step 3b waits until after Phase A, so plotting is not built before there is real data to plot.
 - **Gate between steps:** `uv run pytest` and `uv run ruff check src/` pass, and the acceptance check in section 4 for that step holds, before the next step starts. Commit after each step.
 - **Before step 5:** the slugs and tool-calling support for all four models were verified on 3 October 2026 (5.3). Phase A uses two of them; the other two are only needed for Phase B. Provider pinning for Phase A is decided (5.5); run the pre-pilot smoke test there before the first live call.
-- **Before step 7:** confirm the bid increment check is in the pilot report (5.1) and that `configs/pilot.yaml` still matches 7.1.
+- **Before step 7:** run the smoke test and then the end-to-end check (`configs/pilot_tiny.yaml`), both in 5.5. Confirm the bid increment check is in the pilot report (5.1) and that `configs/pilot.yaml` still matches 7.1.
 - **Cost outside the build:** Phase A itself is estimated at about $1.49 at 1,000 output tokens per call, inside a $2 tripwire and the $10 Phase A budget (5.4, 5.5).
 
 
@@ -433,6 +433,13 @@ Chosen on 3 October 2026 from OpenRouter's live endpoint lists, with cost a seco
 5. the price charged matches the listed rate.
 
 Record the result in `PREP_LOG.md`. If a host fails, swap in the fallback and note it.
+
+**End-to-end check** (a few cents, after the smoke test passes and before the pilot). `configs/pilot_tiny.yaml` runs the full harness with real models: one 3-round session per model under `bafo`, plus its one-shot control, 4 sessions and 36 calls, on its own seeds and run id. Then:
+1. read every prompt in `calls.jsonl` by hand: round *t* shows rounds 1 to *t* − 1 only, no other firm's cost appears, and the control shows no history;
+2. check that `session.json`, `bids.jsonl` and `calls.jsonl` match section 3;
+3. run `scripts/analyze.py` on it and check the call summary (tokens per call, parse failures).
+
+Rebids only happen if two models tie, which is unlikely in 3 rounds; the mocked-client tests cover that path. Record the result in `PREP_LOG.md`. These sessions are never analysed.
 
 **Phase B hosts are not chosen.** GLM-5.3 Flash has 34 endpoints (Z.AI's own is fp8 at $0.15 in and $0.50 out); Qwen3.7 Flash has a single provider (Alibaba).
 

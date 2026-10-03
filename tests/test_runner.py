@@ -83,6 +83,7 @@ def test_every_repeated_pilot_session_has_a_control_on_the_same_seed() -> None:
         ("supporting_lineup.yaml", 18, 2700),
         ("sanity_dummy.yaml", 216, 0),
         ("sanity_tiebreak.yaml", 108, 0),
+        ("pilot_tiny.yaml", 4, 36),
     ],
 )
 def test_call_counts_match_the_plan(name: str, sessions: int, calls: int) -> None:
@@ -246,3 +247,12 @@ def test_condition_means_table_shape(tmp_path: Path) -> None:
     match_lw = wide.loc["tie-least_wins__info-full__lineup-dummy-match__n3"]
     assert match_lw["tie_rate"] == 1.0 and match_lw["chi2_stat"] < 0.1
     assert pd.isna(summary["ci_low"]).all()
+
+
+def test_pilot_tiny_is_small_and_on_its_own_seeds() -> None:
+    config, models, plan = prepare(CONFIGS / "pilot_tiny.yaml")
+    assert plan[0].meta.run_id == "pilot_tiny"
+    assert {p.meta.tie_break_rule for p in plan} == {"bafo"} and {p.meta.n_rounds for p in plan} == {3}
+    other_seeds = {p.meta.seed for name in ["pilot.yaml", "main_tiebreak.yaml"] for p in prepare(CONFIGS / name, "x")[2]}
+    assert not {p.meta.seed for p in plan} & other_seeds
+    assert estimate(plan, config, models, "primary").cost_usd < config["budget"]["max_cost_usd"] / 2

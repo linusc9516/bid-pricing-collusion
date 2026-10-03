@@ -33,12 +33,15 @@ uv run python scripts/run_experiment.py configs/sanity_tiebreak.yaml
 # 2. Pre-pilot smoke test: one call per pinned host (a few cents); without --yes it only prints the plan
 uv run python scripts/smoke_test.py --yes
 
-# 3. Phase A pilot: two models under all three tie-break rules, on its own seeds
+# 3. End-to-end check: 4 sessions of 3 rounds with real models; read every prompt in calls.jsonl
+uv run python scripts/run_experiment.py configs/pilot_tiny.yaml
+
+# 4. Phase A pilot: two models under all three tie-break rules, on its own seeds
 uv run python scripts/run_experiment.py configs/pilot.yaml --dry-run   # call + cost estimate
 uv run python scripts/run_experiment.py configs/pilot.yaml             # asks before the first call
 uv run python scripts/run_experiment.py configs/pilot.yaml --host fallback   # rerun failed sessions on the fallback host
 
-# 4. Phase B, only after Phase A is reviewed: main experiment, then the
+# 5. Phase B, only after Phase A is reviewed: main experiment, then the
 #    supporting ablations, under one run id
 uv run python scripts/run_experiment.py configs/main_tiebreak.yaml     --run-id run1
 uv run python scripts/run_experiment.py configs/supporting_info.yaml   --run-id run1

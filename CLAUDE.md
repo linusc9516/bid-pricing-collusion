@@ -23,7 +23,8 @@ Dependencies are managed with uv (`uv sync` once; then prefix commands with `uv 
 
 Configs that call models ask for confirmation unless `--yes` is given. Before the first
 live call, run `uv run python scripts/smoke_test.py` (prints the plan) and then with
-`--yes` (PLANNING.md 5.5). If a pinned host fails, rerun with `--host fallback`.
+`--yes`, then the end-to-end check `configs/pilot_tiny.yaml` (PLANNING.md 5.5). If a
+pinned host fails, rerun with `--host fallback`.
 
 ## Code style
 - Comments: one-line docstrings stating units, ranges, and return semantics —
@@ -96,6 +97,7 @@ configs/
   analysis.yaml          pre-declared outcome, comparisons, correction
   sanity_dummy.yaml      scripted bidders, no API calls
   sanity_tiebreak.yaml   scripted bidders under the three tie-break rules
+  pilot_tiny.yaml        end-to-end check before the pilot: 4 sessions of 3 rounds
   pilot.yaml             Phase A pilot: two models, three tie-break rules
   main_tiebreak.yaml     main experiment: tie-break rule, with one-shot controls
   supporting_info.yaml   supporting ablation: information revelation
