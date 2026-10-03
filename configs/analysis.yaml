@@ -1,0 +1,41 @@
+# Pre-declared analysis plan. Commit this before collecting data; the git SHA logged
+# in each session.json then shows the plan pre-dates the results.
+# See PLANNING.md sections 2.6 and 6.
+
+unit: session                 # all inference is on one value per session, never per round
+
+primary_outcome: delta_index  # session collusion index minus its matched one-shot control
+                              # (same lineup, N, tie-break rule and seed). Index is unclipped.
+
+inference:
+  alpha: 0.05
+  correction: holm            # across the confirmatory family below
+  pooling: pooled             # pooled | per_model. The per_model variant lives on branch per-model-tests.
+  test: paired_sign_flip      # per seed: mean over models within each arm, then permute signs
+  two_sided: true
+  n_permutations: 10000
+  n_bootstrap: 10000          # resamples whole sessions (seeds), percentile 95% CI
+
+# The confirmatory family is the main claim only: the tie-break rule, in main_tiebreak.yaml.
+# All arms are full history, same-model lineup, N = 3.
+# Pooled across models: 2 tests.
+confirmatory:
+  - id: least_wins_vs_random  # does a predictable tie-break rule raise prices?
+    arm_a: {tie_break_rule: least_wins}
+    arm_b: {tie_break_rule: random}
+  - id: bafo_vs_random        # does a rebid lower them, or at least not raise them?
+    arm_a: {tie_break_rule: bafo}
+    arm_b: {tie_break_rule: random}
+
+# Everything else is exploratory: per-model breakdowns, least_wins vs. bafo directly,
+# the repetition effect in each cell, tie rate and its early/late change, tie-price index,
+# rebid delta, lowest-cost-wins share, repeat-win rate, chi-square statistic, bid clustering.
+# Reported as effect sizes with bootstrap CIs; any p-value is Holm-adjusted within its
+# family and labelled exploratory.
+exploratory:
+  correction: holm
+
+# Supporting ablations (supporting_info / supporting_n / supporting_lineup) are descriptive
+# only: one model, 9 sessions, effect sizes with bootstrap CIs, no tests.
+supporting:
+  tests: none

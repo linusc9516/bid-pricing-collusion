@@ -1,0 +1,17 @@
+# Scripted bidders only. No API calls. Validates the three tie-break rules and the
+# tie metrics before any model is called (PLANNING.md section 2.7).
+#   match + random      tie rate 1; wins spread at random
+#   match + least_wins  tie rate 1; wins rotate exactly, with no intent in the bidders
+#   match + bafo        tie rate 1; every round rebids; scripted rebid is the BNE bid
+#   bne + any rule      no ties; logs must be identical under all three rules
+
+inherits: base.yaml
+
+cells:
+  - id: dummy-match                      # every firm bids the same fixed price
+    lineup: {type: scripted, bidder: match, price: 80}
+  - id: dummy-bne
+    lineup: {type: scripted, bidder: bne}
+
+sweep:
+  tie_break_rule: [random, least_wins, bafo]

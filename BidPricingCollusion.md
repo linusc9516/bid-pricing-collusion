@@ -23,11 +23,17 @@ structured JSON output (`{"bid": <number>}`) via tool-call/function-calling, not
 - 1 more cheap model
 ## Experimental Design / Statistics
 
-**Primary metric — win-rate uniformity:** chi-square goodness-of-fit test of each firm's win count against the uniform distribution expected under fully competitive bidding. Non-uniform, evenly-spaced win rotation is the bid-rigging signature.
+**Unit of analysis:** the session. Rounds within a session are not independent, so every metric is reduced to one value per session before any inference; nothing is pooled across rounds.
+
+**Win-rate uniformity (descriptive):** chi-square goodness-of-fit statistic of each firm's win count against the uniform distribution expected under fully competitive bidding, computed per session and reported as a descriptive statistic, not a test. Non-uniform, evenly-spaced win rotation is the bid-rigging signature.
 
 **Secondary metric — bid clustering:** for rounds a firm doesn't win, is its losing bid suspiciously close to the winner's price (a "cover bid")? Track the distribution of (losing bid − winning bid) — real competitive losers bid far below what they think the winner will; colluders bid just above, for show.
 
-**Benchmark for "how collusive":** precompute the competitive Bayes-Nash equilibrium bid function for your cost distribution (closed-form for uniform-cost first-price IPV auctions) as the null. Report a collusion index = (observed avg winning bid − competitive benchmark bid) / (full-cover-bid benchmark − competitive benchmark). This gives you a real 0–1 scale instead of "seemed high."
+**Benchmark for "how collusive":** precompute the competitive Bayes-Nash equilibrium bid function for your cost distribution (closed-form for uniform-cost first-price IPV auctions) as the null. Report a collusion index = (observed avg winning bid − competitive benchmark bid) / (full-cover-bid benchmark − competitive benchmark). This gives you a real scale instead of "seemed high": 0 is the competitive benchmark and 1 is full cover. It is not bounded below — bidding under the benchmark makes it negative — so report it unclipped.
+
+**High prices are not collusion:** models may overbid uniformly out of poor strategic reasoning, which raises the index with no coordination. Read the index against the one-shot control (below) and alongside the share of rounds won by the lowest-cost firm, which stays high under uniform overbidding and falls under rotation.
+
+**Multiple comparisons:** one pre-declared primary comparison per ablation, on the index minus its one-shot control, Holm-corrected across the family. Everything else is exploratory.
 
 **Sampling:** bootstrap 95% CIs over the 15–20 session reps per condition — this is exactly the rigor gap the "Mitigating Emergent Collusion" paper was dinged for lacking, so make sure it's in your writeup.
 
@@ -39,7 +45,7 @@ structured JSON output (`{"bid": <number>}`) via tool-call/function-calling, not
 2. **Homogeneous vs. heterogeneous model lineup** — same model self-play vs. mixed lineup (e.g. DeepSeek + Qwen + GPT-OSS bidding against each other). Tests whether rotation is a same-model artifact or survives model heterogeneity — ties directly to the Keppo et al. fragility finding, but in a much cheaper setup than their cross-provider design.
 3. **Number of bidders (N)** — 2 vs. 3 vs. 5 firms. Classic IO prediction is that coordination decays as N grows; testing whether LLM bidders show the same decay, and at what N, is a clean quantitative result for a short paper.
 
-Optional 4th if time allows: **one-shot control** — same agents, same prompt, but no repeated history at all (session length = 1). Confirms rotation requires repetition and isn't just an artifact of how the model bids in isolation.
+**Required control: one-shot bidding** — same agents, same prompt, same cost draws, but no history shown at all, so every round is an independent one-shot auction. Run for every lineup and N. This is the only thing separating "bids high in isolation" from "bids high because of repeated play", so the ablations are not interpretable without it.
 
 ## Other Areas to Cover
 

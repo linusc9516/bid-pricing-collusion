@@ -1,0 +1,40 @@
+# Shared defaults. Every other config inherits these and overrides what it varies.
+# Values marked (open) are proposed defaults pending review; see PLANNING.md section 5.
+
+auction:
+  cost_low: 0
+  cost_high: 100
+  reserve_price: 100      # max allowed bid; index = 1 when every winning bid is here (resolved)
+  bid_increment: 0.01     # bids are rounded to this; equal rounded bids are a tie (resolved; pilot checks tie rate)
+  tie_break_rule: random  # random | least_wins | bafo; varied only in main_tiebreak.yaml
+  n_rounds: 50            # (open)
+  n_bidders: 3            # baseline cell
+
+session:
+  n_sessions: 18          # main experiment; supporting ablations override to 9
+  base_seed: 20261002     # session k uses base_seed + k
+  info_condition: full    # full | winner_price | winner_only
+  history_window: null    # null = whole session; 0 = no history at all (one-shot control)
+  disclose_horizon: false # (open) do not tell agents the round count
+
+llm:
+  temperature: 1.0
+  max_retries: 2          # then the firm sits out the round
+  capture_reasoning: true # resolved for Phase A: bid tool call includes a reasoning field
+  reasoning_length: short # short = two or three sentences. REMINDER (Phase B): choose long if an LLM judge
+                          # will analyse traces; re-estimate budget first (PLANNING.md 7.2)
+  max_output_tokens: 400  # (open) main budget lever; output tokens dominate the cost per call
+  max_concurrency: 8
+
+prompt:
+  template: prompts/bidder_system.md   # not written yet
+  version: v0
+
+budget:
+  max_cost_usd: 1         # per config; the runner aborts when a config's spend exceeds its cap.
+                          # Each experiment config sets its own. Phase A budget is $10; the Phase B
+                          # budget is not set yet (PLANNING.md section 5.4).
+
+output:
+  log_dir: logs
+  results_dir: results
