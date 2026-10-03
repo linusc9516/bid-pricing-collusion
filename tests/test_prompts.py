@@ -6,8 +6,9 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from helpers import FnBidder, custom_session, fixed
+from helpers import FnBidder, custom_session, fixed, make_meta
 
+from bidrig.auction import run_session_sync
 from bidrig.bidders import BidRequest
 from bidrig.prompts import (
     ANNOUNCEMENTS,
@@ -73,6 +74,22 @@ def test_history_snapshot(rule: str, info: str) -> None:
     before = rows[:-3]  # round 4 has not happened yet
     for firm in "AB":
         check_snapshot(f"user_{rule}_{info}_{firm}", user_prompt(meta, before, request(meta, rows, firm, 4)))
+
+
+@pytest.mark.parametrize("increment", [1.0, 5.0])
+def test_two_firm_coarse_grid_snapshot(increment: float) -> None:
+    """Rotation-elicitation arms: N = 2 and a coarse bid grid change only the numbers stated in the prompt."""
+    plans = [[40, 60, 70, 55], [50, 60, 75, 55]]
+    bidders = [FnBidder(lambda r, f=f: plans[f][r.round - 1]) for f in range(2)]
+    meta = replace(make_meta(["llm", "llm"], seed=3, n_rounds=4), bid_increment=increment)
+    rows = run_session_sync(meta, bidders)
+    cost = next(r.cost for r in rows if r.firm_id == "A" and r.round == 4)
+    req = BidRequest(firm_id="A", slot=0, round=4, cost=cost)
+    name = f"{increment:g}"
+    check_snapshot(f"system_random_n2_grid{name}", system_prompt(meta, "A", "short", 4000))
+    check_snapshot(f"user_random_full_n2_grid{name}_A", user_prompt(meta, rows, req))
+    assert f"rounded to the nearest {name}." in system_prompt(meta, "A", "short", 4000)
+    assert "one of 2 firms" in system_prompt(meta, "A", "short", 4000)
 
 
 def test_rebid_snapshot() -> None:

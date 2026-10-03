@@ -1,8 +1,8 @@
 # Rotation-elicitation screen: plan (draft, nothing run)
 
-Status: planning only, written 2026-10-03 after the Phase A pilot. No configs, code or API calls yet. The
-numbers below are back-of-envelope and must be replaced by `--dry-run` output before anything is approved.
-Not part of Phase B; it needs its own go-ahead and budget from the user.
+Status: planning plus the no-spend checks (section 10), updated 2026-10-03. Draft arm configs exist and have been
+dry-run; no model has been called for this study. Not part of Phase B; it needs its own go-ahead and budget
+from the user.
 
 ## 1. Why this study
 
@@ -21,18 +21,28 @@ well-powered null ("LLM bidders compete, and the tie rule does not matter") and 
 
 - Tie rule `random` throughout; this is the positive-control question, not a tie-rule comparison.
 - Rule-based auctioneer, no agent-to-agent channel, own cost only, full history, `info: full`,
-  `disclose_horizon: false`, prompt v0 unchanged, temperature 1.0, 300 s timeout.
+  `disclose_horizon: false`, temperature 1.0, 300 s timeout.
+- Prompt v1 for every arm (see below), not the pilot's v0.
 - Models only from `models.yaml`. Hosts as in the pilot.
 - Primary outcome `delta_index` (unclipped), plus the labelling rule. Session level only.
 
 ## 3. Levers and arms
 
 The sweep mechanism is a cross product, so a one-factor design needs one small config per arm, all under one run
-id (`rotation_screen`). Each arm has a repeated sub-arm and a matched one-shot control (`history_window: 0`, same
+id (`rotation_screen`). Cell ids must be unique per arm (`n2-deepseek`, `grid5-gpt-oss`, ...): `condition_id` and
+session ids do not include the bid increment, number of rounds or thinking mode, so arms sharing a cell id collide. Each arm has a repeated sub-arm and a matched one-shot control (`history_window: 0`, same
 seeds), as in the pilot.
 
-Baseline anchor: the pilot's `random` cells (N = 3, 25 rounds, increment 0.01, thinking on low). They are reused
-descriptively, not rerun. They use pilot seeds, so they are not a paired baseline for the new arms.
+Prompt v1: two sentences were added to the system prompt for all arms (2026-10-03). Bids are "rounded to the
+nearest {increment}, so give your bid in multiples of {increment}", and costs are "drawn uniformly between 0 and
+100 and then rounded to the nearest {increment}". Reason: costs are rounded to the grid, so at increment 5.0 the
+stated U[0, 100] no longer matched the costs agents faced. The change applies to every condition, including 0.01.
+
+Baseline anchor: the pilot's `random` cells (N = 3, 25 rounds, increment 0.01, thinking on low) ran prompt v0, with
+pilot seeds. They are a descriptive reference only, not a paired baseline and not a clean comparator, because
+the arms differ from them by the prompt as well as by the lever. Each arm's own matched one-shot control (same
+prompt, same seeds) is the comparison. Optional: rerun the N = 3, 25-round, 0.01 cell under v1 (about
+750 calls per model) as a v1 anchor, which also shows what the prompt change alone does; the user's call.
 
 | Arm | Change from baseline | Why it might help | Chance tie rate (N, grid) |
 |---|---|---|---|
@@ -60,8 +70,10 @@ since it changes what agents are told. The decision belongs to the user.
 
 - Calls per model: A1 500, A2 1,500, A3a 750, A3b 750, A5 1,000 = about 4,500; plus A4 750 for DeepSeek.
   About 9,750 calls in all; no rebids, since the tie rule is `random`.
-- Cost: the pilot cost $3.11 for 6,750 calls (about $0.0005 per call), which gives roughly $4-5 here; longer
-  histories add input tokens. Proposed tripwire $7, to be set from the dry run.
+- Cost: dry runs (stress case, every call uses the whole cap): n2 $1.38, rounds50 $4.20, grid1 $2.07,
+  grid5 $2.07, thinkoff $0.36, combined $2.77, in all $12.85 for 9,750 calls. The pilot's actual spend was about 42%
+  of its stress estimate ($3.11 of $7.41), which gives roughly $5-6 here. The drafts carry a placeholder $3 tripwire
+  per arm (rounds50's stress estimate already exceeds it); set the real caps with the user.
 - Wall clock: the pilot took 3 h 20 min for 6,750 calls at concurrency 8, so about 5 h.
 - Staging option: run A1 and A3a/A3b first (cheapest, most plausible levers), review, then A2, A4, A5.
 
@@ -97,18 +109,24 @@ The screen is exploratory: n = 5, no p-values, no claim from a hit alone. Any hi
 
 - Floor effect: gpt-oss and Qwen bid far below BNE (index about -0.3 to -0.5), so the index cannot reach above 0
   without a large shift. DeepSeek, which sits at about 0, is the most likely to produce a hit.
-- A coarse grid can raise the index mechanically through rounding to the grid, not through coordination. The
-  chance benchmark handles ties but not price; compare each coarse-grid arm's own one-shot control, not the
-  pilot baseline.
+- A coarse grid raises the index mechanically through rounding: a scripted BNE bidder reads +0.04 at N = 2 and
+  increment 5.0 (about 0 at 0.01). The matched one-shot control uses the same grid, so `delta_index` cancels it.
+  Judge the grid arms on `delta_index` and the labelling rule, never on the raw index, and use each arm's own
+  control, not the pilot baseline.
+- With a coarse grid the costs are discrete (multiples of 5 at increment 5.0) and the endpoints get half weight.
+  Prompt v1 now says so. The chance tie benchmark and the controls use the same rounding.
 - Five sessions per cell is low power by design; a miss does not exclude a small effect.
 - Seven arms times two models multiplies chances of a lucky hit, which is why a hit is only a lead.
 - Longer horizons grow prompts and cut-off risk; check the cut-off rate in A2 and A5 before reading them.
 
-## 8. Build and file list (nothing created yet)
+## 8. Build and file list
 
-- `configs/rotation_screen_<arm>.yaml`, one per arm, inheriting `pilot.yaml` settings, `base_seed: 991000`.
+- Done (drafts, uncommitted until the user approves): `configs/rotation_screen_{n2,rounds50,grid1,grid5,thinkoff,combined}.yaml`,
+  `base_seed: 991000`, inheriting `base.yaml` with the pilot's llm settings restated; the prompt v1 edit in
+  `prompts/bidder_system.md` (`prompt.version: v1` in `base.yaml`), regenerated system snapshots and four new
+  N = 2 / coarse-grid snapshots with a test (`test_two_firm_coarse_grid_snapshot`).
 - `configs/analysis.yaml` addition (or a separate declared file) with section 5, committed before the run.
-- Optional: the reserve-bid-excluded index variant in `analysis/metrics.py`, with tests.
+- Still to do: the reserve-bid-excluded index variant in `analysis/metrics.py`, with tests.
 - Results to `results/rotation_screen/` with a findings file, same format as `PILOT_FINDINGS.md`.
 - Run order: `--dry-run` for each config, user approval of budget, then run under `--run-id rotation_screen`.
 
@@ -119,3 +137,15 @@ The screen is exploratory: n = 5, no p-values, no claim from a hit alone. Any hi
 3. Output cap for the thinking-off arm; whether to add Qwen.
 4. Whether to build the reserve-bid-excluded index before the run.
 5. Whether a screen hit is enough to trigger the confirmation stage, or the user wants a second look first.
+
+## 10. No-spend checks done (2026-10-03)
+
+1. Dry runs of all six arm configs: section 4.
+2. Scripted-bidder sanity runs at N = 2 and 3 and increments 0.01, 1.0 and 5.0 (108 sessions, no API calls):
+   `check_logs.py` passes in all three; bids and costs sit on the grid; BNE index about 0 at 0.01 and +0.04 at
+   N = 2 with increment 5.0 (rounding); markup bidders well below 0; scripted rotation reads 0.97-1.0 with the
+   lowest-cost win share near 1/N; BNE tie rates follow the chance benchmark (N = 3: 3.0% at 1.0, 13.7% at 5.0).
+3. Chance tie rates for the combined arm: 2.0% (N = 2, 1.0) and 9.7% (N = 2, 5.0).
+4. Prompt snapshots for N = 2 at increments 1.0 and 5.0, plus the v1 wording on the existing snapshots.
+5. Prompts read by hand at N = 2 and both increments: wording correct, round 4 shows rounds 1-3 only.
+The cheap live checks (smoke test of the thinking-off config, a 3-round combined-arm run) are not done.
