@@ -2,7 +2,8 @@
 Usage: analyze.py LOG_DIR [--results-dir DIR] [--include-incomplete]
 
 Writes session_metrics.csv, condition_summary.csv (means only; intervals wait for build
-step 3b) and call_summary.csv to results/<run_id>/. confirmatory_tests.csv is not written
+step 3b), non_competitive_bids.csv (bids at the reserve and below cost, kept apart from the
+collusion, tie and rotation measures) and call_summary.csv to results/<run_id>/. confirmatory_tests.csv is not written
 until the tests exist (step 3b).
 """
 
@@ -11,7 +12,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from bidrig.analysis.metrics import call_summary, condition_means, session_metrics_table
+from bidrig.analysis.metrics import (
+    call_summary,
+    condition_means,
+    non_competitive_bids,
+    session_metrics_table,
+)
 from bidrig.schema import SESSION_FILE, read_calls, read_session
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,14 +55,18 @@ def main() -> int:
     summary.to_csv(out / "condition_summary.csv", index=False)
     calls = call_summary(loaded)
     calls.to_csv(out / "call_summary.csv", index=False)
+    noncompetitive = non_competitive_bids(table)
+    noncompetitive.to_csv(out / "non_competitive_bids.csv", index=False)
 
     wide = summary.pivot(index="condition_id", columns="metric", values="mean")
     with pd.option_context("display.width", 200, "display.max_columns", 20, "display.precision", 3):
         print(f"{len(table)} sessions; means over sessions per condition (raw numbers, no intervals)\n")
         print(wide[[c for c in HEADLINE if c in wide.columns]].to_string())
+        print("\nnon-competitive unilateral bids (shares of valid bids; not collusion, tie or rotation measures)\n")
+        print(noncompetitive.set_index("condition_id").to_string())
         print()
         print(calls.set_index("condition_id").to_string())
-    print(f"\nwrote {out}/session_metrics.csv, condition_summary.csv, call_summary.csv")
+    print(f"\nwrote {out}/session_metrics.csv, condition_summary.csv, non_competitive_bids.csv, call_summary.csv")
     return 0
 
 

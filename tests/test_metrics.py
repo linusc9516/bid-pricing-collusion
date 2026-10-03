@@ -12,6 +12,7 @@ from bidrig.analysis.metrics import (
     SESSION_METRIC_COLUMNS,
     add_control_deltas,
     load_run,
+    non_competitive_bids,
     session_metrics,
     session_metrics_table,
 )
@@ -94,6 +95,55 @@ def test_hand_computed_bafo_session() -> None:
     assert m["median_loser_gap"] == pytest.approx(22.5)
     # Only the tied firms count toward the chi-square's three cells: wins A 2, B 1, C 0.
     assert m["chi2_stat"] == pytest.approx(2.0)
+
+
+def test_non_competitive_bid_rates_by_hand() -> None:
+    """Seven valid bids: two at the reserve, two below cost (one by a single cent), one at cost, one sitting out."""
+    rows = hand_rows(
+        2,
+        [
+            [(20, 70, True), (40, 100, False)],
+            [(60, 55, True), (30, 100, False)],
+            [(10, 30, True), (80, 79.99, False)],
+            [(50, None, False), (45, 45, True)],
+        ],
+    )
+    m = session_metrics(make_meta(["llm"] * 2, n_rounds=4), rows)
+    assert m["reserve_bid_rate"] == pytest.approx(2 / 7)
+    assert m["below_cost_bid_rate"] == pytest.approx(2 / 7)  # a bid equal to cost is not below cost
+
+
+def test_non_competitive_bid_rates_ignore_rebids_and_missing_bids() -> None:
+    meta, rows = custom_session([fixed(None), fixed(None)], n_rounds=3)
+    m = session_metrics(meta, rows)
+    assert math.isnan(m["reserve_bid_rate"]) and math.isnan(m["below_cost_bid_rate"])
+    # Under bafo a rebid at the reserve is not an original bid, so it does not count.
+    meta, rows = custom_session([fixed(50, 100), fixed(50, 100)], rule="bafo", n_rounds=4)
+    m = session_metrics(meta, rows)
+    assert m["reserve_bid_rate"] == 0.0
+
+
+@pytest.mark.parametrize("n", [2, 3, 5])
+def test_non_competitive_bid_rates_read_as_expected_for_scripted_bidders(n: int) -> None:
+    rates = {t: session_metrics(*scripted_session(t, n=n, n_rounds=LONG)) for t in ["bne", "markup", "overbid", "rotation", "match"]}
+    for kind in ["bne", "overbid", "markup"]:
+        assert rates[kind]["below_cost_bid_rate"] == 0  # none of these bids below its own cost
+    # The rotation bidder's 99 on its turn is below cost whenever cost exceeds 99: about 1% of its 1 / n of the bids.
+    assert rates["rotation"]["below_cost_bid_rate"] == pytest.approx(0.01 / n, abs=0.003)
+    assert rates["bne"]["reserve_bid_rate"] < 0.001 and rates["overbid"]["reserve_bid_rate"] < 0.001
+    assert rates["markup"]["reserve_bid_rate"] == pytest.approx(0.10, abs=0.01)  # cost + 10 is capped at 100 above cost 90
+    assert rates["rotation"]["reserve_bid_rate"] == pytest.approx((n - 1) / n, abs=0.001)  # everyone but the designated firm
+    assert rates["match"]["below_cost_bid_rate"] == pytest.approx(0.20, abs=0.02)  # a fixed 80 is below any cost above 80
+    assert rates["match"]["reserve_bid_rate"] == 0
+
+
+def test_non_competitive_bids_table_is_per_condition_and_kept_apart() -> None:
+    sessions = paired("overbid", "bne", seed=1) + paired("overbid", "bne", seed=2)
+    table = session_metrics_table(sessions)
+    summary = non_competitive_bids(table)
+    assert list(summary.columns) == ["condition_id", "n_sessions", "reserve_bid_rate", "below_cost_bid_rate"]
+    assert len(summary) == 2 and (summary["n_sessions"] == 2).all()
+    assert (summary["below_cost_bid_rate"] == 0).all()
 
 
 def test_chi2_and_repeat_rate_on_a_single_winner() -> None:

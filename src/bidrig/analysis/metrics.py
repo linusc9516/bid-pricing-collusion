@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from bidrig.auction import to_ticks
 from bidrig.bne import collusion_index
 from bidrig.schema import SESSION_FILE, BidRow, CallRow, SessionMeta, read_session
 
@@ -40,6 +41,8 @@ SESSION_METRIC_COLUMNS = [
     "chi2_stat",
     "median_loser_gap",
     "median_loser_gap_vs_bne",
+    "reserve_bid_rate",
+    "below_cost_bid_rate",
     "tie_rate",
     "tie_rate_early",
     "tie_rate_late",
@@ -109,6 +112,13 @@ def session_metrics(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, obje
         lowest_outside = outside.groupby("round")["bid"].min().reindex(won.index[tied])
         bafo_overshoot_rate = _mean(won.loc[tied, "winning_bid"] > lowest_outside)
 
+    # Non-competitive unilateral bids (PLANNING.md 2.6): over valid original bids, on the bid grid; reported apart from
+    # the collusion, tie and rotation measures.
+    valid_bids = bids[bids["valid"]]
+    bid_ticks = valid_bids["bid"].map(lambda v: to_ticks(v, meta.bid_increment))
+    cost_ticks = valid_bids["cost"].map(lambda v: to_ticks(v, meta.bid_increment))
+    reserve_ticks = to_ticks(meta.reserve_price, meta.bid_increment)
+
     win_counts = [int((won["firm_id"] == entry.firm_id).sum()) for entry in meta.lineup]
     return {
         "condition_id": meta.condition_id,
@@ -127,6 +137,8 @@ def session_metrics(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, obje
         "chi2_stat": _chi2_stat(win_counts),
         "median_loser_gap": float((loser_final - losers["winning_bid"]).median()),
         "median_loser_gap_vs_bne": float((loser_final - losers["bne_bid"]).median()),
+        "reserve_bid_rate": _mean(bid_ticks == reserve_ticks),
+        "below_cost_bid_rate": _mean(bid_ticks < cost_ticks),
         "tie_rate": _mean(tied),
         "tie_rate_early": _mean(tied[early]),
         "tie_rate_late": _mean(tied[~early]),
@@ -227,6 +239,20 @@ def call_summary(sessions: Iterable[tuple[SessionMeta, Sequence[BidRow], Sequenc
             }
         )
     return pd.DataFrame(records, columns=CALL_SUMMARY_COLUMNS)
+
+
+def non_competitive_bids(table: pd.DataFrame) -> pd.DataFrame:
+    """The separate non-competitive-bids table: per condition, mean `reserve_bid_rate` and `below_cost_bid_rate` over sessions.
+
+    Shares in [0, 1]. Kept apart from the central table of collusion, tie and rotation measures (PLANNING.md 2.6).
+    """
+    grouped = table.groupby("condition_id", sort=True)
+    summary = grouped.agg(
+        n_sessions=("session_id", "count"),
+        reserve_bid_rate=("reserve_bid_rate", "mean"),
+        below_cost_bid_rate=("below_cost_bid_rate", "mean"),
+    )
+    return summary.reset_index()
 
 
 def condition_means(table: pd.DataFrame) -> pd.DataFrame:
