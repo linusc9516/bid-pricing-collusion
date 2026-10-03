@@ -54,17 +54,20 @@ def test_inheritance() -> None:
 
 def test_pilot_plan() -> None:
     _, _, plan = prepare(CONFIGS / "pilot.yaml")
-    assert len(plan) == 60 and len({p.meta.condition_id for p in plan}) == 12
-    assert sum(p.n_llm_calls for p in plan) == 4500
+    assert len(plan) == 90 and len({p.meta.condition_id for p in plan}) == 18
+    assert sum(p.n_llm_calls for p in plan) == 6750
+    assert {p.models[0] for p in plan} == {"deepseek", "gpt-oss", "qwen"}
     assert {p.meta.seed for p in plan} == set(range(990000, 990005))
     controls = [p for p in plan if p.meta.is_control]
-    assert len(controls) == 30 and all(p.meta.condition_id.startswith("oneshot__") for p in controls)
+    assert len(controls) == 45 and all(p.meta.condition_id.startswith("oneshot__") for p in controls)
     meta = plan[0].meta
     assert meta.run_id == "pilot" and meta.n_rounds == 25 and meta.temperature == 1.0 and meta.prompt_version
     assert meta.providers == {"deepseek": {"name": "Morph", "quantization": "fp8", "role": "primary"}}
     assert meta.condition_id == "tie-random__info-full__lineup-pilot-deepseek__n3"
     assert [e.model for e in meta.lineup] == ["deepseek"] * 3
-    assert len({p.meta.session_id for p in plan}) == 60
+    assert len({p.meta.session_id for p in plan}) == 90
+    qwen = next(p.meta for p in plan if p.models[0] == "qwen")
+    assert qwen.providers == {} and [e.model for e in qwen.lineup] == ["qwen"] * 3  # one provider, nothing to pin
 
 
 def test_every_repeated_pilot_session_has_a_control_on_the_same_seed() -> None:
@@ -83,7 +86,8 @@ def test_every_repeated_pilot_session_has_a_control_on_the_same_seed() -> None:
         ("supporting_lineup.yaml", 18, 2700),
         ("sanity_dummy.yaml", 216, 0),
         ("sanity_tiebreak.yaml", 108, 0),
-        ("pilot_tiny.yaml", 4, 36),
+        ("pilot.yaml", 90, 6750),
+        ("pilot_tiny.yaml", 6, 54),
     ],
 )
 def test_call_counts_match_the_plan(name: str, sessions: int, calls: int) -> None:
@@ -133,16 +137,17 @@ def test_pilot_estimate_matches_planning() -> None:
     config, models, plan = prepare(CONFIGS / "pilot.yaml")
     est = estimate(plan, config, models, "primary")
     assert est.output_tokens_per_call == 1000
-    assert est.cost_usd == pytest.approx(1.49, abs=0.01)
+    assert est.cost_usd == pytest.approx(1.81, abs=0.01)
     assert est.cost_by_model["deepseek"] == pytest.approx(0.88, abs=0.01)
     assert est.cost_by_model["gpt-oss"] == pytest.approx(0.61, abs=0.01)
+    assert est.cost_by_model["qwen"] == pytest.approx(0.32, abs=0.01)
     assert est.cost_usd < config["budget"]["max_cost_usd"]
 
 
 def test_fallback_hosts_change_the_estimate_and_providers() -> None:
     config, models, plan = prepare(CONFIGS / "pilot.yaml", host_role="fallback")
     assert plan[0].meta.providers["deepseek"]["name"] == "DeepInfra"
-    assert estimate(plan, config, models, "fallback").cost_usd > 1.49
+    assert estimate(plan, config, models, "fallback").cost_usd > 1.81
 
 
 # --- running ---
@@ -176,9 +181,10 @@ def test_llm_config_runs_end_to_end_with_a_fake_client(tmp_path: Path) -> None:
     config, models, plan = small("pilot.yaml", n_rounds=4)
     fake = FakeOpenAI(fn=bid_from_prompt)
     result = asyncio.run(run_plan(plan, config, models, tmp_path, lambda: fake))
-    assert len(result.completed) == 12 and not result.failed
-    assert len(fake.requests) == 12 * 4 * 3
-    assert {r["extra_body"]["provider"]["only"][0] for r in fake.requests} == {"morph", "crusoe"}
+    assert len(result.completed) == 18 and not result.failed
+    assert len(fake.requests) == 18 * 4 * 3
+    # qwen has one provider and no pinned host, so its requests carry no provider block.
+    assert {r["extra_body"].get("provider", {"only": [None]})["only"][0] for r in fake.requests} == {"morph", "crusoe", None}
     assert result.spent_usd > 0
     loaded = []
     for p in plan:
@@ -219,13 +225,13 @@ def test_host_failure_fails_only_that_session_and_reruns_on_fallback(tmp_path: P
     config, models, plan = small("pilot.yaml", n_rounds=2)
 
     def flaky(kwargs: dict[str, Any]) -> Any:
-        if kwargs["extra_body"]["provider"]["only"] == ["morph"]:
+        if kwargs["extra_body"].get("provider", {}).get("only") == ["morph"]:
             return RuntimeError("503 from Morph")
         return bid_from_prompt(kwargs)
 
     first = asyncio.run(run_plan(plan, config, models, tmp_path, lambda: FakeOpenAI(fn=flaky)))
     deepseek = {p.meta.session_id for p in plan if p.models[0] == "deepseek"}
-    assert set(first.failed) == deepseek and len(first.completed) == 6
+    assert set(first.failed) == deepseek and len(first.completed) == 12
 
     _, _, fallback_plan = small("pilot.yaml", n_rounds=2, host="fallback")
     pending = [p for p in fallback_plan if not is_complete(tmp_path, p.meta)]
@@ -256,3 +262,39 @@ def test_pilot_tiny_is_small_and_on_its_own_seeds() -> None:
     other_seeds = {p.meta.seed for name in ["pilot.yaml", "main_tiebreak.yaml"] for p in prepare(CONFIGS / name, "x")[2]}
     assert not {p.meta.seed for p in plan} & other_seeds
     assert estimate(plan, config, models, "primary").cost_usd < config["budget"]["max_cost_usd"] / 2
+
+
+def test_llm_caps_by_config() -> None:
+    caps = {name: load_config(CONFIGS / name)["llm"]["max_output_tokens"] for name in ["base.yaml", "pilot_tiny.yaml", "pilot.yaml"]}
+    assert caps == {"base.yaml": 500, "pilot_tiny.yaml": 500, "pilot.yaml": 1000}
+    assert load_config(CONFIGS / "pilot.yaml")["llm"]["reasoning_mode"] == "per_model"
+
+
+@pytest.mark.parametrize("name", ["main_tiebreak.yaml", "supporting_info.yaml", "supporting_n.yaml", "supporting_lineup.yaml"])
+def test_phase_b_settings_are_tbd_and_block_model_calls(name: str, tmp_path: Path) -> None:
+    from bidrig.runner import tbd_settings
+
+    config, models, plan = prepare(CONFIGS / name, "x")
+    assert tbd_settings(config) == ["max_output_tokens", "reasoning_mode"]
+    fake = FakeOpenAI(fn=bid_from_prompt)
+    with pytest.raises(ValueError, match="TBD"):
+        asyncio.run(run_plan(plan[:2], config, models, tmp_path, lambda: fake))
+    assert fake.requests == [] and not any(tmp_path.iterdir())
+    assert estimate(plan, config, models, "primary").n_llm_calls > 0  # a dry run still works
+
+
+def test_phase_a_and_scripted_configs_have_nothing_tbd() -> None:
+    from bidrig.runner import tbd_settings
+
+    for name in ["pilot.yaml", "pilot_tiny.yaml", "sanity_dummy.yaml", "sanity_tiebreak.yaml"]:
+        assert tbd_settings(prepare(CONFIGS / name, "x")[0]) == [], name
+
+
+def test_unsupported_llm_settings_are_rejected() -> None:
+    from bidrig.runner import check_llm_settings
+
+    base = {"llm": {"max_output_tokens": 500, "reasoning_mode": "per_model"}}
+    check_llm_settings(base)
+    for bad in [{"reasoning_mode": "on"}, {"max_output_tokens": "lots"}, {"max_output_tokens": True}]:
+        with pytest.raises((ValueError, TypeError)):
+            check_llm_settings({"llm": {**base["llm"], **bad}})

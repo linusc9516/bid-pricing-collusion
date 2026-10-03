@@ -1,6 +1,6 @@
 # Pre-pilot end-to-end check (PLANNING.md 5.5): the full harness with real models, run after
 # the smoke test passes and before Phase A. One 3-round session per model under bafo, with its
-# one-shot control: 4 sessions, 36 calls plus any rebids, a few cents.
+# one-shot control: 6 sessions, 54 calls plus any rebids, a few cents.
 # Purpose: read every prompt in calls.jsonl by hand for off-by-one errors and leaks, and check
 # that session.json, bids.jsonl and calls.jsonl are written as in PLANNING.md section 3.
 # Rebids only happen if two models tie, which is unlikely in 3 rounds; the rebid path is
@@ -26,6 +26,8 @@ cells:
     lineup: {type: homogeneous, model: deepseek}
   - id: tiny-gpt-oss
     lineup: {type: homogeneous, model: gpt-oss}
+  - id: tiny-qwen
+    lineup: {type: homogeneous, model: qwen}
 
 sweep:
   history_window: [null, 0]

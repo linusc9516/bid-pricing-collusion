@@ -70,9 +70,11 @@ pinned host fails, rerun with `--host fallback`.
   complete and be reviewed before Phase B (full model lineup, full reps)
   starts. Don't begin Phase B without explicit confirmation — see
   PLANNING.md "Phased Execution Plan."
-- REMINDER before Phase B: reasoning length is undecided. Phase A uses short
-  reasoning (2-3 sentences). If an LLM judge will analyse the traces, Phase B
-  needs longer reasoning and a re-estimated budget (PLANNING.md 7.2). Ask the
+- REMINDER before Phase B: thinking mode, output-token cap and reasoning length
+  are all TBD (the Phase B configs say TBD and the runner refuses to call models).
+  Phase A runs DeepSeek and Qwen with thinking off, gpt-oss at low effort, and a
+  2-3 sentence reasoning field (PLANNING.md 5.6). If an LLM judge will analyse the
+  traces, Phase B needs longer reasoning and a re-estimated budget (7.2). Ask the
   user before the main run.
 - Always run the positive control first: confirm baseline rotation-like
   behavior exists under `random` tie-break before comparing conditions.
@@ -97,8 +99,8 @@ configs/
   analysis.yaml          pre-declared outcome, comparisons, correction
   sanity_dummy.yaml      scripted bidders, no API calls
   sanity_tiebreak.yaml   scripted bidders under the three tie-break rules
-  pilot_tiny.yaml        end-to-end check before the pilot: 4 sessions of 3 rounds
-  pilot.yaml             Phase A pilot: two models, three tie-break rules
+  pilot_tiny.yaml        end-to-end check before the pilot: 6 sessions of 3 rounds
+  pilot.yaml             Phase A pilot: three models, three tie-break rules
   main_tiebreak.yaml     main experiment: tie-break rule, with one-shot controls
   supporting_info.yaml   supporting ablation: information revelation
   supporting_n.yaml      supporting ablation: number of bidders

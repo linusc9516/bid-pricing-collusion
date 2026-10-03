@@ -23,8 +23,12 @@ llm:
   capture_reasoning: true # resolved for Phase A: bid tool call includes a reasoning field
   reasoning_length: short # short = two or three sentences. REMINDER (Phase B): choose long if an LLM judge
                           # will analyse traces; re-estimate budget first (PLANNING.md 7.2)
-  max_output_tokens: 400  # (open) main budget lever; output tokens dominate the cost per call
-  reasoning_effort: low   # sent as OpenRouter `reasoning.effort`; null to omit. The 5.5 smoke test checks it is honoured
+  max_output_tokens: 500  # smoke test and pilot_tiny; counted over hidden thinking too and stated in the prompt.
+                          # pilot.yaml sets 1000; Phase B configs set TBD (PLANNING.md 5.6)
+  reasoning_effort: low   # default OpenRouter `reasoning.effort` for models with no `reasoning` entry in models.yaml; null to omit
+  tool_choice: auto       # auto | required | forced. Morph, Crusoe and AkashML reject required and forced (smoke test, 2026-10-03)
+  reasoning_mode: per_model # thinking is set per model in models.yaml (Phase A). Phase B configs set TBD and the runner
+                          # refuses to call models until it is chosen (PLANNING.md 5.6)
   max_concurrency: 8
 
 prompt:

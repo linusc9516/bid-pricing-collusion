@@ -47,6 +47,7 @@ class ModelSpec:
     price_in: float
     price_out: float
     hosts: dict[str, Host] = field(default_factory=dict)
+    reasoning: dict[str, Any] | None = None  # OpenRouter `reasoning` object; None = use the config default
 
     def host(self, role: str) -> Host | None:
         """The pinned host for `role` (primary | fallback); None if no host is chosen for this model."""
@@ -63,7 +64,7 @@ def load_models(path: Path) -> dict[str, ModelSpec]:
     specs = {}
     for alias, entry in raw.items():
         hosts = {role: Host(role=role, **host) for role, host in (entry.get("providers") or {}).items()}
-        specs[alias] = ModelSpec(alias, entry["slug"], entry["price_in"], entry["price_out"], hosts)
+        specs[alias] = ModelSpec(alias, entry["slug"], entry["price_in"], entry["price_out"], hosts, entry.get("reasoning"))
     return specs
 
 
@@ -91,7 +92,8 @@ class LLMSettings:
     temperature: float = 1.0
     max_output_tokens: int = 400
     max_retries: int = 2
-    reasoning_effort: str | None = "low"
+    reasoning_effort: str | None = "low"  # default for models without their own `reasoning` setting
+    tool_choice: str = "auto"  # auto | required | forced; most pinned hosts reject required and forced
 
 
 def bid_tool(reserve_price: float) -> dict[str, Any]:
@@ -112,6 +114,15 @@ def bid_tool(reserve_price: float) -> dict[str, Any]:
             },
         },
     }
+
+
+def tool_choice_value(setting: str) -> str | dict[str, Any]:
+    """The request's `tool_choice` for a config setting: auto, required, or forced (the named function)."""
+    if setting == "forced":
+        return {"type": "function", "function": {"name": TOOL_NAME}}
+    if setting not in ("auto", "required"):
+        raise ValueError(f"tool_choice must be auto, required or forced, got {setting!r}")
+    return setting
 
 
 def call_seed(session_seed: int, round_number: int, slot: int, phase: CallPhase, attempt: int) -> int:
@@ -173,8 +184,11 @@ class OpenRouterClient:
     ) -> dict[str, Any]:
         """Keyword arguments for `chat.completions.create`, including OpenRouter routing."""
         extra: dict[str, Any] = {"usage": {"include": True}}
-        if self.settings.reasoning_effort:
-            extra["reasoning"] = {"effort": self.settings.reasoning_effort}
+        reasoning = spec.reasoning
+        if reasoning is None and self.settings.reasoning_effort:
+            reasoning = {"effort": self.settings.reasoning_effort}
+        if reasoning is not None:
+            extra["reasoning"] = reasoning
         if host is not None:
             # Never fall back to another host mid-session (PLANNING.md 5.5).
             extra["provider"] = {
@@ -187,7 +201,7 @@ class OpenRouterClient:
             "model": spec.slug,
             "messages": list(messages),
             "tools": [bid_tool(reserve_price)],
-            "tool_choice": {"type": "function", "function": {"name": TOOL_NAME}},
+            "tool_choice": tool_choice_value(self.settings.tool_choice),
             "temperature": self.settings.temperature,
             "max_tokens": self.settings.max_output_tokens,
             "seed": seed,

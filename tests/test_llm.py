@@ -92,7 +92,7 @@ def test_request_forces_the_tool_and_pins_the_host() -> None:
     ask(fake, temperature=1.0, max_output_tokens=400, reasoning_effort="low")
     (kw,) = fake.requests
     assert kw["model"] == "deepseek/deepseek-v4.1-flash"
-    assert kw["tool_choice"] == {"type": "function", "function": {"name": "submit_bid"}}
+    assert kw["tool_choice"] == "auto"
     assert kw["tools"][0]["function"]["parameters"]["required"] == ["reasoning", "bid"]
     assert (kw["temperature"], kw["max_tokens"]) == (1.0, 400)
     assert kw["seed"] == call_seed(5, 3, 1, "bid", 1)
@@ -180,6 +180,8 @@ def test_models_yaml_loads() -> None:
     assert specs["deepseek"].host("primary") == Host("Morph", "fp8", 0.021, 0.383, "primary")
     assert specs["gpt-oss"].host("fallback").name == "AkashML"
     assert specs["glm"].host("primary") is None
+    assert specs["deepseek"].reasoning == {"enabled": False} and specs["qwen"].reasoning == {"enabled": False}
+    assert specs["gpt-oss"].reasoning == {"effort": "low"} and specs["glm"].reasoning is None
 
 
 # --- the LLM bidder inside a real session ---
@@ -242,3 +244,25 @@ def test_llm_bidder_satisfies_the_request_shape() -> None:
     assert (response.bid, response.n_attempts) == (42, 1)
     assert bidder.model == "deepseek" and bidder.bidder_type == "llm"
     assert "No earlier rounds are shown." in fake.requests[0]["messages"][1]["content"]
+
+
+def test_tool_choice_setting() -> None:
+    from bidrig.llm import tool_choice_value
+
+    assert tool_choice_value("auto") == "auto" and tool_choice_value("required") == "required"
+    assert tool_choice_value("forced") == {"type": "function", "function": {"name": "submit_bid"}}
+    with pytest.raises(ValueError):
+        tool_choice_value("sometimes")
+    fake = FakeOpenAI([completion({"reasoning": "r", "bid": 50})])
+    ask(fake, tool_choice="forced")
+    assert fake.requests[0]["tool_choice"]["function"]["name"] == "submit_bid"
+
+
+def test_per_model_reasoning_overrides_the_config_default() -> None:
+    thinking_off = ModelSpec("deepseek", SPEC.slug, 0.021, 0.383, reasoning={"enabled": False})
+    for spec, expected in [(thinking_off, {"enabled": False}), (SPEC, {"effort": "low"})]:
+        client = OpenRouterClient(FakeOpenAI(), LLMSettings(reasoning_effort="low"), SpendTracker(1.0))
+        kw = client.request_kwargs(spec, None, [{"role": "user", "content": "u"}], 1, 100)
+        assert kw["extra_body"]["reasoning"] == expected
+    client = OpenRouterClient(FakeOpenAI(), LLMSettings(reasoning_effort=None), SpendTracker(1.0))
+    assert "reasoning" not in client.request_kwargs(SPEC, None, [{"role": "user", "content": "u"}], 1, 100)["extra_body"]

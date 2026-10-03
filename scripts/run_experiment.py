@@ -13,7 +13,14 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from bidrig.llm import make_openai_client
-from bidrig.runner import estimate, is_complete, prepare, run_plan
+from bidrig.runner import (
+    check_llm_settings,
+    estimate,
+    is_complete,
+    prepare,
+    run_plan,
+    tbd_settings,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,11 +51,18 @@ def main() -> int:
         per_model = ", ".join(f"{m} ${c:.2f}" for m, c in sorted(est.cost_by_model.items()))
         print(f"estimated ${est.cost_usd:.2f} at {est.output_tokens_per_call} output tokens per call ({per_model})")
         print(f"spending cap ${cap:.2f}" + ("  WARNING: estimate exceeds the cap" if est.cost_usd > cap else ""))
+    if tbd_settings(config):
+        print(f"NOTE: llm settings still TBD: {', '.join(tbd_settings(config))}; this config cannot call models yet")
     if args.dry_run or not pending:
         return 0
 
     client_factory = None
     if pending_calls:
+        try:
+            check_llm_settings(config)
+        except ValueError as exc:
+            print(f"refusing to call models: {exc}", file=sys.stderr)
+            return 1
         if not args.yes:
             if not sys.stdin.isatty():
                 print("refusing to call models without --yes when not interactive", file=sys.stderr)

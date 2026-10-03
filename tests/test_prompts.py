@@ -62,7 +62,7 @@ def request(meta: SessionMeta, rows: list[BidRow], firm_id: str, round_number: i
 @pytest.mark.parametrize("rule", RULES)
 def test_system_prompt_snapshot(rule: str) -> None:
     meta, _ = scripted_log(rule)
-    check_snapshot(f"system_{rule}", system_prompt(meta, "B", "short"))
+    check_snapshot(f"system_{rule}", system_prompt(meta, "B", "short", 400))
 
 
 @pytest.mark.parametrize("rule", RULES)
@@ -86,7 +86,7 @@ def test_rebid_snapshot() -> None:
 
 def test_rules_differ_by_one_sentence_only() -> None:
     meta, _ = scripted_log("random")
-    prompts = {rule: system_prompt(replace(meta, tie_break_rule=rule), "A", "short") for rule in RULES}
+    prompts = {rule: system_prompt(replace(meta, tie_break_rule=rule), "A", "short", 400) for rule in RULES}
     for rule, text in prompts.items():
         assert text.replace(TIE_RULE_SENTENCES[rule], "<rule>") == prompts["random"].replace(
             TIE_RULE_SENTENCES["random"], "<rule>"
@@ -96,16 +96,24 @@ def test_rules_differ_by_one_sentence_only() -> None:
 def test_info_conditions_differ_by_announcement_only() -> None:
     meta, _ = scripted_log("random")
     for info in INFO:
-        text = system_prompt(replace(meta, info_condition=info), "A", "short")
+        text = system_prompt(replace(meta, info_condition=info), "A", "short", 400)
         assert ANNOUNCEMENTS[info] in text
-        assert text.replace(ANNOUNCEMENTS[info], "<a>") == system_prompt(meta, "A", "short").replace(
+        assert text.replace(ANNOUNCEMENTS[info], "<a>") == system_prompt(meta, "A", "short", 400).replace(
             ANNOUNCEMENTS["full"], "<a>"
         )
 
 
+def test_output_cap_is_stated_from_the_config_value() -> None:
+    meta, _ = scripted_log("random")
+    text = system_prompt(meta, "A", "short", 400)
+    assert "limited to 400 tokens" in text and "MUST submit your bid" in text and "is invalid" in text
+    other = system_prompt(meta, "A", "short", 250)
+    assert "limited to 250 tokens" in other and other.replace("250", "400") == text
+
+
 def test_system_prompt_states_the_parameters() -> None:
     meta, _ = scripted_log("random")
-    text = system_prompt(meta, "C", "short")
+    text = system_prompt(meta, "C", "short", 400)
     for fragment in ["Firm C", "one of 3 firms", "between 0 and 100", "nearest 0.01", "between 0 and 100", "two or three"]:
         assert fragment in text
     assert "{" not in text and "}" not in text
@@ -117,7 +125,7 @@ def test_no_coordination_vocabulary(rule: str, info: str) -> None:
     meta, rows = scripted_log(rule)
     meta.info_condition = info
     req = request(meta, rows, "A", 4, phase="rebid", tied_price=55.0, n_tied=2)
-    text = " ".join(m["content"] for m in build_messages(meta, rows[:-3], req, "short")).lower()
+    text = " ".join(m["content"] for m in build_messages(meta, rows[:-3], req, "short", 400)).lower()
     assert not [word for word in FORBIDDEN if word in text]
 
 
@@ -125,8 +133,8 @@ def test_horizon_and_round_number_are_not_stated() -> None:
     meta, rows = scripted_log("random")
     text = user_prompt(meta, rows[:-3], request(meta, rows, "A", 4))
     assert "Round 4" not in text and "round 4" not in text
-    assert "4 rounds" not in system_prompt(meta, "A", "short")
-    assert "not announced" in system_prompt(meta, "A", "short")
+    assert "4 rounds" not in system_prompt(meta, "A", "short", 400)
+    assert "not announced" in system_prompt(meta, "A", "short", 400)
 
 
 def test_one_shot_control_reads_like_round_one() -> None:
@@ -138,7 +146,7 @@ def test_one_shot_control_reads_like_round_one() -> None:
             # What a repeated session shows in round 1 at this cost.
             round_one = user_prompt(meta, [], replace(req, round=1))
             assert user_prompt(control, rows[: 3 * (round_number - 1)], req) == round_one
-        assert system_prompt(control, firm, "short") == system_prompt(meta, firm, "short")
+        assert system_prompt(control, firm, "short", 400) == system_prompt(meta, firm, "short", 400)
 
 
 def test_rebid_adds_one_line_only() -> None:

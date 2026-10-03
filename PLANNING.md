@@ -2,13 +2,13 @@
 
 Source of truth for the auction environment is `BidPricingCollusion.md`. This file is the build plan: structure, components, data schema, build order, and the decisions that are still open. Where the two differ on what the paper claims, the Scope section below is current.
 
-**Status:** build steps 1, 2, 3a, 4, 5 and 6 are done; step 3b (bootstrap, tests, report) waits until after Phase A. No API call has been made: the smoke test in 5.5 is written (`scripts/smoke_test.py`) but not run.
+**Status:** build steps 1, 2, 3a, 4, 5 and 6 are done; step 3b (bootstrap, tests, report) waits until after Phase A. The smoke test passed on 3 October (5.5), and thinking mode and the output cap were checked (5.6); `pilot_tiny` and the pilot have not been run.
 
 ## Scope: what the paper claims
 
 This is a preparatory experiment for a workshop paper. The budget is $10 of OpenRouter credits for Phase A. The Phase B budget is not set yet and is expected to be much higher if needed; it is decided after Phase A measures tokens per call (5.4).
 
-- **Main claim: the tie-break rule (section 6).** Some rules for resolving exact-match bids are exploitable as a collusion vector and some resist it. This gets the full treatment: all four models, 18 sessions per condition, a matched one-shot control for every cell, bootstrap CIs, the pre-declared tests, and the reasoning-trace hand-coding. The paper's central figure and table report this experiment.
+- **Main claim: the tie-break rule ([[#6.1 Conditions]]).** Some rules for resolving exact-match bids are exploitable as a collusion vector and some resist it. This gets the full treatment: all four models, 18 sessions per condition, a matched one-shot control for every cell, bootstrap CIs, the pre-declared tests, and the reasoning-trace hand-coding. The paper's central figure and table report this experiment.
 - **Supporting ablations: information revelation, number of bidders, model lineup.** Run at reduced scale (DeepSeek only, 9 sessions) and reported as a short robustness and context section. Their job is to establish that the baseline rotation phenomenon exists and behaves as expected, which is the premise the main claim builds on. They are descriptive, carry no confirmatory tests, and are not presented as separate findings.
 - **Two phases (section 7).** Phase A is a small pre-team pilot whose output decides whether this becomes the team's sprint project. Phase B is everything described above and runs during the sprint weekend (Oct 23–25, 2026), only after explicit confirmation.
 
@@ -28,7 +28,7 @@ bid-pricing-collusion/
 │   ├── models.yaml          model aliases -> OpenRouter slugs + prices
 │   ├── sanity_dummy.yaml    scripted bidders only, zero API spend
 │   ├── sanity_tiebreak.yaml scripted bidders under the three tie-break rules
-│   ├── pilot.yaml           Phase A pilot: 2 models x 3 tie-break rules, own seeds
+│   ├── pilot.yaml           Phase A pilot: 3 models x 3 tie-break rules, own seeds
 │   ├── main_tiebreak.yaml   main experiment: tie-break rule, all models, with controls
 │   ├── supporting_info.yaml   supporting: information revelation
 │   ├── supporting_n.yaml      supporting: number of bidders
@@ -78,15 +78,15 @@ Rule-based, no LLM.
 - Three formatters on top of it, sharing the same log: `format_full`, `format_winner_price`, `format_winner_only`.
 - A firm's own cost, bid and profit history is always visible. Only public information varies by condition.
 - Exception: `history_window: 0` (the one-shot control) shows no history at all, own included. The rest of the prompt is unchanged, so it is identical to what a firm sees in round 1 of a repeated session.
-- System prompt states: repeated procurement auction for the same generic contract, lowest bid wins, the cost distribution, the reserve price, this round's private cost, and the instruction to maximise cumulative profit. It never mentions coordination, cooperation, or other firms' interests.
+- System prompt states: repeated procurement auction for the same generic contract, lowest bid wins, the cost distribution, the reserve price, this round's private cost, the instruction to maximise cumulative profit, and that the whole reply must fit in the output-token limit (a reply with no bid is invalid and the firm sits out the round). It never mentions coordination, cooperation, or other firms' interests.
 - The system prompt also states the tie-break rule, in one neutral sentence, in every condition (6.3). Under `bafo`, a tied firm gets the same prompt plus a one-line rebid notice.
 
 ### 2.3 LLM wrapper — `llm.py`
 - `openai` SDK pointed at the OpenRouter base URL (async client).
-- Bid returned through a forced tool call with a JSON schema; no free-text parsing.
+- Bid returned through a tool call with a JSON schema, `{"reasoning": str, "bid": number}`; no free-text parsing. The request uses `tool_choice: auto`: Morph, Crusoe and AkashML reject a forced or required tool call (5.5), and the prompt tells the firm it must submit its bid with the tool.
 - On a missing/invalid tool call or out-of-range bid: retry with a short corrective message, up to `max_retries`. After that the firm sits out the round (`valid=false`).
 - Records per attempt: prompt, raw response, reasoning text, parsed bid, error, tokens, latency, serving provider.
-- Caps output at `llm.max_output_tokens`. Output tokens dominate the cost per call (5.4).
+- Caps output at `llm.max_output_tokens`, which counts hidden thinking as well as the reply, and states the cap in the system prompt. Hidden thinking is set per model in `configs/models.yaml` (5.6). Output tokens dominate the cost per call (5.4).
 - Tracks cumulative spend against the config's `budget.max_cost_usd` and aborts the sweep if exceeded.
 
 ### 2.4 BNE benchmark — `bne.py`
@@ -282,7 +282,7 @@ Each step is testable before the next starts. Steps 1–4 cost nothing.
 4. **`prompts`** — snapshot test per condition and per tie-break rule, plus a leak test asserting that values hidden under a condition never appear in the prompt text.
 5. **`llm`** — tests against a mocked client; then one live call per model to confirm tool calling works.
 6. **`runner`** — dry-run estimate, resume, spend cap.
-7. **Pilot (Phase A, section 7.1)** — two models (DeepSeek V4.1 Flash and GPT-oss-120b) under all three tie-break rules, 5 sessions of 25 rounds, repeated and one-shot, on seeds the main experiment does not use. Check parse-failure rate, tokens per call against the budget assumptions in 5.4, bids below cost, whether bids look degenerate for the chosen cost range, how far each model's one-shot bids sit from BNE, how often bids tie at the 0.01 grid, and the session-to-session spread of `delta_index`. Revise session count, model count or the output cap before going on.
+7. **Pilot (Phase A, section 7.1)** — three models (DeepSeek V4.1 Flash, GPT-oss-120b and Qwen3.7 Flash) under all three tie-break rules, 5 sessions of 25 rounds, repeated and one-shot, on seeds the main experiment does not use. Check parse-failure rate, tokens per call against the budget assumptions in 5.4, bids below cost, whether bids look degenerate for the chosen cost range, how far each model's one-shot bids sit from BNE, how often bids tie at the 0.01 grid, and the session-to-session spread of `delta_index`. Revise session count, model count or the output cap before going on.
 8. **Commit `configs/analysis.yaml`**, then the main experiment, then the supporting ablations under the same `--run-id`, then report.
 
 Section 7 splits the paid steps into two phases. Step 7 is Phase A and is the go/no-go check; step 8 is Phase B and needs explicit confirmation. With 5 short sessions, the pilot's estimate of session-to-session spread is rough; treat it as a sanity check on the session count, not a power calculation.
@@ -310,8 +310,8 @@ Steps 2 and 3 are the expensive ones because they must reproduce known answers f
 - **Order:** steps 1, 2 and 3a first (no API, and they anchor everything else), then 4, 5, 6, then the pilot (step 7). Step 3b waits until after Phase A, so plotting is not built before there is real data to plot.
 - **Gate between steps:** `uv run pytest` and `uv run ruff check src/` pass, and the acceptance check in section 4 for that step holds, before the next step starts. Commit after each step.
 - **Before step 5:** the slugs and tool-calling support for all four models were verified on 3 October 2026 (5.3). Phase A uses two of them; the other two are only needed for Phase B. Provider pinning for Phase A is decided (5.5); run the pre-pilot smoke test there before the first live call.
-- **Before step 7:** run the smoke test and then the end-to-end check (`configs/pilot_tiny.yaml`), both in 5.5. Confirm the bid increment check is in the pilot report (5.1) and that `configs/pilot.yaml` still matches 7.1.
-- **Cost outside the build:** Phase A itself is estimated at about $1.49 at 1,000 output tokens per call, inside a $2 tripwire and the $10 Phase A budget (5.4, 5.5).
+- **Before step 7:** run the smoke test and then the end-to-end check (`configs/pilot_tiny.yaml`), both in 5.5. Confirm the bid increment check is in the pilot report (5.1) and that `configs/pilot.yaml` still matches 7.1. The smoke test passed on 3 October (5.5).
+- **Cost outside the build:** Phase A itself is estimated at about $1.81 at 1,000 output tokens per call, inside a $2 tripwire and the $10 Phase A budget (5.4, 5.5).
 
 
 ## 5. Open questions and risks
@@ -328,7 +328,7 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 - **Chi-square points the wrong way for rotation.** Under competitive bidding with i.i.d. costs, expected win counts are already uniform. Perfect rotation makes them *more* uniform than chance, so a large statistic is not the rotation signature; an unusually small one is. This is a further reason to treat it as descriptive and to rely on repeat-win rate and lowest-cost-wins share, which respond directly to rotation. In heterogeneous lineups, non-uniform wins may only mean one model bids more aggressively.
 - **Reserve price.** Resolved: `reserve_price = cost_high = 100`; higher bids are invalid. Without a cap the "full-cover benchmark" in the collusion index would be unbounded. At this value the Bayes-Nash bid formula holds, the index reads 1 when every winning bid is at the reserve, and bidding the reserve and sharing equally pays 1.5, 2.0 and 3.0 times the competitive profit at N = 2, 3 and 5. Changing it would mean recomputing the benchmark and every expected reading in 2.7.
 - **Cover-bid wording is inverted for a reverse auction.** Losers bid above the winner, not below. Proposal: measure `losing bid − winning bid` and `losing bid − own BNE bid`, compared against the BNE-bidder control.
-- **Reasoning traces vs. `{"bid": n}`.** Resolved for Phase A: the bid tool call carries a short reasoning field, `{"reasoning": str, "bid": number}`, kept to two or three sentences, plus the provider's reasoning field where exposed. Phase A is a proof of concept, and having short traces logged gives the team material for the coding rubric later. Risks: asking for reasoning may itself change bidding behaviour, and reasoning length is the largest single driver of cost (5.4). **Open for Phase B (reminder): reasoning length.** Short reasoning is enough for hand-coding a sample. If an LLM "CoT explanation agent" (a judge model that classifies traces for tie-rule reasoning versus incidental convergence) will analyse them, Phase B should ask for longer reasoning, because a judge can only classify what the trace says. Longer reasoning costs far more: at about 1,000 output tokens per call the main experiment is about $30 against $8 at 250, so the 400-token cap and the Phase B budget both have to be set with the reasoning length in mind, and the options are fewer models or sessions, or long reasoning on a stratified subset only (for example BAFO rebid calls plus a random sample of rounds per rule). If a judge is used, check its labels against a human-coded subsample; none of the prior LLM-collusion papers reviewed reports that agreement. Because Phase A uses short reasoning and Phase B may not, Phase A bids may not transfer exactly to Phase B; Phase A is directional only in any case.
+- **Reasoning traces vs. `{"bid": n}`.** Resolved for Phase A: the bid tool call carries a short reasoning field, `{"reasoning": str, "bid": number}`, kept to two or three sentences, plus the provider's reasoning field where exposed. In Phase A hidden thinking is off for DeepSeek and Qwen, so the tool-call field is their whole trace, while gpt-oss thinks at low effort (5.6). Phase A is a proof of concept, and having short traces logged gives the team material for the coding rubric later. Risks: asking for reasoning may itself change bidding behaviour, and reasoning length is the largest single driver of cost (5.4). **Open for Phase B (reminder): reasoning length.** Short reasoning is enough for hand-coding a sample. If an LLM "CoT explanation agent" (a judge model that classifies traces for tie-rule reasoning versus incidental convergence) will analyse them, Phase B should ask for longer reasoning, because a judge can only classify what the trace says. Longer reasoning costs far more: at about 1,000 output tokens per call the main experiment is about $30 against $8 at 250, so the output cap, the thinking mode and the Phase B budget all have to be set with the reasoning length in mind (5.6), and the options are fewer models or sessions, or long reasoning on a stratified subset only (for example BAFO rebid calls plus a random sample of rounds per rule). If a judge is used, check its labels against a human-coded subsample; none of the prior LLM-collusion papers reviewed reports that agreement. Because Phase A uses short reasoning and Phase B may not, Phase A bids may not transfer exactly to Phase B; Phase A is directional only in any case.
 - **Bid increment defines a tie.** Resolved: bids are rounded to 0.01 in every condition and the prompt says so. At this grid, competitive bidders tie by chance in about 0.02% of rounds (N = 3), so any tie that appears is deliberate matching or round-number bidding, not rounding; a whole-number grid would add about 2% chance ties per round and a grid of 5 about 11%. One condition stays attached: the Phase A pilot reports the tie rate under `random` and `least_wins`. If it stays well under 1% of rounds (a judgment threshold, not a literature standard), the tie-break rule has nothing to act on and the grid is revisited, with whole numbers the likely alternative, before the main run.
 - **`random` is not a tie-free baseline.** Matching bids under `random` also gives each tied firm an equal expected share with no cover-bid risk. `least_wins` removes the variance and makes the turn-taking predictable. The signal is therefore the tie rate under `least_wins` relative to `random`, not a tie rate above zero (6.2).
 - **BAFO may be gamed too.** If the same firms keep tying they could coordinate on the rebid, for example one rebidding high to let another win. BAFO is not assumed to solve collusion; `mean_rebid_delta` and the reasoning traces from rebid calls are the checks (6.2, 6.4).
@@ -355,10 +355,13 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 | History window | whole session, no truncation (avoids a window-length confound; about 3k tokens at N = 5, round 50) |
 | Horizon disclosure | round count not told to agents, to avoid end-game unravelling |
 | Current round number | not stated in the prompt; it is internal bookkeeping. The one-shot control must read like round 1 of a repeated session, and a round counter with no history would break that. History rows are still listed in order, so a firm in a repeated session can count them |
-| Fourth model | Qwen3.7 Flash (`qwen/qwen3.7-flash`), $0.03 in and $0.13 out per million tokens, checked against the live OpenRouter list on 3 October 2026; Phase B only |
+| Fourth model | Qwen3.7 Flash (`qwen/qwen3.7-flash`), $0.03 in and $0.13 out per million tokens, checked against the live OpenRouter list on 3 October 2026; in the Phase A pilot from 3 October (5.5) and in Phase B |
 | Mixed lineup | DeepSeek + GPT-oss + GLM at N = 3; slot assignment randomised per session |
 | Temperature | 1.0 |
-| Output cap | `max_output_tokens: 400`; reasoning asked for in two or three sentences in Phase A. Phase B reasoning length is open (7.2) |
+| Output cap | Phase A: 500 tokens for the smoke test and `pilot_tiny`, 1,000 for the pilot (`max_output_tokens`; it counts hidden thinking and is stated in the prompt). Phase B: TBD (5.6, 7.2) |
+| Thinking | Phase A: off for `deepseek` and `qwen`, `effort: low` for `gpt-oss`, set per model in `models.yaml` (5.6). Phase B: TBD |
+| Reasoning field | the bid tool call's `reasoning`, two or three sentences in Phase A. Phase B length is open (7.2) |
+| Tool choice | `auto` on every host (5.5) |
 | Agent memory | stateless per round; history is only what the prompt shows |
 | Parse failure | 2 retries, then sit out the round; flag sessions above 5% invalid bids |
 | Bids below cost | allowed and logged |
@@ -373,7 +376,7 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 ### 5.3 Operational risks
 
 - **Model slugs.** All four slugs in `configs/models.yaml` were verified against the live OpenRouter list on 3 October 2026, and each supports tool calling: `deepseek/deepseek-v4.1-flash`, `openai/gpt-oss-120b`, `z-ai/glm-5.3-flash`, `qwen/qwen3.7-flash`. The listed prices differ from the design document's: DeepSeek's output is $0.60 against $0.29 assumed, and GLM's is $0.90 against $0.14. `configs/models.yaml` now carries the listed prices.
-- **Reasoning models bill hidden thinking as output.** The Qwen3.7 Flash listing advertises reasoning support, and the other models may too. The request must limit reasoning effort, or the 400-token output cap and the budget estimates will not hold; check tokens per call in the pilot.
+- **Reasoning models bill hidden thinking as output.** Confirmed on 3 October (5.6): at `effort: low`, DeepSeek V4.1 Flash and Qwen3.7 Flash spend the whole output cap thinking and never submit a bid, and with thinking on a cap of 1,000 tokens still cuts off most replies. Phase A switches thinking off for both. GLM-5.3 Flash has not been tested. Check tokens per call in the pilot.
 - **Provider routing.** The endpoint lists show 31 providers for DeepSeek V4.1 Flash, 23 for GPT-oss-120b and 34 for GLM-5.3 Flash, with output prices spanning several-fold and quantisations from fp4 to fp32; Qwen3.7 Flash has one (Alibaba). Some GPT-oss endpoints do not support tool calling. Require tool-capable providers, log the provider and its quantisation per call, and decide before the pilot whether to pin one provider per model: pinning fixes cost and makes runs reproducible, at the price of choosing a host. The headline listed price is the cheapest endpoint, not a guaranteed rate. Decided for the two Phase A models in 5.5; Phase B hosts are not chosen yet.
 - **Raw data is not in git.** `logs/` is gitignored; back it up elsewhere before the writeup.
 - **Control prompt still says "repeated".** The one-shot control keeps the prompt identical, so it isolates the effect of observed history, not of being told the auction repeats. A model that bids high purely on the repeated framing will look the same in both arms and be read as overbidding.
@@ -383,11 +386,11 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 
 **Phase A budget: $10 of OpenRouter credits.** **Phase B budget: not set yet**, expected to be much higher if needed, and decided after Phase A measures tokens per call. Every figure below is an estimate from assumed token counts, not a measurement; the pilot replaces them.
 
-Assumptions: a repeated-round call averages about 1,000 input tokens (history grows through the session; about 610 over Phase A's 25 rounds) and 250 output tokens in the Phase B estimates (Phase A is costed at 1,000 output tokens, see 5.5); a one-shot control call about 250 in and 250 out. Prices are the OpenRouter listing prices of 3 October 2026 in `configs/models.yaml` (DeepSeek $0.02 in and $0.60 out, GPT-oss $0.037 and $0.17, GLM $0.026 and $0.90, Qwen3.7 Flash $0.03 and $0.13 per million tokens). Actual prices depend on provider routing (5.3).
+Assumptions: a repeated-round call averages about 1,000 input tokens (history grows through the session; about 610 over Phase A's 25 rounds) and 250 output tokens in the Phase B estimates (Phase A is costed at 1,000 output tokens, see 5.5); a one-shot control call about 250 in and 250 out. Prices are the OpenRouter listing prices of 3 October 2026 in `configs/models.yaml` (DeepSeek $0.02 in and $0.60 out, GPT-oss $0.037 and $0.17, GLM $0.026 and $0.90, Qwen3.7 Flash $0.03 and $0.13 per million tokens). Actual prices depend on provider routing (5.3). Measured on 3 October (5.6): the round-1 prompt is about 680 input tokens, not the 250 assumed for a one-shot call, and calls cost $0.00004 to $0.00007 each with thinking off or at low effort.
 
 | Config | Phase | Calls | Estimate | Cap in config |
 |---|---|---|---|---|
-| `pilot.yaml` | A | 4,500 + BAFO rebids | $1.49 (at 1,000 output tokens per call) | $2 tripwire, inside the $10 Phase A budget |
+| `pilot.yaml` | A | 6,750 + BAFO rebids | $1.81 (at 1,000 output tokens per call) | $2 tripwire, inside the $10 Phase A budget |
 | `main_tiebreak.yaml` | B | 64,800 + BAFO rebids | $8.44 | placeholder $6.50, to be set |
 | `supporting_info.yaml` | B | 2,700 | $0.46 | placeholder $0.40, to be set |
 | `supporting_n.yaml` | B | 6,300 | $1.04 | placeholder $0.80, to be set |
@@ -396,8 +399,8 @@ Assumptions: a repeated-round call averages about 1,000 input tokens (history gr
 
 The Phase B caps in the configs were set when the whole project had $10 and the models had placeholder prices. At live prices they sit below the estimates and would stop the runs early, so they are placeholders until the Phase B budget is set. The main experiment costs about $0.47 per session index (one seed across all 24 cells). BAFO rebids add at most one call per tied firm per tied round and are not in the estimates.
 
-- **Phase A is costed at 1,000 output tokens per call, as a stress case for reasoning models.** With the pinned hosts in 5.5 (Morph for DeepSeek, Crusoe for GPT-oss) that is about $1.49 for 4,500 calls; at 250 output tokens it is $0.42 and at 400 it is $0.64. It reaches the $2 tripwire at about 1,350 output tokens per call. The rest of the $10 budget is left for a rerun or a pivot. Phase B estimates below still assume 250 until Phase A measures tokens per call.
-- **Output length is the Phase B cost driver.** At 400 output tokens per call the main experiment is about $12.81 (supporting ablations $2.96), and at 1,000 about $30.31. `max_output_tokens: 400` is the guard; models that spend hidden reasoning tokens may still exceed the estimates.
+- **Phase A is costed at 1,000 output tokens per call, as a stress case for reasoning models.** With the pinned hosts in 5.5 (Morph for DeepSeek, Crusoe for GPT-oss; Qwen has one provider, Alibaba, and is not pinned) that is about $1.81 for 6,750 calls; at 250 output tokens it is $0.53, at 400 $0.78 and at 500 $0.96. It reaches the $2 tripwire at about 1,100 output tokens per call, so with the pilot's 1,000-token cap only BAFO rebids and retries can trip it. The rest of the $10 budget is left for a rerun or a pivot. The measured cost per call (5.6) puts the real cost nearer $0.4. Phase B estimates below still assume 250 until Phase A measures tokens per call.
+- **Output length is the Phase B cost driver.** At 400 output tokens per call the main experiment is about $12.81 (supporting ablations $2.96), and at 1,000 about $30.31. The Phase B output cap and thinking mode are TBD (5.6); with thinking on, a call costs 3 to 5 times as much as with it off at the sizes measured so far.
 - **Levers if Phase B comes in above the budget that is set:** tighten the output cap; pin cheaper providers (5.3); drop GLM, the most expensive model per call after its real price (about $4.5 for the main experiment without it); drop to 15 sessions, the low end of the planned range.
 
 ### 5.5 Phase A model providers and routing
@@ -408,8 +411,9 @@ Chosen on 3 October 2026 from OpenRouter's live endpoint lists, with cost a seco
 |---|---|---|---|
 | `deepseek` | `deepseek/deepseek-v4.1-flash` | **Morph**: fp8, $0.021 in and $0.383 out per M, 100% uptime | **DeepInfra**: fp8, $0.14 and $0.42, 99.9% |
 | `gpt-oss` | `openai/gpt-oss-120b` | **Crusoe**: bf16, $0.05 and $0.25, 100% uptime | **AkashML**: bf16, $0.037 and $0.187, 99.9% |
+| `qwen` | `qwen/qwen3.7-flash` | **Alibaba**, its only provider, so not pinned (quantisation not listed): $0.03 and $0.13 | none |
 
-**Why these four hosts.** Each supports tool calling and `tool_choice` (needed for the forced bid call), `seed` (reproducibility) and reasoning controls, allows well over the 400-token output cap, runs fp8 or bf16 weights, and reported at least 99.9% uptime. Uptime is a 30-minute snapshot, and the latency and throughput fields were empty, so hosts could not be ranked on speed.
+**Why these four hosts.** Each lists tool calling, `tool_choice`, `seed` (reproducibility) and reasoning controls, allows well over the output cap, runs fp8 or bf16 weights, and reported at least 99.9% uptime. Uptime is a 30-minute snapshot, and the latency and throughput fields were empty, so hosts could not be ranked on speed. The listing overstated tool-choice support: Morph, Crusoe and AkashML reject a forced or required tool call, so every call uses `tool_choice: auto` (smoke test, below).
 
 **Avoided, and why.**
 - GPT-oss endpoints without tool support (DigitalOcean, Amazon Bedrock, Google, SiliconFlow).
@@ -423,25 +427,54 @@ Chosen on 3 October 2026 from OpenRouter's live endpoint lists, with cost a seco
 - Never switch hosts inside a session. If the primary fails, abandon the session and rerun it from scratch on the fallback, flagged as such, because a mid-session switch would confound the session.
 - The spend tracker should use the serving host's price, not the headline listing price.
 
-**Cost and tripwire.** Phase A is costed at 1,000 output tokens per call: about $1.49 for the pair (Morph $0.88, Crusoe $0.61). The pilot cap is a $2 tripwire inside the $10 Phase A budget, leaving about $8 for a rerun or a pivot. See 5.4.
+**Cost and tripwire.** Phase A is costed at 1,000 output tokens per call: about $1.81 for the three models (Morph $0.88, Crusoe $0.61, Alibaba $0.32). The pilot cap is a $2 tripwire inside the $10 Phase A budget, leaving about $8 for a rerun or a pivot. See 5.4.
 
-**Pre-pilot smoke test** (a few cents, once per host, before the first pilot call). Send one forced tool call to each of the four hosts with a seed and a low reasoning effort, and check that:
+**Pre-pilot smoke test** (a few cents, once per host, before the first pilot call; output cap 500). Send one bid request to each pinned host with a seed and the model's reasoning setting, and check that:
 1. a tool call comes back and parses;
 2. the seed is accepted;
-3. the reasoning-effort setting is honoured, judged by the output tokens used;
+3. the reasoning setting is honoured, judged by the output tokens used;
 4. the response names the serving provider;
 5. the price charged matches the listed rate.
 
 Record the result in `PREP_LOG.md`. If a host fails, swap in the fallback and note it.
 
-**End-to-end check** (a few cents, after the smoke test passes and before the pilot). `configs/pilot_tiny.yaml` runs the full harness with real models: one 3-round session per model under `bafo`, plus its one-shot control, 4 sessions and 36 calls, on its own seeds and run id. Then:
+**Result, 3 October 2026.** The first run failed on all four hosts. Morph, Crusoe and AkashML returned a 404 (no endpoint supports the `tool_choice` value) for a forced call, and DeepInfra accepted it but DeepSeek spent all 400 tokens thinking and submitted no bid. After switching to `tool_choice: auto` and setting thinking per model (5.6), the rerun passed 5 of 5 calls, including Qwen3.7 Flash on its single provider, Alibaba, which has no pinned host: each returned a valid bid, accepted the seed, was served by the expected host and used 113 to 204 output tokens. Charged prices matched the listing within 10% except DeepInfra, which billed about 60% below the $0.14 and $0.42 in `models.yaml` (so the fallback estimate is conservative). The provider names `morph`, `crusoe`, `deepinfra` and `akashml` were accepted as written. Total spend about half a cent, including diagnosis.
+
+**End-to-end check** (a few cents, after the smoke test passes and before the pilot). `configs/pilot_tiny.yaml` runs the full harness with real models at the base output cap of 500 tokens: one 3-round session per model under `bafo`, plus its one-shot control, 6 sessions and 54 calls, on its own seeds and run id. Then:
 1. read every prompt in `calls.jsonl` by hand: round *t* shows rounds 1 to *t* − 1 only, no other firm's cost appears, and the control shows no history;
 2. check that `session.json`, `bids.jsonl` and `calls.jsonl` match section 3;
 3. run `scripts/analyze.py` on it and check the call summary (tokens per call, parse failures).
 
 Rebids only happen if two models tie, which is unlikely in 3 rounds; the mocked-client tests cover that path. Record the result in `PREP_LOG.md`. These sessions are never analysed.
 
-**Phase B hosts are not chosen.** GLM-5.3 Flash has 34 endpoints (Z.AI's own is fp8 at $0.15 in and $0.50 out); Qwen3.7 Flash has a single provider (Alibaba).
+**Phase B hosts are not chosen.** GLM-5.3 Flash has 34 endpoints (Z.AI's own is fp8 at $0.15 in and $0.50 out); Qwen3.7 Flash has a single provider (Alibaba) and is used unpinned in Phase A because its quantisation is not listed.
+
+### 5.6 Thinking mode and the output cap: preliminary findings
+
+Measured on 3 October 2026 with scratch scripts against the pinned hosts; the scripts were not kept, so the numbers below are the record. Preliminary: small samples, round-1 prompts and short scripted histories, not whole sessions.
+
+**Setting for Phase A.** `configs/models.yaml` sets thinking per model: off (`reasoning: {enabled: false}`) for `deepseek` and `qwen`, `effort: low` for `gpt-oss`, which cannot turn thinking off. The bid's `reasoning` field stays at two or three sentences for every model. The output cap is 500 tokens for the smoke test and `pilot_tiny` and 1,000 for the pilot; it counts hidden thinking and is stated in the prompt. **Phase B thinking mode and output cap are TBD**: the Phase B configs say so and the runner refuses to call models until they are set.
+
+**What the probes found.** "Valid" means a single attempt returned a tool call with a bid in range.
+
+| | Thinking off, cap 400 | Thinking on, cap 1,000 | Thinking on, cap 3,000: thinking tokens in 6 round-1 calls |
+|---|---|---|---|
+| DeepSeek V4.1 Flash (Morph) | 24 of 24 valid; 110 to 225 output tokens | 15 of 24 valid (2 of 8 on round-1 prompts) | 159, 419, 535, 1,822, 3,000, 3,000; 4 of 6 valid |
+| Qwen3.7 Flash (Alibaba) | 22 of 24 valid; mean about 240 tokens, max 400 | 3 of 24 valid | 453, 561, 576, 1,212, 1,404, 3,000; 5 of 6 valid |
+
+- At `effort: low`, DeepSeek and Qwen used the whole 400-token cap thinking in every call tried: the effort setting is ignored, and only switching thinking off works.
+- gpt-oss at `effort: low` on Crusoe and AkashML: 8 of 8 valid each, mean 173 and 211 output tokens, max 255 and 364.
+- Cost per call: $0.00005 to $0.00007 with thinking off, $0.00014 to $0.00033 with thinking on at a cap of 1,000.
+
+**Does thinking change the decisions?** Not detectably in this sample. Mean bid minus cost, thinking off against on, with standard errors in brackets: DeepSeek after a scripted competitive history 12.7 (5.7) against 5.7 (3.7); DeepSeek after a scripted rotation history 37.2 (10.9) against 40.6 (12.0); Qwen after the rotation history 34.9 (11.7) against 33.6 (21.5). Qwen's other thinking-on cells had few or no valid bids. In the few reasoning texts read, DeepSeek names the rotation with and without thinking. Caveats: 8 samples per cell, so only large differences would show; the thinking-on figures cover only replies whose thinking happened to be short, a selection effect; the histories were scripted, not emergent; and nothing here tests behaviour over a whole session, which is what the experiment measures.
+
+**Consequences and open items.**
+- DeepSeek and Qwen run as non-thinking models in Phase A and gpt-oss at low thinking, so the models are not matched on reasoning mode. Phase A results and the paper must say so.
+- Reasoning traces for hand-coding come from the tool-call field. For gpt-oss the provider's reasoning is also kept in the raw response.
+- Qwen with thinking off is the least reliable of the three tested: 2 of 24 first attempts failed and its longest replies reach 400 tokens. Retries cover the failures, and the pilot, which now includes Qwen, should report its sit-out rate.
+- Phase B thinking mode and cap (TBD): thinking off at a modest cap is cheap and reliable at the sizes measured. Thinking on would need a cap well above 3,000 tokens to avoid cutting off replies, at 3 to 5 times the cost per call. Decide after Phase A, together with the reasoning-length question in 5.1 and 7.2. Claiming that thinking does not matter for collusion behaviour would need a larger comparison over whole sessions.
+- GLM-5.3 Flash has not been probed; it uses the config default (`effort: low`) until tested.
+- The round-1 prompt is about 680 input tokens (system prompt, tool schema and user message), against the 250 assumed in the dry-run estimates (5.4); `pilot_tiny` measures later rounds.
 
 ## 6. Main experiment — tie-break rule
 
@@ -516,8 +549,9 @@ Phase A must be complete and reviewed before Phase B starts. Phase B does not be
 **Scope.**
 
 - All three tie-break conditions: `random`, `least_wins`, `bafo`. The comparison between them is the point.
-- Two models only, the cheapest of the candidate research models: `deepseek` (DeepSeek V4.1 Flash) and `gpt-oss` (GPT-oss-120b). GLM and Qwen are left for Phase B.
+- Three models, the cheapest of the candidate research models: `deepseek` (DeepSeek V4.1 Flash), `gpt-oss` (GPT-oss-120b) and `qwen` (Qwen3.7 Flash, added on 3 October after it passed the smoke test; it has one provider, Alibaba, so no host is pinned). GLM is left for Phase B.
 - 5 sessions per condition, 25 rounds per session, same-model lineup, full history, N = 3.
+- Settings: thinking off for `deepseek` and `qwen`, `effort: low` for `gpt-oss`; output cap 1,000 tokens in the pilot (500 in the smoke test and `pilot_tiny`); the bid's reasoning field kept to two or three sentences (5.6).
 - A matched one-shot control for each cell, on the same seeds. This is what the positive control is measured against.
 - Seeds disjoint from Phase B.
 
@@ -528,17 +562,17 @@ Phase A must be complete and reviewed before Phase B starts. Phase B does not be
 - **Reasoning-trace coding.** Too judgment-heavy for a solo pre-team pitch. Deferred to Phase B with a team-agreed rubric (section 8). Short reasoning is still logged in Phase A, so traces exist for drafting that rubric.
 - **Bootstrap confidence intervals and the pre-declared tests.** Report raw numbers per model and rule instead — collusion index, its control, win shares, tie rate, tie price, rebid delta — each with the explicit caveat "n = 5, directional only".
 
-**Cost: about $1.50 at 1,000 output tokens per call, with a $2 tripwire inside a $10 budget.** 2 models × 3 rules × 5 sessions × 25 rounds × 3 firms = 2,250 repeated calls and the same again for the controls, 4,500 in all, plus BAFO rebids. With the hosts pinned in 5.5 that is about $1.49 at 1,000 output tokens per call, $0.64 at 400 and $0.42 at 250. This should not be re-estimated upward from the Phase B figures, which are for 18 sessions of 50 rounds across four models.
+**Cost: about $1.80 at 1,000 output tokens per call, with a $2 tripwire inside a $10 budget.** 3 models × 3 rules × 5 sessions × 25 rounds × 3 firms = 3,375 repeated calls and the same again for the controls, 6,750 in all, plus BAFO rebids. With the hosts pinned in 5.5 that is about $1.81 at 1,000 output tokens per call, $0.78 at 400 and $0.53 at 250. This should not be re-estimated upward from the Phase B figures, which are for 18 sessions of 50 rounds across four models. Measured costs per call (5.6) suggest about $0.4 in practice.
 
 **What it needs built.** Build-order steps 1–6, without the bootstrap, the permutation tests or the trace export.
 
-`configs/pilot.yaml` is the Phase A config: 12 cells, with a spending cap of $2, a tripwire inside the $10 Phase A budget.
+`configs/pilot.yaml` is the Phase A config: 18 cells, with a spending cap of $2, a tripwire inside the $10 Phase A budget.
 
 ### 7.2 Phase B — full run, during the sprint
 
 Everything in the Scope section and section 6: the main experiment with the full model lineup, 18 sessions per condition, bootstrap CIs, the pre-declared tests and reasoning-trace coding against the team rubric, then the supporting ablations. Budget: not set yet, expected to be much higher than Phase A's if needed (5.4). Phase A's token counts replace the assumptions there before any Phase B spend.
 
-**Reminder: decide the reasoning length for Phase B before the main run.** Phase A uses short reasoning (two or three sentences). If an LLM judge (a "CoT explanation agent") will analyse the traces, ask for longer reasoning in Phase B, and re-estimate the budget first: the main experiment costs about $8 at 250 output tokens per call and about $30 at 1,000 at listed prices, so the Phase B budget has to be set with that in mind. Options are described in the reasoning item in 5.1. `configs/main_tiebreak.yaml` carries a matching reminder.
+**Reminder: the thinking mode, the output cap and the reasoning length for Phase B are all TBD, and must be decided before the main run.** Phase A switches thinking off for DeepSeek and Qwen and uses a short reasoning field (two or three sentences); preliminary findings are in 5.6. `configs/main_tiebreak.yaml` and the supporting configs set `max_output_tokens` and `reasoning_mode` to TBD, and the runner refuses to call models until they are set. If an LLM judge (a "CoT explanation agent") will analyse the traces, ask for longer reasoning in Phase B, and re-estimate the budget first: the main experiment costs about $8 at 250 output tokens per call and about $30 at 1,000 at listed prices, so the Phase B budget has to be set with that in mind. Options are described in the reasoning item in 5.1 and in 5.6.
 
 ## 8. Known Risks & Contingencies
 

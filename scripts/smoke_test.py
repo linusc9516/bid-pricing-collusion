@@ -48,13 +48,14 @@ def base_settings() -> LLMSettings:
         max_output_tokens=llm["max_output_tokens"],
         max_retries=llm["max_retries"],
         reasoning_effort=llm.get("reasoning_effort"),
+        tool_choice=llm.get("tool_choice", "auto"),
     )
 
 
 async def check_host(client: OpenRouterClient, spec, host) -> dict:
     meta = round_one_meta()
-    messages = build_messages(meta, [], BidRequest("A", 0, 1, 37.42), "short")
-    result = {"model": spec.alias, "slug": spec.slug, "host": host.name, "role": host.role}
+    messages = build_messages(meta, [], BidRequest("A", 0, 1, 37.42), "short", client.settings.max_output_tokens)
+    result = {"model": spec.alias, "slug": spec.slug, "host": host.name if host else "(unpinned)", "role": host.role if host else "-"}
     try:
         bid, rows = await client.request_bid(
             spec, host, messages, 100, session_id="smoke", session_seed=1, round_number=1, firm_id="A", slot=0, phase="bid"
@@ -64,7 +65,8 @@ async def check_host(client: OpenRouterClient, spec, host) -> dict:
     last = rows[-1]
     raw = json.loads(last.raw_response) if last.raw_response.startswith("{") else {}
     usage = raw.get("usage") or {}
-    listed = (last.prompt_tokens * host.price_in + last.completion_tokens * host.price_out) / 1e6
+    price_in, price_out = (host.price_in, host.price_out) if host else (spec.price_in, spec.price_out)
+    listed = (last.prompt_tokens * price_in + last.completion_tokens * price_out) / 1e6
     return {
         **result,
         "ok": bid is not None,
@@ -90,11 +92,18 @@ async def main() -> int:
     args = parser.parse_args()
 
     specs = load_models(ROOT / "configs" / "models.yaml")
-    plan = [(specs[m], specs[m].host(r)) for m in args.models for r in args.roles]
+    # A model with no pinned host (qwen) is called once, whatever the roles asked for.
+    plan = []
+    for m in args.models:
+        for r in args.roles:
+            host = specs[m].host(r)
+            if host is not None or not any(s.alias == m for s, _ in plan):
+                plan.append((specs[m], host))
     settings = base_settings()
     print(f"settings from configs/base.yaml: {settings}")
     for spec, host in plan:
-        print(f"{spec.alias:9s} {spec.slug:32s} {host.role:8s} {host.name} ({host.quantization})")
+        where = f"{host.role:8s} {host.name} ({host.quantization})" if host else "unpinned"
+        print(f"{spec.alias:9s} {spec.slug:32s} {where}")
     if not args.yes:
         print(f"\n{len(plan)} calls planned, cap ${CAP_USD:.2f}. Nothing sent; rerun with --yes to call the API.")
         return 0

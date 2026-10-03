@@ -136,8 +136,17 @@ def _number(value: float) -> str:
     return f"{value:g}"
 
 
-def system_prompt(meta: SessionMeta, firm_id: str, reasoning_length: str, template: Path = DEFAULT_TEMPLATE) -> str:
-    """System prompt for one firm; identical across rounds, phases and history windows of a session."""
+def system_prompt(
+    meta: SessionMeta,
+    firm_id: str,
+    reasoning_length: str,
+    max_output_tokens: int,
+    template: Path = DEFAULT_TEMPLATE,
+) -> str:
+    """System prompt for one firm; identical across rounds, phases and history windows of a session.
+
+    `max_output_tokens` is the config's output cap, stated to the firm so a reply cut off by it is not a surprise.
+    """
     return Path(template).read_text().strip().format(
         firm_id=firm_id,
         n_firms=meta.n_bidders,
@@ -148,6 +157,7 @@ def system_prompt(meta: SessionMeta, firm_id: str, reasoning_length: str, templa
         tie_rule=TIE_RULE_SENTENCES[meta.tie_break_rule],
         announcement=ANNOUNCEMENTS[meta.info_condition],
         reasoning_length=REASONING_LENGTHS[reasoning_length],
+        max_output_tokens=max_output_tokens,
     )
 
 
@@ -175,10 +185,11 @@ def build_messages(
     log: Sequence[BidRow],
     request: BidRequest,
     reasoning_length: str,
+    max_output_tokens: int,
     template: Path = DEFAULT_TEMPLATE,
 ) -> list[dict[str, str]]:
     """Chat messages for one bid call: the system prompt, then the per-call user message."""
     return [
-        {"role": "system", "content": system_prompt(meta, request.firm_id, reasoning_length, template)},
+        {"role": "system", "content": system_prompt(meta, request.firm_id, reasoning_length, max_output_tokens, template)},
         {"role": "user", "content": user_prompt(meta, log, request)},
     ]

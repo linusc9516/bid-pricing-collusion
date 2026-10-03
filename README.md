@@ -4,7 +4,7 @@ Can the rule an auction uses to break exact-match bids hand LLM bidders an easy 
 
 Design: [`BidPricingCollusion.md`](BidPricingCollusion.md). Build plan, budget and open questions: [`PLANNING.md`](PLANNING.md). [`CLAUDE.md`](CLAUDE.md) documents repo conventions and the non-negotiable design constraints for anyone, human or Claude Code, working on the codebase.
 
-> **Status: harness built, no API calls yet.** Everything needed for the Phase A pilot is implemented and tested against a mocked client. The pre-pilot smoke test has not been run. Bootstrap intervals, the confirmatory tests and the plots (`analysis/stats.py`, `analysis/report.py`) wait until after the pilot.
+> **Status: harness built, smoke test passed (3 October 2026), no pilot yet.** Everything needed for the Phase A pilot is implemented and tested; the pre-pilot smoke test passed against all pinned hosts, and the end-to-end check (`configs/pilot_tiny.yaml`) is next. Thinking mode and the output-token cap for Phase B are TBD. Bootstrap intervals, the confirmatory tests and the plots (`analysis/stats.py`, `analysis/report.py`) wait until after the pilot.
 
 ## Disclosure
 
@@ -33,10 +33,10 @@ uv run python scripts/run_experiment.py configs/sanity_tiebreak.yaml
 # 2. Pre-pilot smoke test: one call per pinned host (a few cents); without --yes it only prints the plan
 uv run python scripts/smoke_test.py --yes
 
-# 3. End-to-end check: 4 sessions of 3 rounds with real models; read every prompt in calls.jsonl
+# 3. End-to-end check: 6 sessions of 3 rounds with real models; read every prompt in calls.jsonl
 uv run python scripts/run_experiment.py configs/pilot_tiny.yaml
 
-# 4. Phase A pilot: two models under all three tie-break rules, on its own seeds
+# 4. Phase A pilot: three models under all three tie-break rules, on its own seeds
 uv run python scripts/run_experiment.py configs/pilot.yaml --dry-run   # call + cost estimate
 uv run python scripts/run_experiment.py configs/pilot.yaml             # asks before the first call
 uv run python scripts/run_experiment.py configs/pilot.yaml --host fallback   # rerun failed sessions on the fallback host
@@ -51,7 +51,7 @@ uv run python scripts/run_experiment.py configs/supporting_lineup.yaml --run-id 
 
 Run the sanity checks first and confirm the scripted bidders read as expected before spending on LLM calls: BNE bidders near 0, markup bidders negative, the overbidding bidder high but not flagged as collusive, the rotating cartel flagged, and bid-matching bidders rotating exactly under least-wins-first. Commit `configs/analysis.yaml` before the main experiment; it pre-declares the comparisons. Runs are resumable: completed sessions are skipped.
 
-The Phase A budget is $10 of OpenRouter credits (estimated spend about $1.50, with a $2 tripwire). The Phase B budget is not set yet and is expected to be much higher if needed; it is decided after Phase A measures tokens per call, which the estimates depend on. See `PLANNING.md` section 5.4.
+The Phase A budget is $10 of OpenRouter credits (estimated spend about $1.80 at the 1,000-token stress case and likely nearer $0.4, with a $2 tripwire). The Phase B budget is not set yet and is expected to be much higher if needed; it is decided after Phase A measures tokens per call, which the estimates depend on. See `PLANNING.md` section 5.4.
 
 ## Experiments
 

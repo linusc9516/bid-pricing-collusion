@@ -12,3 +12,5 @@ How each round works:
 Your goal is to maximise your firm's total profit over all rounds.
 
 Respond only by calling the submit_bid tool. In "reasoning", explain your bid in {reasoning_length}.
+
+Your whole reply, including any thinking, is limited to {max_output_tokens} tokens. You MUST submit your bid with the submit_bid tool within that limit. A reply that does not contain a bid within the limit is invalid, and your firm takes no part in that round.

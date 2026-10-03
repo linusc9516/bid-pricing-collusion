@@ -47,6 +47,28 @@ SCRIPTED_PARAMS = {"markup", "shade", "undercut", "price"}
 _SLOT_STREAM = 2
 
 
+# Phase B leaves these as the string TBD until decided (PLANNING.md 5.6); only `per_model` thinking exists so far.
+UNDECIDED_LLM_KEYS = ("max_output_tokens", "reasoning_mode")
+
+
+def tbd_settings(config: dict[str, Any]) -> list[str]:
+    """`llm` keys the config still marks TBD; empty once every undecided setting has a value."""
+    llm = config.get("llm", {})
+    return [key for key in UNDECIDED_LLM_KEYS if str(llm.get(key)).strip().upper() == "TBD"]
+
+
+def check_llm_settings(config: dict[str, Any]) -> None:
+    """Raise if a config that calls models has a TBD (`ValueError`) or unusable (`ValueError`, `TypeError`) `llm` setting."""
+    tbd = tbd_settings(config)
+    if tbd:
+        raise ValueError(f"llm settings still TBD: {', '.join(tbd)} (PLANNING.md 5.6, 7.2); not calling models")
+    llm = config.get("llm", {})
+    if llm.get("reasoning_mode", "per_model") != "per_model":
+        raise ValueError(f"unsupported llm.reasoning_mode {llm['reasoning_mode']!r}; only per_model exists")
+    if not isinstance(llm.get("max_output_tokens", 400), int) or isinstance(llm.get("max_output_tokens"), bool):
+        raise TypeError(f"llm.max_output_tokens must be an integer, got {llm['max_output_tokens']!r}")
+
+
 def _merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Recursive dict merge; values in `override` win, lists are replaced whole."""
     out = dict(base)
@@ -262,7 +284,16 @@ async def _run_one(
         llm = config.get("llm", {})
         template = Path(config["_root"]) / config["prompt"]["template"]
         bidders = [
-            LLMBidder(models[alias], models[alias].host(host_role), client, meta, log, [], llm.get("reasoning_length", "short"), template)
+            LLMBidder(
+                models[alias],
+                models[alias].host(host_role),
+                client,
+                meta,
+                log,
+                reasoning_length=llm.get("reasoning_length", "short"),
+                max_output_tokens=llm.get("max_output_tokens", 400),
+                template=template,
+            )
             for alias in planned.models
         ]
     try:
@@ -300,6 +331,7 @@ async def run_plan(
     spend = SpendTracker(config.get("budget", {}).get("max_cost_usd", 0.0))
     client = None
     if any(not p.scripted for p in todo):
+        check_llm_settings(config)
         if client_factory is None:
             raise ValueError("this config calls models; pass a client factory")
         settings = LLMSettings(
@@ -307,6 +339,7 @@ async def run_plan(
             max_output_tokens=llm.get("max_output_tokens", 400),
             max_retries=llm.get("max_retries", 2),
             reasoning_effort=llm.get("reasoning_effort"),
+            tool_choice=llm.get("tool_choice", "auto"),
         )
         client = OpenRouterClient(client_factory(), settings, spend)
 
