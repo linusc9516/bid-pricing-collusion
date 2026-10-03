@@ -21,7 +21,9 @@ Dependencies are managed with uv (`uv sync` once; then prefix commands with `uv 
 - `uv run python scripts/analyze.py logs/<run_id>` — logs to result tables
 - Lint: `uv run ruff check src/` (fix with `uv run ruff check --fix src/` before committing)
 
-The two scripts are stubs until the runner is implemented (build step 6).
+Configs that call models ask for confirmation unless `--yes` is given. Before the first
+live call, run `uv run python scripts/smoke_test.py` (prints the plan) and then with
+`--yes` (PLANNING.md 5.5). If a pinned host fails, rerun with `--host fallback`.
 
 ## Code style
 - Comments: one-line docstrings stating units, ranges, and return semantics —
@@ -99,9 +101,8 @@ configs/
   supporting_info.yaml   supporting ablation: information revelation
   supporting_n.yaml      supporting ablation: number of bidders
   supporting_lineup.yaml supporting ablation: same-model vs. mixed lineup
-prompts/                 bidder system prompt template (not written yet)
-src/bidrig/              schema, bne, auction, scripted bidders and analysis/metrics are built;
-                         prompts, llm, runner, analysis/stats and analysis/report are stubs
+prompts/                 bidder_system.md, the bidder system prompt template
+src/bidrig/              all built except analysis/stats.py and analysis/report.py (step 3b)
   schema.py              session / bid-row / call-row dataclasses
   bne.py                 closed-form BNE benchmark
   auction.py             rule-based auctioneer
@@ -113,7 +114,9 @@ src/bidrig/              schema, bne, auction, scripted bidders and analysis/met
 scripts/
   run_experiment.py      CLI: run a config
   analyze.py             CLI: logs -> results
-tests/                   one test file per built module; helpers.py builds scripted sessions
+  smoke_test.py          CLI: one call per pinned host (PLANNING.md 5.5)
+tests/                   one test file per built module; helpers.py builds scripted sessions;
+                         snapshots/ holds the prompt snapshots (regenerate with UPDATE_SNAPSHOTS=1)
 logs/                    raw per-session output (gitignored)
 results/                 aggregated tables and figures
 ```

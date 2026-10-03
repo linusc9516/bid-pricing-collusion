@@ -5,11 +5,12 @@ Scripted rules and their expected readings are in PLANNING.md section 2.7. `BidR
 """
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import ClassVar, Protocol
 
 from bidrig.bne import BneBenchmark
 from bidrig.llm import Host, ModelSpec, OpenRouterClient
-from bidrig.prompts import build_messages
+from bidrig.prompts import DEFAULT_TEMPLATE, build_messages
 from bidrig.schema import (
     BidderType,
     BidRequest,
@@ -141,6 +142,7 @@ class LLMBidder:
     log: list[BidRow]  # the auctioneer's log, appended once per finished round
     calls: list[CallRow] = field(default_factory=list)
     reasoning_length: str = "short"
+    template: Path = DEFAULT_TEMPLATE
 
     bidder_type: ClassVar[BidderType] = "llm"
 
@@ -151,7 +153,7 @@ class LLMBidder:
 
     async def bid(self, request: BidRequest) -> BidResponse:
         """The model's bid for `request` (None after every retry failed); attempts go to `calls`."""
-        messages = build_messages(self.meta, self.log, request, self.reasoning_length)
+        messages = build_messages(self.meta, self.log, request, self.reasoning_length, self.template)
         bid, rows = await self.client.request_bid(
             self.spec,
             self.host,

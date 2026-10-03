@@ -169,21 +169,49 @@ def session_dir(log_dir: Path, meta: SessionMeta) -> Path:
     return Path(log_dir) / meta.run_id / meta.condition_id / meta.session_id
 
 
-def write_session(log_dir: Path, meta: SessionMeta, rows: Iterable[BidRow]) -> Path:
-    """Write session.json and bids.jsonl for one session; returns the session directory."""
+def write_meta(log_dir: Path, meta: SessionMeta) -> Path:
+    """Write (or overwrite) session.json alone; returns the session directory."""
     out = session_dir(log_dir, meta)
     out.mkdir(parents=True, exist_ok=True)
     (out / SESSION_FILE).write_text(json.dumps(meta.to_dict(), indent=2) + "\n")
-    with (out / BIDS_FILE).open("w") as handle:
+    return out
+
+
+def _write_jsonl(path: Path, rows: Iterable[BidRow | CallRow]) -> None:
+    with path.open("w") as handle:
         for row in rows:
             handle.write(json.dumps(row.to_dict()) + "\n")
+
+
+def write_session(
+    log_dir: Path, meta: SessionMeta, rows: Iterable[BidRow], calls: Iterable[CallRow] | None = None
+) -> Path:
+    """Write session.json, bids.jsonl and, if given, calls.jsonl; returns the session directory."""
+    out = write_meta(log_dir, meta)
+    _write_jsonl(out / BIDS_FILE, rows)
+    if calls is not None:
+        _write_jsonl(out / CALLS_FILE, calls)
     return out
+
+
+def read_meta(path: Path) -> SessionMeta:
+    """session.json of one session directory."""
+    return SessionMeta.from_dict(json.loads((Path(path) / SESSION_FILE).read_text()))
+
+
+def read_calls(path: Path) -> list[CallRow]:
+    """calls.jsonl of one session directory; empty for scripted sessions."""
+    calls = Path(path) / CALLS_FILE
+    if not calls.exists():
+        return []
+    with calls.open() as handle:
+        return [CallRow.from_dict(json.loads(line)) for line in handle if line.strip()]
 
 
 def read_session(path: Path) -> tuple[SessionMeta, list[BidRow]]:
     """Load one session directory written by `write_session`."""
     path = Path(path)
-    meta = SessionMeta.from_dict(json.loads((path / SESSION_FILE).read_text()))
+    meta = read_meta(path)
     with (path / BIDS_FILE).open() as handle:
         rows = [BidRow.from_dict(json.loads(line)) for line in handle if line.strip()]
     return meta, rows

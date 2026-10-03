@@ -4,7 +4,7 @@ Can the rule an auction uses to break exact-match bids hand LLM bidders an easy 
 
 Design: [`BidPricingCollusion.md`](BidPricingCollusion.md). Build plan, budget and open questions: [`PLANNING.md`](PLANNING.md). [`CLAUDE.md`](CLAUDE.md) documents repo conventions and the non-negotiable design constraints for anyone, human or Claude Code, working on the codebase.
 
-> **Status: core built, no API calls yet.** The schema, BNE benchmark, auctioneer, scripted bidders and per-session metrics are implemented and tested. The prompt builder, LLM wrapper, runner and the two scripts are still stubs, so the run commands below describe the intended interface.
+> **Status: harness built, no API calls yet.** Everything needed for the Phase A pilot is implemented and tested against a mocked client. The pre-pilot smoke test has not been run. Bootstrap intervals, the confirmatory tests and the plots (`analysis/stats.py`, `analysis/report.py`) wait until after the pilot.
 
 ## Disclosure
 
@@ -30,11 +30,15 @@ Without uv: `python -m venv .venv`, activate it, then `pip install -e ".[dev]"`.
 uv run python scripts/run_experiment.py configs/sanity_dummy.yaml
 uv run python scripts/run_experiment.py configs/sanity_tiebreak.yaml
 
-# 2. Phase A pilot: two models under all three tie-break rules, on its own seeds
-uv run python scripts/run_experiment.py configs/pilot.yaml --dry-run   # call + cost estimate
-uv run python scripts/run_experiment.py configs/pilot.yaml
+# 2. Pre-pilot smoke test: one call per pinned host (a few cents); without --yes it only prints the plan
+uv run python scripts/smoke_test.py --yes
 
-# 3. Phase B, only after Phase A is reviewed: main experiment, then the
+# 3. Phase A pilot: two models under all three tie-break rules, on its own seeds
+uv run python scripts/run_experiment.py configs/pilot.yaml --dry-run   # call + cost estimate
+uv run python scripts/run_experiment.py configs/pilot.yaml             # asks before the first call
+uv run python scripts/run_experiment.py configs/pilot.yaml --host fallback   # rerun failed sessions on the fallback host
+
+# 4. Phase B, only after Phase A is reviewed: main experiment, then the
 #    supporting ablations, under one run id
 uv run python scripts/run_experiment.py configs/main_tiebreak.yaml     --run-id run1
 uv run python scripts/run_experiment.py configs/supporting_info.yaml   --run-id run1
@@ -94,8 +98,9 @@ uv run python scripts/analyze.py logs/<run_id>
 writes tables and figures to `results/<run_id>/`:
 
 - `session_metrics.csv` — one row per session; the input to all inference
-- `condition_summary.csv` — per-condition means with bootstrap 95% CIs over sessions
-- `confirmatory_tests.csv` — the pre-declared comparisons with raw and Holm-adjusted p-values
+- `condition_summary.csv` — per-condition means; the bootstrap 95% CI columns stay blank until step 3b is built
+- `call_summary.csv` — pilot checks per condition: parse failures, sit-outs, bids below cost, tokens per call
+- `confirmatory_tests.csv` — the pre-declared comparisons with raw and Holm-adjusted p-values (not written until step 3b)
 
 ## Structure
 

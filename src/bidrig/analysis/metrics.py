@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from bidrig.bne import collusion_index
-from bidrig.schema import SESSION_FILE, BidRow, SessionMeta, read_session
+from bidrig.schema import SESSION_FILE, BidRow, CallRow, SessionMeta, read_session
 
 # A repeated session and its one-shot control share these (PLANNING.md section 3, `lineup_id`).
 # `info_condition` is left out: the information levels share the baseline's control (5.2).
@@ -173,3 +173,69 @@ def session_metrics_table(sessions: Iterable[tuple[SessionMeta, Sequence[BidRow]
 def load_run(run_dir: Path) -> list[tuple[SessionMeta, list[BidRow]]]:
     """Every session under `logs/<run_id>/`, in path order."""
     return [read_session(path.parent) for path in sorted(Path(run_dir).glob(f"*/*/{SESSION_FILE}"))]
+
+
+CALL_SUMMARY_COLUMNS = [
+    "condition_id",
+    "n_sessions",
+    "n_calls",
+    "n_rebid_calls",
+    "attempt_error_rate",
+    "sit_out_rate",
+    "below_cost_rate",
+    "mean_prompt_tokens",
+    "mean_completion_tokens",
+    "p95_completion_tokens",
+    "max_completion_tokens",
+]
+
+
+def call_summary(sessions: Iterable[tuple[SessionMeta, Sequence[BidRow], Sequence[CallRow]]]) -> pd.DataFrame:
+    """Pilot checks per condition (PLANNING.md 4, step 7): parse failures, sit-outs, bids below cost, tokens.
+
+    Rates are shares in [0, 1]: `attempt_error_rate` over LLM attempts, `sit_out_rate` over
+    firm-round rows, `below_cost_rate` over valid bids. Token columns are per attempt.
+    """
+    by_condition: dict[str, dict[str, list]] = {}
+    for meta, rows, calls in sessions:
+        entry = by_condition.setdefault(meta.condition_id, {"sessions": [], "rows": [], "calls": []})
+        entry["sessions"].append(meta.session_id)
+        entry["rows"].extend(rows)
+        entry["calls"].extend(calls)
+    records = []
+    for cid, entry in sorted(by_condition.items()):
+        calls = pd.DataFrame([c.to_dict() for c in entry["calls"]], columns=list(CallRow.__dataclass_fields__))
+        rows = entry["rows"]
+        valid = [r for r in rows if r.valid]
+        completion = calls["completion_tokens"].dropna().astype(float)
+        records.append(
+            {
+                "condition_id": cid,
+                "n_sessions": len(entry["sessions"]),
+                "n_calls": len(calls),
+                "n_rebid_calls": int((calls["phase"] == "rebid").sum()),
+                "attempt_error_rate": _mean(calls["error"].notna()),
+                "sit_out_rate": _mean(pd.Series([not r.valid for r in rows], dtype=float)),
+                "below_cost_rate": _mean(pd.Series([r.bid < r.cost for r in valid], dtype=float)),
+                "mean_prompt_tokens": _mean(calls["prompt_tokens"].dropna().astype(float)),
+                "mean_completion_tokens": _mean(completion),
+                "p95_completion_tokens": float(completion.quantile(0.95)) if len(completion) else float("nan"),
+                "max_completion_tokens": float(completion.max()) if len(completion) else float("nan"),
+            }
+        )
+    return pd.DataFrame(records, columns=CALL_SUMMARY_COLUMNS)
+
+
+def condition_means(table: pd.DataFrame) -> pd.DataFrame:
+    """`condition_summary.csv` without intervals: mean of each metric over sessions per condition.
+
+    `ci_low` and `ci_high` stay blank until the session bootstrap exists (build step 3b);
+    Phase A reports raw numbers only, labelled n = 5, directional only.
+    """
+    metrics = [c for c in SESSION_METRIC_COLUMNS[8:] if pd.api.types.is_numeric_dtype(table[c])]
+    long = table.melt(id_vars=["condition_id"], value_vars=metrics, var_name="metric")
+    grouped = long.groupby(["condition_id", "metric"], sort=True)["value"]
+    summary = grouped.agg(n_sessions="count", mean="mean").reset_index()
+    summary["ci_low"] = float("nan")
+    summary["ci_high"] = float("nan")
+    return summary[["condition_id", "metric", "n_sessions", "mean", "ci_low", "ci_high"]]
