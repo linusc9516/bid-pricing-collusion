@@ -24,6 +24,7 @@ from bidrig.llm import (
     make_openai_client,
 )
 from bidrig.prompts import build_messages
+from bidrig.runner import load_config
 from bidrig.schema import BidRequest, LineupEntry, SessionMeta
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +38,17 @@ def round_one_meta() -> SessionMeta:
         tie_break_rule="random", lineup_id="smoke", lineup=[LineupEntry(f, "llm") for f in "ABC"],
         cost_low=0, cost_high=100, reserve_price=100, bid_increment=0.01, n_rounds=1,
     )  # fmt: skip
+
+
+def base_settings() -> LLMSettings:
+    """Call settings from configs/base.yaml, so the smoke test sends what the pilot will send."""
+    llm = load_config(ROOT / "configs" / "base.yaml")["llm"]
+    return LLMSettings(
+        temperature=llm["temperature"],
+        max_output_tokens=llm["max_output_tokens"],
+        max_retries=llm["max_retries"],
+        reasoning_effort=llm.get("reasoning_effort"),
+    )
 
 
 async def check_host(client: OpenRouterClient, spec, host) -> dict:
@@ -79,6 +91,8 @@ async def main() -> int:
 
     specs = load_models(ROOT / "configs" / "models.yaml")
     plan = [(specs[m], specs[m].host(r)) for m in args.models for r in args.roles]
+    settings = base_settings()
+    print(f"settings from configs/base.yaml: {settings}")
     for spec, host in plan:
         print(f"{spec.alias:9s} {spec.slug:32s} {host.role:8s} {host.name} ({host.quantization})")
     if not args.yes:
@@ -91,7 +105,7 @@ async def main() -> int:
         print("OPENROUTER_API_KEY is not set (see .env.example)", file=sys.stderr)
         return 1
     base_url = os.environ.get("OPENROUTER_BASE_URL") or None
-    client = OpenRouterClient(make_openai_client(key, base_url), LLMSettings(), SpendTracker(CAP_USD))
+    client = OpenRouterClient(make_openai_client(key, base_url), base_settings(), SpendTracker(CAP_USD))
     results = [await check_host(client, spec, host) for spec, host in plan]
 
     out = ROOT / "logs" / "smoke" / f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}.json"
