@@ -1,4 +1,4 @@
 """Analysis layer: metrics, statistical tests, and report generation.
 
-Not implemented yet. See PLANNING.md section 2.6.
+metrics.py is built; stats.py and report.py are stubs until build step 3b. See PLANNING.md section 2.6.
 """

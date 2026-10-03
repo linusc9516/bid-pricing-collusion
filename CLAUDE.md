@@ -19,9 +19,14 @@ Dependencies are managed with uv (`uv sync` once; then prefix commands with `uv 
 - `uv run python scripts/run_experiment.py configs/<name>.yaml --run-id <id>` —
   Phase B: `main_tiebreak.yaml`, then the `supporting_*.yaml` configs, under one run id
 - `uv run python scripts/analyze.py logs/<run_id>` — logs to result tables
+- `uv run python scripts/check_logs.py logs/<run_id>` — checks the raw logs (auction rules, every
+  prompt, hosts); `--pick` / `--show` print prompts to read by hand. Run it on every live run first
 - Lint: `uv run ruff check src/` (fix with `uv run ruff check --fix src/` before committing)
 
-The two scripts are stubs until the runner and analysis are implemented.
+Configs that call models ask for confirmation unless `--yes` is given. Before the first
+live call, run `uv run python scripts/smoke_test.py` (prints the plan; `--config configs/pilot.yaml` sends the pilot's settings) and then with
+`--yes`, then the end-to-end check `configs/pilot_tiny.yaml` (PLANNING.md 5.5). If a
+pinned host fails, rerun with `--host fallback`, then `--host backup`.
 
 ## Code style
 - Comments: one-line docstrings stating units, ranges, and return semantics —
@@ -66,10 +71,14 @@ The two scripts are stubs until the runner and analysis are implemented.
 - Two-phase execution: Phase A (two cheap models, small pilot) must
   complete and be reviewed before Phase B (full model lineup, full reps)
   starts. Don't begin Phase B without explicit confirmation — see
-  PLANNING.md "Phased Execution Plan."
-- REMINDER before Phase B: reasoning length is undecided. Phase A uses short
-  reasoning (2-3 sentences). If an LLM judge will analyse the traces, Phase B
-  needs longer reasoning and a re-estimated budget (PLANNING.md 7.2). Ask the
+  PLANNING.md "Phased Execution Plan." The main tie-break experiment is also gated on
+  the pilot's tie manipulation check (configs/analysis.yaml, PLANNING.md 7.1): a failed
+  check blocks it until the user records a redesign.
+- REMINDER before Phase B: thinking mode, output-token cap and reasoning length
+  are all TBD (the Phase B configs say TBD and the runner refuses to call models).
+  Phase A runs DeepSeek and Qwen with thinking off, gpt-oss at low effort, and a
+  2-3 sentence reasoning field (PLANNING.md 5.6). If an LLM judge will analyse the
+  traces, Phase B needs longer reasoning and a re-estimated budget (7.2). Ask the
   user before the main run.
 - Always run the positive control first: confirm baseline rotation-like
   behavior exists under `random` tie-break before comparing conditions.
@@ -94,13 +103,14 @@ configs/
   analysis.yaml          pre-declared outcome, comparisons, correction
   sanity_dummy.yaml      scripted bidders, no API calls
   sanity_tiebreak.yaml   scripted bidders under the three tie-break rules
-  pilot.yaml             Phase A pilot: two models, three tie-break rules
+  pilot_tiny.yaml        end-to-end check before the pilot: 18 sessions of 3 rounds
+  pilot.yaml             Phase A pilot: three models, three tie-break rules
   main_tiebreak.yaml     main experiment: tie-break rule, with one-shot controls
   supporting_info.yaml   supporting ablation: information revelation
   supporting_n.yaml      supporting ablation: number of bidders
   supporting_lineup.yaml supporting ablation: same-model vs. mixed lineup
-prompts/                 bidder system prompt template (not written yet)
-src/bidrig/              all modules are stubs so far
+prompts/                 bidder_system.md, the bidder system prompt template
+src/bidrig/              all built except analysis/stats.py and analysis/report.py (step 3b)
   schema.py              session / bid-row / call-row dataclasses
   bne.py                 closed-form BNE benchmark
   auction.py             rule-based auctioneer
@@ -112,7 +122,10 @@ src/bidrig/              all modules are stubs so far
 scripts/
   run_experiment.py      CLI: run a config
   analyze.py             CLI: logs -> results
-tests/                   test_scaffold.py (import smoke test)
+  smoke_test.py          CLI: one call per pinned host (PLANNING.md 5.5)
+  check_logs.py          CLI: consistency checks on a run's raw logs (src/bidrig/checks.py)
+tests/                   one test file per built module; helpers.py builds scripted sessions;
+                         snapshots/ holds the prompt snapshots (regenerate with UPDATE_SNAPSHOTS=1)
 logs/                    raw per-session output (gitignored)
 results/                 aggregated tables and figures
 ```

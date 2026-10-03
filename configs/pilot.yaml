@@ -1,8 +1,10 @@
 # Phase A pilot: pre-team proof of concept (PLANNING.md section 7.1).
-# Two models (the cheapest candidate research models) x three tie-break rules, 5 sessions of
-# 25 rounds, each with a matched one-shot control (history_window 0). 12 cells, 4,500 calls
-# plus BAFO rebids, estimated at about $1.49 at 1,000 output tokens per call with the hosts
-# pinned in PLANNING.md 5.5 (Morph for deepseek, Crusoe for gpt-oss).
+# Three models (cheap candidate research models) x three tie-break rules, 5 sessions of
+# 25 rounds, each with a matched one-shot control (history_window 0). 18 cells, 6,750 calls
+# plus BAFO rebids, estimated at $7.41 if every call used the whole 4,000-token cap (about $3 expected) with the hosts
+# pinned in PLANNING.md 5.5 (DeepInfra for deepseek, Crusoe for gpt-oss); qwen has one provider
+# (Alibaba), so no host is pinned. Thinking is ON at low effort for all three here (the smoke test and
+# pilot_tiny keep deepseek and qwen off), cap 4,000 tokens, 300 s request timeout (PLANNING.md 5.6).
 # Output is PILOT_FINDINGS.md: raw numbers, "n = 5, directional only". Not a paper result.
 # Also measures what the Phase B budget depends on: tokens per call, parse-failure rate,
 # and how often bids tie at the 0.01 grid.
@@ -17,14 +19,24 @@ session:
   n_sessions: 5
   base_seed: 990000       # disjoint from the main experiment's seeds
 
+llm:
+  max_output_tokens: 4000 # the pilot's cap; counts thinking too, and is stated in the prompt
+  request_timeout_s: 300  # thinking replies of several thousand tokens can take over the default 120 s
+  reasoning_overrides:    # pilot only: thinking ON at low effort for these two (models.yaml has it off; gpt-oss stays at low)
+    deepseek: {effort: low}
+    qwen: {effort: low}
+
 budget:
-  max_cost_usd: 2         # tripwire inside the $10 Phase A budget; estimate about 1.49 at 1,000 output tokens per call
+  max_cost_usd: 8         # tripwire inside the $10 Phase A budget
+  estimate_output_tokens: 4000  # stress case: every call uses the whole 4,000-token cap (PLANNING.md 5.4)
 
 cells:
   - id: pilot-deepseek
     lineup: {type: homogeneous, model: deepseek}
   - id: pilot-gpt-oss
     lineup: {type: homogeneous, model: gpt-oss}
+  - id: pilot-qwen
+    lineup: {type: homogeneous, model: qwen}
 
 sweep:
   tie_break_rule: [random, least_wins, bafo]

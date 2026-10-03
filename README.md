@@ -4,7 +4,7 @@ Can the rule an auction uses to break exact-match bids hand LLM bidders an easy 
 
 Design: [`BidPricingCollusion.md`](BidPricingCollusion.md). Build plan, budget and open questions: [`PLANNING.md`](PLANNING.md). [`CLAUDE.md`](CLAUDE.md) documents repo conventions and the non-negotiable design constraints for anyone, human or Claude Code, working on the codebase.
 
-> **Status: scaffolding only.** Modules under `src/bidrig/` are stubs; the commands below describe the intended interface.
+> **Status: harness built, smoke test passed (3 October 2026), no pilot yet.** Everything needed for the Phase A pilot is implemented and tested; the pre-pilot smoke test passed against all pinned hosts, and the end-to-end check (`configs/pilot_tiny.yaml`) is next. Thinking mode and the output-token cap for Phase B are TBD. Bootstrap intervals, the confirmatory tests and the plots (`analysis/stats.py`, `analysis/report.py`) wait until after the pilot.
 
 ## Disclosure
 
@@ -30,11 +30,19 @@ Without uv: `python -m venv .venv`, activate it, then `pip install -e ".[dev]"`.
 uv run python scripts/run_experiment.py configs/sanity_dummy.yaml
 uv run python scripts/run_experiment.py configs/sanity_tiebreak.yaml
 
-# 2. Phase A pilot: two models under all three tie-break rules, on its own seeds
-uv run python scripts/run_experiment.py configs/pilot.yaml --dry-run   # call + cost estimate
-uv run python scripts/run_experiment.py configs/pilot.yaml
+# 2. Pre-pilot smoke test: one call per pinned host (a few cents); without --yes it only prints the plan
+uv run python scripts/smoke_test.py --yes
 
-# 3. Phase B, only after Phase A is reviewed: main experiment, then the
+# 3. End-to-end check: 18 sessions of 3 rounds (every model and rule) with real models, then check the logs
+uv run python scripts/run_experiment.py configs/pilot_tiny.yaml
+uv run python scripts/check_logs.py logs/pilot_tiny --expect-cap 500   # --pick / --show print prompts to read by hand
+
+# 4. Phase A pilot: three models under all three tie-break rules, on its own seeds
+uv run python scripts/run_experiment.py configs/pilot.yaml --dry-run   # call + cost estimate
+uv run python scripts/run_experiment.py configs/pilot.yaml             # asks before the first call
+uv run python scripts/run_experiment.py configs/pilot.yaml --host fallback   # rerun failed sessions on the fallback host (then --host backup)
+
+# 5. Phase B, only after Phase A is reviewed: main experiment, then the
 #    supporting ablations, under one run id
 uv run python scripts/run_experiment.py configs/main_tiebreak.yaml     --run-id run1
 uv run python scripts/run_experiment.py configs/supporting_info.yaml   --run-id run1
@@ -44,7 +52,7 @@ uv run python scripts/run_experiment.py configs/supporting_lineup.yaml --run-id 
 
 Run the sanity checks first and confirm the scripted bidders read as expected before spending on LLM calls: BNE bidders near 0, markup bidders negative, the overbidding bidder high but not flagged as collusive, the rotating cartel flagged, and bid-matching bidders rotating exactly under least-wins-first. Commit `configs/analysis.yaml` before the main experiment; it pre-declares the comparisons. Runs are resumable: completed sessions are skipped.
 
-The Phase A budget is $10 of OpenRouter credits (estimated spend about $1.50, with a $2 tripwire). The Phase B budget is not set yet and is expected to be much higher if needed; it is decided after Phase A measures tokens per call, which the estimates depend on. See `PLANNING.md` section 5.4.
+The Phase A budget is $10 of OpenRouter credits (estimated spend about $7.41 if every call used the whole 4,000-token cap and likely about $3, with an $8 tripwire; roughly 2 hours of wall clock). The Phase B budget is not set yet and is expected to be much higher if needed; it is decided after Phase A measures tokens per call, which the estimates depend on. See `PLANNING.md` section 5.4.
 
 ## Experiments
 
@@ -94,8 +102,11 @@ uv run python scripts/analyze.py logs/<run_id>
 writes tables and figures to `results/<run_id>/`:
 
 - `session_metrics.csv` — one row per session; the input to all inference
-- `condition_summary.csv` — per-condition means with bootstrap 95% CIs over sessions
-- `confirmatory_tests.csv` — the pre-declared comparisons with raw and Holm-adjusted p-values
+- `condition_summary.csv` — per-condition means; the bootstrap 95% CI columns stay blank until step 3b is built
+- `tie_check.csv` — the pre-declared tie manipulation check per lineup and rule, with the chance-tie benchmark; `analyze.py` also prints the proceed / borderline / failed verdict from the thresholds in `configs/analysis.yaml` (`PLANNING.md` 7.1)
+- `non_competitive_bids.csv` — per condition, the share of bids at the reserve and below the firm's own cost; kept apart from the collusion, tie and rotation measures (`PLANNING.md` 2.6)
+- `call_summary.csv` — pilot checks per condition: parse failures, sit-outs, bids below cost, tokens per call
+- `confirmatory_tests.csv` — the pre-declared comparisons with raw and Holm-adjusted p-values (not written until step 3b)
 
 ## Structure
 
@@ -103,7 +114,7 @@ writes tables and figures to `results/<run_id>/`:
 configs/        base defaults, model list, sanity checks, pilot, main experiment, supporting ablations, analysis plan
 prompts/        bidder system prompt template
 src/bidrig/     auction, bidders, prompts, llm, bne, runner, analysis/
-scripts/        run_experiment.py, analyze.py
+scripts/        run_experiment.py, analyze.py, check_logs.py, smoke_test.py
 tests/
 logs/           raw output (gitignored)
 results/        aggregated tables and figures

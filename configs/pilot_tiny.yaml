@@ -1,0 +1,34 @@
+# Pre-pilot end-to-end check (PLANNING.md 5.5): the full harness with real models, run after
+# the smoke test passes and before Phase A. One 3-round session per model under each of the
+# three tie-break rules, each with its one-shot control: 18 sessions, 162 calls plus any rebids,
+# a few cents. Sweeping the rule means every rule's prompt is read live before the pilot.
+# Purpose: read every prompt in calls.jsonl by hand for off-by-one errors and leaks, and check
+# that session.json, bids.jsonl and calls.jsonl are written as in PLANNING.md section 3.
+# Rebids only happen under bafo and only if two models tie, which is unlikely in 3 rounds; the
+# rebid path is covered by the mocked-client tests.
+# Own seeds and run id (pilot_tiny), so these sessions never mix with pilot data.
+
+inherits: base.yaml
+
+auction:
+  n_rounds: 3
+
+session:
+  n_sessions: 1
+  base_seed: 980000       # disjoint from the pilot (990000+) and the main experiment
+
+budget:
+  max_cost_usd: 0.1
+  estimate_output_tokens: 1000
+
+cells:
+  - id: tiny-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: tiny-gpt-oss
+    lineup: {type: homogeneous, model: gpt-oss}
+  - id: tiny-qwen
+    lineup: {type: homogeneous, model: qwen}
+
+sweep:
+  tie_break_rule: [random, least_wins, bafo]
+  history_window: [null, 0]

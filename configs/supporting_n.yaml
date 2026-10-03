@@ -8,6 +8,10 @@ inherits: base.yaml
 session:
   n_sessions: 9
 
+llm:
+  max_output_tokens: TBD  # Phase B output cap and thinking mode are undecided (PLANNING.md 5.6, 7.2);
+  reasoning_mode: TBD     # the runner refuses to call models until both are set
+
 budget:
   max_cost_usd: 0.8       # PLACEHOLDER: Phase B budget not set; estimate at listed prices is 1.04
 

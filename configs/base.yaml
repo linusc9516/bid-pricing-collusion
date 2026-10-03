@@ -20,20 +20,35 @@ session:
 llm:
   temperature: 1.0
   max_retries: 2          # then the firm sits out the round
+  provider_retries: 4     # a request that fails with a transient provider error (5xx, 429, 408, connection, error body) is
+                          # repeated up to this many times on the same host, same seed, before the session is abandoned
+  retry_base_s: 2         # wait before retry k is retry_base_s * 2**k seconds (2, 4, 8, 16), with +-25% jitter
+  retry_cap_s: 30         # longest single wait; also caps a Retry-After header
+  session_retry_cap: 20   # abandon the session after this many provider retries in total
   capture_reasoning: true # resolved for Phase A: bid tool call includes a reasoning field
   reasoning_length: short # short = two or three sentences. REMINDER (Phase B): choose long if an LLM judge
                           # will analyse traces; re-estimate budget first (PLANNING.md 7.2)
-  max_output_tokens: 400  # (open) main budget lever; output tokens dominate the cost per call
+  max_output_tokens: 500  # smoke test and pilot_tiny; counted over hidden thinking too and stated in the prompt.
+                          # pilot.yaml sets 1000; Phase B configs set TBD (PLANNING.md 5.6)
+  reasoning_effort: low   # default OpenRouter `reasoning.effort` for models with no `reasoning` entry in models.yaml; null to omit
+  tool_choice: auto       # auto | required | forced. Morph, Crusoe and AkashML reject required and forced (smoke test, 2026-10-03)
+  reasoning_mode: per_model # thinking is set per model in models.yaml; a config can override it per model with llm.reasoning_overrides (the pilot does). Phase B configs set TBD and the runner
+                          # refuses to call models until it is chosen (PLANNING.md 5.6)
   max_concurrency: 8
 
 prompt:
-  template: prompts/bidder_system.md   # not written yet
+  template: prompts/bidder_system.md
   version: v0
 
 budget:
   max_cost_usd: 1         # per config; the runner aborts when a config's spend exceeds its cap.
                           # Each experiment config sets its own. Phase A budget is $10; the Phase B
                           # budget is not set yet (PLANNING.md section 5.4).
+  # Dry-run cost assumptions (PLANNING.md 5.4): a one-shot prompt is about 250 input tokens and
+  # each earlier round adds about 10 per firm, which gives about 1,000 at round 50 with N = 3.
+  estimate_input_tokens_base: 250
+  estimate_tokens_per_history_row: 10
+  estimate_output_tokens: 250
 
 output:
   log_dir: logs

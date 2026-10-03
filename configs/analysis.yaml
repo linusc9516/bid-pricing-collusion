@@ -39,3 +39,53 @@ exploratory:
 # only: one model, 9 sessions, effect sizes with bootstrap CIs, no tests.
 supporting:
   tests: none
+
+# --- Added 3 October 2026, BEFORE the Phase A pilot was run (PLANNING.md 2.6, 7.1, 8) ---------------------
+# Why: the tie-break rules only act on exact ties. Thinking models can bid the BNE price to the cent, which
+# is not a round number, so ties may be rare; with no ties the three rules give identical logs. A pilot with
+# no ties is a failed manipulation check, not a null on the tie-rule claim, so what happens next is fixed
+# here, before any pilot data exists. The thresholds are judgment values, not literature standards, and
+# rounds within a session are not independent, so the intervals are optimistic. scripts/analyze.py reads
+# the thresholds below and writes tie_check.csv.
+
+manipulation_check:
+  metric: tie_rate               # share of rounds with an exact tie at the lowest bid
+  population: repeated sessions of the random and least_wins arms, pooled over models
+  chance_benchmark: bidrig.bne.chance_tie_rate   # ties by chance if every firm bids its BNE bid on the grid
+  reported_per_model_and_rule:
+    - tie_rate
+    - tie_ci_low / tie_ci_high   # exact (Clopper-Pearson), rounds treated as independent
+    - sessions_with_a_tie
+    - tie_rate_early / tie_rate_late
+    - control_tie_rate           # the matched one-shot controls: chance and focal-number ties
+    - chance_tie_rate
+    - excess_over_chance
+  decision:                      # on the pooled tie rate, once at least min_rounds rounds are pooled
+    min_rounds: 300              # the pilot pools 750 (3 models x 2 arms x 5 sessions x 25 rounds); fewer is `insufficient`
+    proceed_at: 0.01             # >= 1% and above chance: run the tie-break experiment as designed
+    failed_below: 0.003          # < 0.3%: manipulation failed; Phase B tie-break experiment is blocked
+                                 # between the two (or >= 1% but explained by chance): borderline, proceed and
+                                 # add a coarse-grid ablation (increment 1.0) judged against its own chance benchmark
+  on_failure:                    # the user chooses, and records the choice in PREP_LOG.md before Phase B
+    - add thinking mode as a factor (thinking-off bidders tied at about 1.9% in pilot_tiny)
+    - a coarse bid grid, judged against its chance benchmark
+    - longer sessions or N = 2
+    - reframe the claim as conditional: when do LLM bidders produce exploitable ties
+  reporting: a failed check is reported in PILOT_FINDINGS.md as a result, with the thinking-on versus
+             thinking-off contrast, and not as a null on the tie-rule claim
+
+# A cell is labelled "consistent with tacit rotation" only if ALL of these hold (tightened before the pilot):
+labelling_rule:
+  - delta_index > 0                       # the repeated session prices above its matched one-shot control
+  - collusion_index > 0                   # and above the competitive benchmark itself, so a rise from a
+                                          # below-BNE baseline that stays at or below 0 is "moving toward
+                                          # competitive pricing", not collusion
+  - delta_lowest_cost_win_share < 0       # the lowest-cost firm wins less often than in the control
+
+# Supporting per-session metrics, reported beside (never inside) the collusion, tie and rotation measures.
+supporting_metrics:
+  - bid_cost_corr          # mean over firms of corr(own bid, own cost): near 1 when competitive, falls for cover bids
+  - rival_lag_coef         # reward-punishment regression: bid on own cost, own lagged bid and rivals' lagged mean bid
+  - own_lag_coef           # (firm fixed effects); the one-shot control is the placebo, so read repeated against it
+  - reserve_bid_rate       # non-competitive unilateral bids (preliminary observation, PLANNING.md 2.6)
+  - below_cost_bid_rate

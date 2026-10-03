@@ -1,0 +1,7 @@
+Earlier rounds, oldest first:
+Round 1: you bid 50.00. Firm A won at 40.00. Your cost was 31.99 and your profit 0.00.
+Round 2: you bid 60.00. Your bid tied for lowest; your final bid was 51.00. You won at 51.00. Your cost was 83.51 and your profit -32.51.
+Round 3: you bid 75.00. Firm A won at 70.00. Your cost was 16.75 and your profit 0.00.
+
+Your cost for this round is 92.78.
+Submit your bid with the submit_bid tool.

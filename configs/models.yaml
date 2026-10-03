@@ -1,29 +1,37 @@
 # Model aliases used by the other configs.
 # All four slugs were verified against the live OpenRouter list on 2026-10-03 and support tool calling.
-# Prices are USD per million tokens, input/output. For the two Phase A models they are the pinned
-# primary host's prices (PLANNING.md 5.5); for glm and qwen they are the headline listing price,
-# which is the cheapest endpoint and not a guaranteed rate, until Phase B hosts are chosen.
+# Prices are USD per million tokens, input/output. For deepseek and gpt-oss they are the pinned
+# primary host's prices (PLANNING.md 5.5); qwen has one provider (Alibaba) and is not pinned, and
+# glm's is the headline listing price, which is the cheapest endpoint and not a guaranteed rate,
+# until its Phase B host is chosen.
 
 models:
   deepseek:
     slug: deepseek/deepseek-v4.1-flash   # DeepSeek V4.1 Flash
-    price_in: 0.021
-    price_out: 0.383
+    price_in: 0.14
+    price_out: 0.42
+    reasoning: {enabled: false}          # effort low is ignored at a 400-token cap: thinking uses it all. configs/pilot.yaml turns it on at 4,000
     providers:                           # Phase A hosts; never switch hosts inside a session
-      primary: {name: Morph, quantization: fp8, price_in: 0.021, price_out: 0.383}
-      fallback: {name: DeepInfra, quantization: fp8, price_in: 0.14, price_out: 0.42}
+      # Morph (the first choice) was dropped on 2026-10-03: 502s in pilot_tiny, uptime 88.6% over 5 minutes, no forced tool choice.
+      # Makora was left out for its $0.99 output price. Rerun a failed session with --host fallback, then --host backup.
+      primary: {name: DeepInfra, quantization: fp8, price_in: 0.14, price_out: 0.42}
+      fallback: {name: NextBit, quantization: fp8, price_in: 0.21, price_out: 0.84}
+      backup: {name: CoreWeave, quantization: fp8, price_in: 0.20, price_out: 0.65}
   gpt-oss:
     slug: openai/gpt-oss-120b            # GPT-oss-120b
     price_in: 0.05
     price_out: 0.25
+    reasoning: {effort: low}             # cannot be turned off; low keeps replies at about 100-250 tokens
     providers:
       primary: {name: Crusoe, quantization: bf16, price_in: 0.05, price_out: 0.25}
       fallback: {name: AkashML, quantization: bf16, price_in: 0.037, price_out: 0.187}
+      backup: {name: DekaLLM, quantization: bf16, price_in: 0.03, price_out: 0.18}
   glm:
     slug: z-ai/glm-5.3-flash             # GLM-5.3 Flash, Phase B only; host not chosen
     price_in: 0.02625
     price_out: 0.90
   qwen:
-    slug: qwen/qwen3.7-flash             # Qwen3.7 Flash, Phase B only; single provider (Alibaba)
+    slug: qwen/qwen3.7-flash             # Qwen3.7 Flash, in the Phase A pilot and Phase B; single provider (Alibaba)
     price_in: 0.03                       # cached input is 0.006
     price_out: 0.13
+    reasoning: {enabled: false}          # same as deepseek (the pilot overrides it with effort low at a 4,000-token cap)
