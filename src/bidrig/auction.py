@@ -168,11 +168,17 @@ async def _run_round(
     return rows, winner
 
 
-async def run_session(meta: SessionMeta, bidders: Sequence[Bidder]) -> list[BidRow]:
+async def run_session(
+    meta: SessionMeta,
+    bidders: Sequence[Bidder],
+    log: list[BidRow] | None = None,
+) -> list[BidRow]:
     """Run every round of one session; returns n_rounds * n_bidders rows in (round, slot) order.
 
     `bidders` are in the slot order of `meta.lineup`. Wins counted for `least_wins` are the
-    contracts awarded earlier in this session, whatever decided them.
+    contracts awarded earlier in this session, whatever decided them. If `log` is given, each
+    round's rows are appended to it once the round is over, so bidders that share the list
+    (through the visibility filter) never see a round before it has happened.
     """
     if not len(bidders) == len(meta.lineup) == meta.n_bidders:
         raise ValueError("bidders, meta.lineup and meta.n_bidders must agree")
@@ -180,7 +186,7 @@ async def run_session(meta: SessionMeta, bidders: Sequence[Bidder]) -> list[BidR
     costs = draw_costs(meta.seed, meta.n_bidders, meta.n_rounds, meta.cost_low, meta.cost_high, meta.bid_increment)
     rng = np.random.default_rng([meta.seed, meta.n_bidders, _TIE_STREAM])
     wins = [0] * meta.n_bidders
-    rows: list[BidRow] = []
+    rows: list[BidRow] = [] if log is None else log
     for index in range(meta.n_rounds):
         round_rows, winner = await _run_round(meta, bidders, bne, index + 1, costs[index].tolist(), wins, rng)
         rows.extend(round_rows)
@@ -189,6 +195,6 @@ async def run_session(meta: SessionMeta, bidders: Sequence[Bidder]) -> list[BidR
     return rows
 
 
-def run_session_sync(meta: SessionMeta, bidders: Sequence[Bidder]) -> list[BidRow]:
+def run_session_sync(meta: SessionMeta, bidders: Sequence[Bidder], log: list[BidRow] | None = None) -> list[BidRow]:
     """Blocking `run_session`, for scripted sessions and tests."""
-    return asyncio.run(run_session(meta, bidders))
+    return asyncio.run(run_session(meta, bidders, log))

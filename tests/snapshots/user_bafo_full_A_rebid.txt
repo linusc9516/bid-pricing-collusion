@@ -1,0 +1,8 @@
+Earlier rounds, oldest first:
+Round 1: bids A (you) 40.00, B 50.00, C 45.00. You won at 40.00. Your cost was 10.28 and your profit 29.72.
+Round 2: bids A (you) 60.00, B 60.00, C 60.00. Final bids from the tied firms: A 52.00, B 51.00. Firm B won at 51.00. Your cost was 19.28 and your profit 0.00.
+Round 3: bids A (you) 70.00, B 75.00, C no valid bid. You won at 70.00. Your cost was 46.05 and your profit 23.95.
+
+Your cost for this round is 35.99.
+Submit your bid with the submit_bid tool.
+Your bid tied for lowest: 2 firms, including you, bid 55.00. Submit one new, final bid with the submit_bid tool; the lowest final bid among these firms wins.

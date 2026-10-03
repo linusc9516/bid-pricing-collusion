@@ -1,0 +1,7 @@
+Earlier rounds, oldest first:
+Round 1: you bid 40.00. You won at 40.00. Your cost was 10.28 and your profit 29.72.
+Round 2: you bid 60.00. Firm C won at 60.00. Your cost was 19.28 and your profit 0.00.
+Round 3: you bid 70.00. You won at 70.00. Your cost was 46.05 and your profit 23.95.
+
+Your cost for this round is 35.99.
+Submit your bid with the submit_bid tool.
