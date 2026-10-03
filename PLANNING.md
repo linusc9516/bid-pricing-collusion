@@ -440,12 +440,12 @@ Record the result in `PREP_LOG.md`. If a host fails, swap in the fallback and no
 
 **Result, 3 October 2026.** The first run failed on all four hosts. Morph, Crusoe and AkashML returned a 404 (no endpoint supports the `tool_choice` value) for a forced call, and DeepInfra accepted it but DeepSeek spent all 400 tokens thinking and submitted no bid. After switching to `tool_choice: auto` and setting thinking per model (5.6), the rerun passed 5 of 5 calls, including Qwen3.7 Flash on its single provider, Alibaba, which has no pinned host: each returned a valid bid, accepted the seed, was served by the expected host and used 113 to 204 output tokens. Charged prices matched the listing within 10% except DeepInfra, which billed about 60% below the $0.14 and $0.42 in `models.yaml` (so the fallback estimate is conservative). The provider names `morph`, `crusoe`, `deepinfra` and `akashml` were accepted as written. Total spend about half a cent, including diagnosis.
 
-**End-to-end check** (a few cents, after the smoke test passes and before the pilot). `configs/pilot_tiny.yaml` runs the full harness with real models at the base output cap of 500 tokens: one 3-round session per model under `bafo`, plus its one-shot control, 6 sessions and 54 calls, on its own seeds and run id. Then:
-1. read every prompt in `calls.jsonl` by hand: round *t* shows rounds 1 to *t* − 1 only, no other firm's cost appears, and the control shows no history;
+**End-to-end check** (a few cents, after the smoke test passes and before the pilot). `configs/pilot_tiny.yaml` runs the full harness with real models at the base output cap of 500 tokens: one 3-round session per model under each of the three tie-break rules, each with its one-shot control, 18 sessions and 162 calls, on its own seeds and run id. Then:
+1. read every prompt in `calls.jsonl` by hand: round *t* shows rounds 1 to *t* − 1 only, no other firm's cost appears, the control shows no history, and each session's system prompt states its own tie-break rule and no other;
 2. check that `session.json`, `bids.jsonl` and `calls.jsonl` match section 3;
 3. run `scripts/analyze.py` on it and check the call summary (tokens per call, parse failures).
 
-Rebids only happen if two models tie, which is unlikely in 3 rounds; the mocked-client tests cover that path. Record the result in `PREP_LOG.md`. These sessions are never analysed.
+Rebids only happen under `bafo` and only if two models tie, which is unlikely in 3 rounds; the mocked-client tests cover that path. Record the result in `PREP_LOG.md`. These sessions are never analysed.
 
 **Phase B hosts are not chosen.** GLM-5.3 Flash has 34 endpoints (Z.AI's own is fp8 at $0.15 in and $0.50 out); Qwen3.7 Flash has a single provider (Alibaba) and is used unpinned in Phase A because its quantisation is not listed.
 

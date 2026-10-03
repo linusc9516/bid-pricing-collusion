@@ -33,7 +33,7 @@ uv run python scripts/run_experiment.py configs/sanity_tiebreak.yaml
 # 2. Pre-pilot smoke test: one call per pinned host (a few cents); without --yes it only prints the plan
 uv run python scripts/smoke_test.py --yes
 
-# 3. End-to-end check: 6 sessions of 3 rounds with real models; read every prompt in calls.jsonl
+# 3. End-to-end check: 18 sessions of 3 rounds (every model and rule) with real models; read every prompt in calls.jsonl
 uv run python scripts/run_experiment.py configs/pilot_tiny.yaml
 
 # 4. Phase A pilot: three models under all three tie-break rules, on its own seeds

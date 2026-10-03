@@ -99,7 +99,7 @@ configs/
   analysis.yaml          pre-declared outcome, comparisons, correction
   sanity_dummy.yaml      scripted bidders, no API calls
   sanity_tiebreak.yaml   scripted bidders under the three tie-break rules
-  pilot_tiny.yaml        end-to-end check before the pilot: 6 sessions of 3 rounds
+  pilot_tiny.yaml        end-to-end check before the pilot: 18 sessions of 3 rounds
   pilot.yaml             Phase A pilot: three models, three tie-break rules
   main_tiebreak.yaml     main experiment: tie-break rule, with one-shot controls
   supporting_info.yaml   supporting ablation: information revelation
