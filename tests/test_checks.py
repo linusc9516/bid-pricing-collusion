@@ -23,7 +23,7 @@ from bidrig.prompts import TIE_RULE_SENTENCES
 from bidrig.runner import prepare, run_plan
 
 CONFIGS = Path(__file__).parents[1] / "configs"
-HOSTS = {"morph": "Morph", "crusoe": "Crusoe", None: "Alibaba"}
+HOSTS = {"deepinfra": "DeepInfra", "crusoe": "Crusoe", None: "Alibaba"}
 
 
 def responder(bid_for: Callable[[str, float], float]) -> Callable[[dict[str, Any]], Any]:
@@ -98,7 +98,7 @@ def test_clean_run_passes_every_check(normal_run: Path) -> None:
     assert report.sessions == 18 and report.calls == 162
     assert all(report.items[name] for name in CHECKS if name != "rebid_notice") and report.items["rebid_notice"] == 162
     assert dict(report.caps) == {500: 162}
-    assert {k: v for k, v in report.providers.items()} == {("deepseek", "Morph"): 54, ("gpt-oss", "Crusoe"): 54, ("qwen", "Alibaba"): 54}
+    assert {k: v for k, v in report.providers.items()} == {("deepseek", "DeepInfra"): 54, ("gpt-oss", "Crusoe"): 54, ("qwen", "Alibaba"): 54}
 
 
 def test_tie_run_passes_with_rebids_and_rotation(tie_run: Path) -> None:
@@ -177,7 +177,7 @@ def tamper_bid(run: Path) -> None:
 
 def tamper_provider(run: Path) -> None:
     log = pick(run, window=None, model="deepseek")
-    rewrite(log.path / "calls.jsonl", lambda c: c.update(provider="DeepInfra") if c["round"] == 1 else None)
+    rewrite(log.path / "calls.jsonl", lambda c: c.update(provider="Morph") if c["round"] == 1 else None)
 
 
 def tamper_cost(run: Path) -> None:
@@ -194,6 +194,12 @@ def tamper_status(run: Path) -> None:
     log = pick(run, window=None, model="qwen")
     meta = json.loads((log.path / "session.json").read_text())
     (log.path / "session.json").write_text(json.dumps({**meta, "status": "running"}))
+
+
+def tamper_error_log(run: Path) -> None:
+    log = pick(run, window=None, model="qwen")
+    meta = json.loads((log.path / "session.json").read_text())
+    (log.path / "session.json").write_text(json.dumps({**meta, "provider_errors": ["x"] * 25}))
 
 
 def tamper_retry(run: Path) -> None:
@@ -224,6 +230,7 @@ def tamper_winner(run: Path) -> None:
         (tamper_cost, {"costs"}),
         (tamper_tokens, {"tokens"}),
         (tamper_retry, {"retry_messages", "bids_vs_calls"}),
+        (tamper_error_log, {"structure"}),
         (tamper_winner, {"auction"}),
     ],
 )

@@ -1,8 +1,8 @@
 # Phase A pilot: pre-team proof of concept (PLANNING.md section 7.1).
 # Three models (cheap candidate research models) x three tie-break rules, 5 sessions of
 # 25 rounds, each with a matched one-shot control (history_window 0). 18 cells, 6,750 calls
-# plus BAFO rebids, estimated at about $1.81 at 1,000 output tokens per call with the hosts
-# pinned in PLANNING.md 5.5 (Morph for deepseek, Crusoe for gpt-oss); qwen has one provider
+# plus BAFO rebids, estimated at about $2.01 at 1,000 output tokens per call with the hosts
+# pinned in PLANNING.md 5.5 (DeepInfra for deepseek, Crusoe for gpt-oss); qwen has one provider
 # (Alibaba), so no host is pinned. Thinking is off for deepseek and qwen, low for gpt-oss (5.6).
 # Output is PILOT_FINDINGS.md: raw numbers, "n = 5, directional only". Not a paper result.
 # Also measures what the Phase B budget depends on: tokens per call, parse-failure rate,
@@ -22,7 +22,7 @@ llm:
   max_output_tokens: 1000 # the pilot's cap; the same figure as the stress-case cost estimate below
 
 budget:
-  max_cost_usd: 2         # tripwire inside the $10 Phase A budget; estimate about 1.81 at 1,000 output tokens per call
+  max_cost_usd: 2.5       # tripwire inside the $10 Phase A budget; stress-case estimate 2.01 at 1,000 output tokens per call (about 0.4 expected)
   estimate_output_tokens: 1000  # stress case for reasoning models (PLANNING.md 5.4)
 
 cells:

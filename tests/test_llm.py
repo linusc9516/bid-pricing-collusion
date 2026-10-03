@@ -19,6 +19,7 @@ from bidrig.llm import (
     ModelSpec,
     OpenRouterClient,
     ProviderError,
+    ProviderStats,
     SpendTracker,
     call_seed,
     load_models,
@@ -177,7 +178,15 @@ def test_call_seed_is_deterministic_and_distinct() -> None:
 def test_models_yaml_loads() -> None:
     specs = load_models(MODELS)
     assert set(specs) == {"deepseek", "gpt-oss", "glm", "qwen"}
-    assert specs["deepseek"].host("primary") == Host("Morph", "fp8", 0.021, 0.383, "primary")
+    assert specs["deepseek"].host("primary") == Host("DeepInfra", "fp8", 0.14, 0.42, "primary")
+    assert specs["deepseek"].host("fallback").name == "NextBit" and specs["deepseek"].host("backup") == Host("CoreWeave", "fp8", 0.20, 0.65, "backup")
+    assert specs["gpt-oss"].host("backup") == Host("DekaLLM", "bf16", 0.03, 0.18, "backup")
+    # A model with fewer tiers uses its last tier below the one asked for, and reports that tier's own role.
+    two_tier = ModelSpec("m", "x/y", 1, 1, {"primary": HOST, "fallback": Host("Other", "fp8", 1, 1, "fallback")})
+    assert two_tier.host("backup") == two_tier.hosts["fallback"] and two_tier.host("backup").role == "fallback"
+    assert specs["qwen"].host("backup") is None
+    with pytest.raises(ValueError):
+        specs["deepseek"].host("spare")
     assert specs["gpt-oss"].host("fallback").name == "AkashML"
     assert specs["glm"].host("primary") is None
     assert specs["deepseek"].reasoning == {"enabled": False} and specs["qwen"].reasoning == {"enabled": False}
@@ -266,3 +275,108 @@ def test_per_model_reasoning_overrides_the_config_default() -> None:
         assert kw["extra_body"]["reasoning"] == expected
     client = OpenRouterClient(FakeOpenAI(), LLMSettings(reasoning_effort=None), SpendTracker(1.0))
     assert "reasoning" not in client.request_kwargs(SPEC, None, [{"role": "user", "content": "u"}], 1, 100)["extra_body"]
+
+
+# --- transient provider errors ---
+
+
+def error_body(code: int = 502, kind: str = "provider_unavailable") -> SimpleNamespace:
+    """A 200 response whose body is an OpenRouter error, as Morph returned (choices is None)."""
+    return SimpleNamespace(choices=None, error={"message": "Upstream error", "code": code, "metadata": {"error_type": kind}})
+
+
+class StatusError(Exception):
+    """Stands in for an openai SDK status error: status code and, optionally, Retry-After."""
+
+    def __init__(self, status_code: int, retry_after: str | None = None) -> None:
+        super().__init__(f"Error code: {status_code}")
+        self.status_code = status_code
+        self.response = SimpleNamespace(headers={"retry-after": retry_after} if retry_after else {})
+
+
+def ask_with_retries(responses: list[Any], stats: ProviderStats | None = None, **settings: Any) -> tuple:
+    """Like `ask`, but records the waits and returns (bid, rows, stats, waits, fake) without raising for waiting."""
+    import random
+
+    waits: list[float] = []
+
+    async def sleep(seconds: float) -> None:
+        waits.append(seconds)
+
+    fake = FakeOpenAI(responses)
+    client = OpenRouterClient(fake, LLMSettings(**settings), SpendTracker(10.0), sleep=sleep, rng=random.Random(1))
+    stats = stats if stats is not None else ProviderStats()
+    messages = [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}]
+    bid, rows = asyncio.run(
+        client.request_bid(SPEC, HOST, messages, 100, session_id="s", session_seed=5, round_number=3, firm_id="B", slot=1, phase="bid", stats=stats)
+    )
+    return bid, rows, stats, waits, fake
+
+
+GOOD = {"reasoning": "r", "bid": 60}
+
+
+def test_error_body_is_retried_with_backoff_on_the_same_request() -> None:
+    bid, rows, stats, waits, fake = ask_with_retries([error_body(), error_body(503), completion(GOOD)])
+    assert bid == 60 and len(rows) == 1 and rows[0].attempt == 1  # provider retries are not model attempts
+    assert stats.retries == 2 and len(stats.errors) == 2 and "HTTP 502" in stats.errors[0] and "round 3 firm B bid attempt 1" in stats.errors[0]
+    assert 1.5 <= waits[0] <= 2.5 and 3.0 <= waits[1] <= 5.0
+    assert len({r["seed"] for r in fake.requests}) == 1 and len(fake.requests) == 3  # same seed on the retry
+
+
+def test_status_errors_and_connection_errors_are_retried() -> None:
+    class APIConnectionError(Exception):
+        pass
+
+    bid, _, stats, waits, _ = ask_with_retries([StatusError(503), APIConnectionError("reset"), StatusError(408), completion(GOOD)])
+    assert bid == 60 and stats.retries == 3 and len(waits) == 3
+
+
+def test_retry_after_is_honoured_and_capped() -> None:
+    _, _, _, waits, _ = ask_with_retries([StatusError(429, "7"), StatusError(429, "500"), completion(GOOD)])
+    assert waits == [7.0, 30.0]
+
+
+def test_backoff_doubles_and_gives_up_after_the_configured_retries() -> None:
+    stats = ProviderStats()
+    with pytest.raises(ProviderError, match="still failing after 4 retries"):
+        ask_with_retries([error_body()] * 5, stats)
+    assert stats.retries == 4 and len(stats.errors) == 5  # four retries, and the final failure is logged too
+    _, _, _, waits, _ = ask_with_retries([error_body()] * 4 + [completion(GOOD)])
+    for wait, nominal in zip(waits, [2, 4, 8, 16], strict=True):
+        assert 0.75 * nominal <= wait <= 1.25 * nominal
+
+
+def test_non_transient_failures_are_never_retried() -> None:
+    for failure in [StatusError(404), StatusError(400), RuntimeError("boom"), error_body(404, "no_endpoint"), SimpleNamespace(choices=[], provider="Morph")]:
+        stats = ProviderStats()
+        fake = FakeOpenAI([failure, completion(GOOD)])
+        client = OpenRouterClient(fake, LLMSettings(), SpendTracker(1.0), sleep=lambda s: asyncio.sleep(0))
+        with pytest.raises(ProviderError):
+            asyncio.run(client.request_bid(SPEC, HOST, [{"role": "user", "content": "u"}], 100, session_id="s", session_seed=1,
+                                           round_number=1, firm_id="A", slot=0, phase="bid", stats=stats))
+        assert len(fake.requests) == 1 and stats.retries == 0 and len(stats.errors) == 1
+
+
+def test_a_reply_from_another_host_is_not_retried() -> None:
+    with pytest.raises(ProviderError, match="DeepInfra"):
+        ask_with_retries([completion(GOOD, provider="DeepInfra"), completion(GOOD)])
+
+
+def test_session_retry_cap_stops_further_retries() -> None:
+    stats = ProviderStats(retries=19)
+    bid, _, stats, _, _ = ask_with_retries([error_body(), completion(GOOD)], stats)
+    assert bid == 60 and stats.retries == 20
+    with pytest.raises(ProviderError, match="session retry cap of 20"):
+        ask_with_retries([error_body(), completion(GOOD)], ProviderStats(retries=20))
+
+
+def test_provider_retries_and_model_retries_are_independent() -> None:
+    """A transient failure, then a reply with no tool call, then a good bid: two model attempts, one provider retry."""
+    bid, rows, stats, _, fake = ask_with_retries([error_body(), completion(None), completion(GOOD)])
+    assert bid == 60 and [r.attempt for r in rows] == [1, 2] and stats.retries == 1 and len(fake.requests) == 3
+
+
+def test_settings_from_config() -> None:
+    settings = LLMSettings.from_config({"max_output_tokens": 500, "provider_retries": 1, "retry_base_s": 0, "unknown": 1})
+    assert (settings.max_output_tokens, settings.provider_retries, settings.retry_base_s, settings.session_retry_cap) == (500, 1, 0, 20)

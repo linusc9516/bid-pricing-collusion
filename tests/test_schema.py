@@ -22,7 +22,7 @@ SESSION_FIELDS = [
     "run_id", "condition_id", "session_id", "seed", "n_bidders", "info_condition",
     "tie_break_rule", "lineup_id", "lineup", "cost_low", "cost_high", "reserve_price",
     "bid_increment", "n_rounds", "history_window", "temperature", "prompt_version",
-    "providers", "git_sha", "started_at", "finished_at", "status",
+    "providers", "provider_retries", "provider_errors", "git_sha", "started_at", "finished_at", "status",
 ]  # fmt: skip
 BID_FIELDS = [
     "session_id", "round", "firm_id", "cost", "bid", "is_winner", "winning_bid", "profit",

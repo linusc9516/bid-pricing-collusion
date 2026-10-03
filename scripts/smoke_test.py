@@ -42,14 +42,7 @@ def round_one_meta() -> SessionMeta:
 
 def base_settings() -> LLMSettings:
     """Call settings from configs/base.yaml, so the smoke test sends what the pilot will send."""
-    llm = load_config(ROOT / "configs" / "base.yaml")["llm"]
-    return LLMSettings(
-        temperature=llm["temperature"],
-        max_output_tokens=llm["max_output_tokens"],
-        max_retries=llm["max_retries"],
-        reasoning_effort=llm.get("reasoning_effort"),
-        tool_choice=llm.get("tool_choice", "auto"),
-    )
+    return LLMSettings.from_config(load_config(ROOT / "configs" / "base.yaml")["llm"])
 
 
 async def check_host(client: OpenRouterClient, spec, host) -> dict:
@@ -88,16 +81,16 @@ async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--yes", action="store_true", help="actually call the API")
     parser.add_argument("--models", nargs="+", default=["deepseek", "gpt-oss"])
-    parser.add_argument("--roles", nargs="+", default=["primary", "fallback"])
+    parser.add_argument("--roles", nargs="+", default=["primary", "fallback", "backup"])
     args = parser.parse_args()
 
     specs = load_models(ROOT / "configs" / "models.yaml")
-    # A model with no pinned host (qwen) is called once, whatever the roles asked for.
+    # A model with fewer tiers (or none, like qwen) is called once per distinct host, whatever the roles asked for.
     plan = []
     for m in args.models:
         for r in args.roles:
             host = specs[m].host(r)
-            if host is not None or not any(s.alias == m for s, _ in plan):
+            if (m, host.name if host else None) not in [(s.alias, h.name if h else None) for s, h in plan]:
                 plan.append((specs[m], host))
     settings = base_settings()
     print(f"settings from configs/base.yaml: {settings}")

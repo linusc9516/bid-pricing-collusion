@@ -20,6 +20,11 @@ session:
 llm:
   temperature: 1.0
   max_retries: 2          # then the firm sits out the round
+  provider_retries: 4     # a request that fails with a transient provider error (5xx, 429, 408, connection, error body) is
+                          # repeated up to this many times on the same host, same seed, before the session is abandoned
+  retry_base_s: 2         # wait before retry k is retry_base_s * 2**k seconds (2, 4, 8, 16), with +-25% jitter
+  retry_cap_s: 30         # longest single wait; also caps a Retry-After header
+  session_retry_cap: 20   # abandon the session after this many provider retries in total
   capture_reasoning: true # resolved for Phase A: bid tool call includes a reasoning field
   reasoning_length: short # short = two or three sentences. REMINDER (Phase B): choose long if an LLM judge
                           # will analyse traces; re-estimate budget first (PLANNING.md 7.2)

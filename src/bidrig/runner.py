@@ -24,6 +24,7 @@ from bidrig.llm import (
     ModelSpec,
     OpenRouterClient,
     ProviderError,
+    ProviderStats,
     SpendTracker,
     load_models,
 )
@@ -273,6 +274,7 @@ async def _run_one(
     meta = replace(planned.meta, started_at=_now(), finished_at=None, status="running")
     write_meta(log_dir, meta)
     log: list[BidRow] = []
+    stats = ProviderStats()
     bidders: list[Bidder]
     if planned.scripted:
         params = {k: v for k, v in planned.scripted.items() if k != "bidder"}
@@ -293,6 +295,7 @@ async def _run_one(
                 reasoning_length=llm.get("reasoning_length", "short"),
                 max_output_tokens=llm.get("max_output_tokens", 400),
                 template=template,
+                stats=stats,
             )
             for alias in planned.models
         ]
@@ -300,9 +303,11 @@ async def _run_one(
         await run_session(meta, bidders, log)
     except BaseException:
         meta.status, meta.finished_at = "failed", _now()
+        meta.provider_retries, meta.provider_errors = stats.retries, stats.errors
         write_session(log_dir, meta, log, _calls(bidders))
         raise
     meta.status, meta.finished_at = "complete", _now()
+    meta.provider_retries, meta.provider_errors = stats.retries, stats.errors
     write_session(log_dir, meta, log, _calls(bidders))
 
 
@@ -334,13 +339,7 @@ async def run_plan(
         check_llm_settings(config)
         if client_factory is None:
             raise ValueError("this config calls models; pass a client factory")
-        settings = LLMSettings(
-            temperature=llm.get("temperature", 1.0),
-            max_output_tokens=llm.get("max_output_tokens", 400),
-            max_retries=llm.get("max_retries", 2),
-            reasoning_effort=llm.get("reasoning_effort"),
-            tool_choice=llm.get("tool_choice", "auto"),
-        )
+        settings = LLMSettings.from_config(llm)
         client = OpenRouterClient(client_factory(), settings, spend)
 
     gate = asyncio.Semaphore(llm.get("max_concurrency", 8))

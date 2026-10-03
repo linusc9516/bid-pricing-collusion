@@ -180,6 +180,7 @@ CALL_SUMMARY_COLUMNS = [
     "n_sessions",
     "n_calls",
     "n_rebid_calls",
+    "provider_retries",
     "attempt_error_rate",
     "sit_out_rate",
     "below_cost_rate",
@@ -198,7 +199,8 @@ def call_summary(sessions: Iterable[tuple[SessionMeta, Sequence[BidRow], Sequenc
     """
     by_condition: dict[str, dict[str, list]] = {}
     for meta, rows, calls in sessions:
-        entry = by_condition.setdefault(meta.condition_id, {"sessions": [], "rows": [], "calls": []})
+        entry = by_condition.setdefault(meta.condition_id, {"sessions": [], "rows": [], "calls": [], "retries": 0})
+        entry["retries"] += meta.provider_retries
         entry["sessions"].append(meta.session_id)
         entry["rows"].extend(rows)
         entry["calls"].extend(calls)
@@ -214,6 +216,7 @@ def call_summary(sessions: Iterable[tuple[SessionMeta, Sequence[BidRow], Sequenc
                 "n_sessions": len(entry["sessions"]),
                 "n_calls": len(calls),
                 "n_rebid_calls": int((calls["phase"] == "rebid").sum()),
+                "provider_retries": entry["retries"],
                 "attempt_error_rate": _mean(calls["error"].notna()),
                 "sit_out_rate": _mean(pd.Series([not r.valid for r in rows], dtype=float)),
                 "below_cost_rate": _mean(pd.Series([r.bid < r.cost for r in valid], dtype=float)),

@@ -3,10 +3,12 @@
 Behaviour is specified in PLANNING.md section 2.3; host pinning and routing rules in 5.5.
 """
 
+import asyncio
 import json
 import math
+import random
 import time
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -17,6 +19,8 @@ from bidrig.schema import CallPhase, CallRow
 
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 TOOL_NAME = "submit_bid"
+HOST_TIERS = ("primary", "fallback", "backup")  # order a failed session moves down; never switch inside a session
+ERROR_LOG_LIMIT = 20  # provider errors kept per session in session.json
 
 
 class BudgetExceeded(RuntimeError):
@@ -35,7 +39,7 @@ class Host:
     quantization: str
     price_in: float
     price_out: float
-    role: str = "primary"  # primary | fallback
+    role: str = "primary"  # one of HOST_TIERS
 
 
 @dataclass(frozen=True)
@@ -50,12 +54,15 @@ class ModelSpec:
     reasoning: dict[str, Any] | None = None  # OpenRouter `reasoning` object; None = use the config default
 
     def host(self, role: str) -> Host | None:
-        """The pinned host for `role` (primary | fallback); None if no host is chosen for this model."""
+        """The pinned host for `role`; a model with fewer tiers uses its last tier below `role`, None if none is pinned."""
         if not self.hosts:
             return None
-        if role not in self.hosts:
-            raise ValueError(f"model {self.alias!r} has no {role} host")
-        return self.hosts[role]
+        if role not in HOST_TIERS:
+            raise ValueError(f"host role must be one of {HOST_TIERS}, got {role!r}")
+        for tier in reversed(HOST_TIERS[: HOST_TIERS.index(role) + 1]):
+            if tier in self.hosts:
+                return self.hosts[tier]
+        raise ValueError(f"model {self.alias!r} has no host at or below {role}")
 
 
 def load_models(path: Path) -> dict[str, ModelSpec]:
@@ -85,15 +92,39 @@ class SpendTracker:
         self.spent_usd += usd
 
 
+@dataclass
+class ProviderStats:
+    """Transient provider errors met by one session; `retries` counts retried requests, `errors` the first few failures."""
+
+    retries: int = 0
+    errors: list[str] = field(default_factory=list)
+
+    def record(self, message: str) -> None:
+        """Keep the first `ERROR_LOG_LIMIT` failures, each cut to 300 characters."""
+        if len(self.errors) < ERROR_LOG_LIMIT:
+            self.errors.append(message[:300])
+
+
 @dataclass(frozen=True)
 class LLMSettings:
-    """Per-config call settings; `max_retries` is corrective retries after the first attempt."""
+    """Per-config call settings; `max_retries` is corrective retries after the first attempt, `provider_retries` repeats of a failed request."""
 
     temperature: float = 1.0
     max_output_tokens: int = 400
     max_retries: int = 2
     reasoning_effort: str | None = "low"  # default for models without their own `reasoning` setting
     tool_choice: str = "auto"  # auto | required | forced; most pinned hosts reject required and forced
+    provider_retries: int = 4  # retries of a request that fails with a transient provider error, per request
+    retry_base_s: float = 2.0  # wait before retry k is retry_base_s * 2**k seconds, with jitter
+    retry_cap_s: float = 30.0  # longest single wait, also the cap on a Retry-After
+    session_retry_cap: int = 20  # abandon the session after this many provider retries in total
+
+    @classmethod
+    def from_config(cls, llm: dict[str, Any]) -> "LLMSettings":
+        """Settings from a config's `llm` block; absent keys keep the defaults above."""
+        names = ["temperature", "max_output_tokens", "max_retries", "reasoning_effort", "tool_choice",
+                 "provider_retries", "retry_base_s", "retry_cap_s", "session_retry_cap"]
+        return cls(**{name: llm[name] for name in names if name in llm})
 
 
 def bid_tool(reserve_price: float) -> dict[str, Any]:
@@ -166,6 +197,35 @@ def _corrective(error: str, reserve_price: float) -> dict[str, str]:
     }
 
 
+def _retry_after(failure: Any) -> float | None:
+    """Seconds from a Retry-After header on an SDK exception's response, None if absent or not a number."""
+    headers = getattr(getattr(failure, "response", None), "headers", None)
+    try:
+        return float(headers.get("retry-after")) if headers is not None and headers.get("retry-after") is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def transient_failure(failure: Any) -> tuple[bool, str, float | None]:
+    """(worth retrying, description, Retry-After seconds) for an SDK exception or a response with no choices.
+
+    Retried: connection errors and timeouts, HTTP 408, 429 and 5xx, and an error body in a 200 response
+    with such a code or `provider_unavailable`. Never retried: other 4xx and anything unrecognised.
+    """
+    if isinstance(failure, BaseException):
+        status = getattr(failure, "status_code", None)
+        network = any(cls.__name__ in ("APIConnectionError", "APITimeoutError") for cls in type(failure).__mro__)
+        retryable = network or (isinstance(status, int) and (status in (408, 429) or 500 <= status < 600))
+        return retryable, f"{type(failure).__name__}: {failure}", _retry_after(failure)
+    error = getattr(failure, "error", None)
+    if not isinstance(error, dict):
+        return False, f"no choices in the response: {failure!r}", None
+    code = error.get("code")
+    kind = (error.get("metadata") or {}).get("error_type")
+    retryable = (isinstance(code, int) and (code in (408, 429) or 500 <= code < 600)) or kind == "provider_unavailable"
+    return retryable, f"HTTP {code}: {error.get('message')}", None
+
+
 def _extra(obj: Any, name: str) -> Any:
     """An OpenRouter-specific response field the openai SDK keeps as an extra attribute."""
     return getattr(obj, name, None)
@@ -174,10 +234,55 @@ def _extra(obj: Any, name: str) -> Any:
 class OpenRouterClient:
     """Forced-tool-call bid requests against one OpenAI-compatible client, with spend tracking."""
 
-    def __init__(self, client: Any, settings: LLMSettings, spend: SpendTracker) -> None:
+    def __init__(
+        self,
+        client: Any,
+        settings: LLMSettings,
+        spend: SpendTracker,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        rng: random.Random | None = None,
+    ) -> None:
         self.client = client
         self.settings = settings
         self.spend = spend
+        self.sleep = sleep
+        self.rng = rng or random.Random()
+
+    def retry_delay(self, retry: int, retry_after: float | None) -> float:
+        """Seconds to wait before retry number `retry` (0-based): a Retry-After as given, else exponential with +-25% jitter."""
+        if retry_after is not None:
+            return min(self.settings.retry_cap_s, retry_after)
+        base = min(self.settings.retry_cap_s, self.settings.retry_base_s * 2**retry)
+        return base * (0.75 + 0.5 * self.rng.random())
+
+    async def _create(self, kwargs: dict[str, Any], alias: str, stats: ProviderStats, where: str) -> tuple[Any, float]:
+        """One request, repeated on transient provider errors; returns (response, latency in ms of the successful try).
+
+        Raises `ProviderError` for a non-transient failure, when retries run out, or at the session's retry cap.
+        The retry reuses the same seed: a failed request produced no output, so nothing about the data changes.
+        """
+        for retry in range(self.settings.provider_retries + 1):
+            started = time.perf_counter()
+            cause: BaseException | None = None
+            try:
+                response = await self.client.chat.completions.create(**kwargs)
+            except Exception as exc:  # noqa: BLE001  classified below; a non-transient one is raised as ProviderError
+                transient, reason, retry_after = transient_failure(exc)
+                cause = exc
+            else:
+                if getattr(response, "choices", None):
+                    return response, (time.perf_counter() - started) * 1000
+                transient, reason, retry_after = transient_failure(response)
+            stats.record(f"{where}: {reason}")
+            if not transient:
+                raise ProviderError(f"{alias} call failed: {reason}") from cause
+            if retry == self.settings.provider_retries:
+                raise ProviderError(f"{alias} still failing after {retry} retries: {reason}") from cause
+            if stats.retries >= self.settings.session_retry_cap:
+                raise ProviderError(f"{alias} session retry cap of {self.settings.session_retry_cap} reached: {reason}") from cause
+            stats.retries += 1
+            await self.sleep(self.retry_delay(retry, retry_after))
+        raise AssertionError("unreachable")
 
     def request_kwargs(
         self, spec: ModelSpec, host: Host | None, messages: Sequence[dict[str, str]], seed: int, reserve_price: float
@@ -221,12 +326,14 @@ class OpenRouterClient:
         firm_id: str,
         slot: int,
         phase: CallPhase,
+        stats: ProviderStats | None = None,
     ) -> tuple[float | None, list[CallRow]]:
         """Ask for one bid, retrying with a corrective message; returns (bid or None, one row per attempt).
 
-        Raises `ProviderError` when the API call itself fails or another host served it, and
-        `BudgetExceeded` before an attempt once the cap is reached.
+        Raises `ProviderError` when the API call keeps failing, fails for good, or another host served it,
+        and `BudgetExceeded` before an attempt once the cap is reached. Provider retries are counted in `stats`.
         """
+        stats = stats if stats is not None else ProviderStats()
         price_in, price_out = (host.price_in, host.price_out) if host else (spec.price_in, spec.price_out)
         conversation = list(messages)
         rows: list[CallRow] = []
@@ -235,14 +342,9 @@ class OpenRouterClient:
             kwargs = self.request_kwargs(
                 spec, host, conversation, call_seed(session_seed, round_number, slot, phase, attempt), reserve_price
             )
-            started = time.perf_counter()
-            try:
-                response = await self.client.chat.completions.create(**kwargs)
-            except Exception as exc:  # the SDK has already retried transient errors
-                raise ProviderError(f"{spec.alias} call failed: {exc}") from exc
-            latency_ms = (time.perf_counter() - started) * 1000
-            if not getattr(response, "choices", None):
-                raise ProviderError(f"{spec.alias} returned no choices: {response!r}")
+            response, latency_ms = await self._create(
+                kwargs, spec.alias, stats, f"round {round_number} firm {firm_id} {phase} attempt {attempt}"
+            )
             provider = _extra(response, "provider")
             if host is not None and provider is not None and provider.lower() != host.name.lower():
                 raise ProviderError(f"{spec.alias} was served by {provider}, not the pinned {host.name}")

@@ -52,6 +52,8 @@ class SessionMeta:
     temperature: float | None = None
     prompt_version: str | None = None
     providers: dict[str, dict[str, str]] = field(default_factory=dict)
+    provider_retries: int = 0  # requests repeated after a transient provider error
+    provider_errors: list[str] = field(default_factory=list)  # first 20 failed requests, as text
     git_sha: str | None = None
     started_at: str | None = None
     finished_at: str | None = None

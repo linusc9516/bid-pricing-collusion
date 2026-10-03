@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import ClassVar, Protocol
 
 from bidrig.bne import BneBenchmark
-from bidrig.llm import Host, ModelSpec, OpenRouterClient
+from bidrig.llm import Host, ModelSpec, OpenRouterClient, ProviderStats
 from bidrig.prompts import DEFAULT_TEMPLATE, build_messages
 from bidrig.schema import (
     BidderType,
@@ -144,6 +144,7 @@ class LLMBidder:
     reasoning_length: str = "short"
     max_output_tokens: int = 400  # stated in the prompt; keep equal to llm.max_output_tokens
     template: Path = DEFAULT_TEMPLATE
+    stats: ProviderStats = field(default_factory=ProviderStats)  # shared by the session's firms
 
     bidder_type: ClassVar[BidderType] = "llm"
 
@@ -166,6 +167,7 @@ class LLMBidder:
             firm_id=request.firm_id,
             slot=request.slot,
             phase=request.phase,
+            stats=self.stats,
         )
         self.calls.extend(rows)
         return BidResponse(bid, len(rows))

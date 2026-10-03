@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 import pytest
-from test_llm import FakeOpenAI, completion
+from test_llm import FakeOpenAI, completion, error_body
 
 from bidrig.analysis.metrics import call_summary, condition_means, session_metrics_table
 from bidrig.runner import (
@@ -48,7 +48,7 @@ def test_inheritance() -> None:
     config = load_config(CONFIGS / "pilot.yaml")
     assert config["auction"]["n_rounds"] == 25 and config["auction"]["n_bidders"] == 3
     assert config["session"]["base_seed"] == 990000 and config["session"]["n_sessions"] == 5
-    assert config["llm"]["temperature"] == 1.0 and config["budget"]["max_cost_usd"] == 2
+    assert config["llm"]["temperature"] == 1.0 and config["budget"]["max_cost_usd"] == 2.5
     assert "inherits" not in config
 
 
@@ -62,7 +62,7 @@ def test_pilot_plan() -> None:
     assert len(controls) == 45 and all(p.meta.condition_id.startswith("oneshot__") for p in controls)
     meta = plan[0].meta
     assert meta.run_id == "pilot" and meta.n_rounds == 25 and meta.temperature == 1.0 and meta.prompt_version
-    assert meta.providers == {"deepseek": {"name": "Morph", "quantization": "fp8", "role": "primary"}}
+    assert meta.providers == {"deepseek": {"name": "DeepInfra", "quantization": "fp8", "role": "primary"}}
     assert meta.condition_id == "tie-random__info-full__lineup-pilot-deepseek__n3"
     assert [e.model for e in meta.lineup] == ["deepseek"] * 3
     assert len({p.meta.session_id for p in plan}) == 90
@@ -137,8 +137,8 @@ def test_pilot_estimate_matches_planning() -> None:
     config, models, plan = prepare(CONFIGS / "pilot.yaml")
     est = estimate(plan, config, models, "primary")
     assert est.output_tokens_per_call == 1000
-    assert est.cost_usd == pytest.approx(1.81, abs=0.01)
-    assert est.cost_by_model["deepseek"] == pytest.approx(0.88, abs=0.01)
+    assert est.cost_usd == pytest.approx(2.01, abs=0.01)
+    assert est.cost_by_model["deepseek"] == pytest.approx(1.08, abs=0.01)
     assert est.cost_by_model["gpt-oss"] == pytest.approx(0.61, abs=0.01)
     assert est.cost_by_model["qwen"] == pytest.approx(0.32, abs=0.01)
     assert est.cost_usd < config["budget"]["max_cost_usd"]
@@ -146,8 +146,12 @@ def test_pilot_estimate_matches_planning() -> None:
 
 def test_fallback_hosts_change_the_estimate_and_providers() -> None:
     config, models, plan = prepare(CONFIGS / "pilot.yaml", host_role="fallback")
-    assert plan[0].meta.providers["deepseek"]["name"] == "DeepInfra"
-    assert estimate(plan, config, models, "fallback").cost_usd > 1.81
+    assert plan[0].meta.providers["deepseek"] == {"name": "NextBit", "quantization": "fp8", "role": "fallback"}
+    assert estimate(plan, config, models, "fallback").cost_usd > estimate(plan, config, models, "primary").cost_usd
+    _, _, backup_plan = prepare(CONFIGS / "pilot.yaml", host_role="backup")
+    by_model = {p.models[0]: p.meta.providers for p in backup_plan}
+    assert by_model["deepseek"]["deepseek"]["name"] == "CoreWeave" and by_model["gpt-oss"]["gpt-oss"] == {"name": "DekaLLM", "quantization": "bf16", "role": "backup"}
+    assert by_model["qwen"] == {}
 
 
 # --- running ---
@@ -184,7 +188,7 @@ def test_llm_config_runs_end_to_end_with_a_fake_client(tmp_path: Path) -> None:
     assert len(result.completed) == 18 and not result.failed
     assert len(fake.requests) == 18 * 4 * 3
     # qwen has one provider and no pinned host, so its requests carry no provider block.
-    assert {r["extra_body"].get("provider", {"only": [None]})["only"][0] for r in fake.requests} == {"morph", "crusoe", None}
+    assert {r["extra_body"].get("provider", {"only": [None]})["only"][0] for r in fake.requests} == {"deepinfra", "crusoe", None}
     assert result.spent_usd > 0
     loaded = []
     for p in plan:
@@ -225,8 +229,8 @@ def test_host_failure_fails_only_that_session_and_reruns_on_fallback(tmp_path: P
     config, models, plan = small("pilot.yaml", n_rounds=2)
 
     def flaky(kwargs: dict[str, Any]) -> Any:
-        if kwargs["extra_body"].get("provider", {}).get("only") == ["morph"]:
-            return RuntimeError("503 from Morph")
+        if kwargs["extra_body"].get("provider", {}).get("only") == ["deepinfra"]:
+            return RuntimeError("503 from DeepInfra")
         return bid_from_prompt(kwargs)
 
     first = asyncio.run(run_plan(plan, config, models, tmp_path, lambda: FakeOpenAI(fn=flaky)))
@@ -238,7 +242,7 @@ def test_host_failure_fails_only_that_session_and_reruns_on_fallback(tmp_path: P
     fake = FakeOpenAI(fn=flaky)
     second = asyncio.run(run_plan(pending, config, models, tmp_path, lambda: fake, "fallback"))
     assert set(second.completed) == deepseek
-    assert {r["extra_body"]["provider"]["only"][0] for r in fake.requests} == {"deepinfra"}
+    assert {r["extra_body"]["provider"]["only"][0] for r in fake.requests} == {"nextbit"}
     meta = read_meta(session_dir(tmp_path, pending[0].meta))
     assert meta.providers["deepseek"]["role"] == "fallback" and meta.status == "complete"
 
@@ -300,3 +304,51 @@ def test_unsupported_llm_settings_are_rejected() -> None:
     for bad in [{"reasoning_mode": "on"}, {"max_output_tokens": "lots"}, {"max_output_tokens": True}]:
         with pytest.raises((ValueError, TypeError)):
             check_llm_settings({"llm": {**base["llm"], **bad}})
+
+
+def flaky_then_fine(failures: int) -> Any:
+    """A fake model whose first `failures` requests return a Morph-style 502 error body."""
+    left = [failures]
+
+    def respond(kwargs: dict[str, Any]) -> Any:
+        if left[0] > 0:
+            left[0] -= 1
+            return error_body()
+        return bid_from_prompt(kwargs)
+
+    return respond
+
+
+def one_session(**llm: Any) -> tuple[dict, dict, list]:
+    config, models, plan = small("pilot.yaml", n_rounds=2)
+    config["llm"].update({"retry_base_s": 0, **llm})
+    return config, models, plan[:1]
+
+
+def test_transient_provider_errors_are_retried_and_counted_in_session_json(tmp_path: Path) -> None:
+    config, models, plan = one_session()
+    result = asyncio.run(run_plan(plan, config, models, tmp_path, lambda: FakeOpenAI(fn=flaky_then_fine(3))))
+    assert result.completed == [plan[0].meta.session_id] and not result.failed
+    path = session_dir(tmp_path, plan[0].meta)
+    meta = read_meta(path)
+    assert meta.status == "complete" and meta.provider_retries == 3 and len(meta.provider_errors) == 3
+    assert "HTTP 502" in meta.provider_errors[0] and "round 1" in meta.provider_errors[0]
+    assert len(read_calls(path)) == 6  # provider retries add no rows to calls.jsonl
+    summary = call_summary([(meta, read_session(path)[1], read_calls(path))])
+    assert summary["provider_retries"].iloc[0] == 3
+
+
+def test_persistent_provider_errors_abandon_the_session_with_the_counts(tmp_path: Path) -> None:
+    config, models, plan = one_session()
+    result = asyncio.run(run_plan(plan, config, models, tmp_path, lambda: FakeOpenAI(fn=flaky_then_fine(10**6))))
+    assert list(result.failed) == [plan[0].meta.session_id] and "still failing after 4 retries" in next(iter(result.failed.values()))
+    meta = read_meta(session_dir(tmp_path, plan[0].meta))
+    # The counter is shared by the session's three firms, which fail in step: 4 retries each at most.
+    assert meta.status == "failed" and 4 <= meta.provider_retries <= 12 and 1 <= len(meta.provider_errors) <= 20
+
+
+def test_session_retry_cap_abandons_a_flaky_session(tmp_path: Path) -> None:
+    config, models, plan = one_session(session_retry_cap=2, provider_retries=10)
+    result = asyncio.run(run_plan(plan, config, models, tmp_path, lambda: FakeOpenAI(fn=flaky_then_fine(10**6))))
+    assert "session retry cap of 2" in next(iter(result.failed.values()))
+    assert read_meta(session_dir(tmp_path, plan[0].meta)).provider_retries == 2

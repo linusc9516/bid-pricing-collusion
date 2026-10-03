@@ -13,6 +13,7 @@ from pathlib import Path
 
 from bidrig.auction import draw_costs, from_ticks, to_ticks
 from bidrig.bne import BneBenchmark
+from bidrig.llm import ERROR_LOG_LIMIT
 from bidrig.prompts import (
     ANNOUNCEMENTS,
     DEFAULT_TEMPLATE,
@@ -137,6 +138,8 @@ def check_structure(log: SessionLog, report: CheckReport, include_incomplete: bo
                 report.fail("structure", sid, f"round {number} firm {row.firm_id}: session id or model differs from session.json")
     if sorted({r.round for r in log.rows}) != list(range(1, meta.n_rounds + 1)):
         report.fail("structure", sid, "rounds are not 1..n_rounds")
+    if meta.provider_retries < 0 or len(meta.provider_errors) > ERROR_LOG_LIMIT:
+        report.fail("structure", sid, f"provider_retries {meta.provider_retries} or {len(meta.provider_errors)} logged errors is out of range")
 
 
 def check_costs(log: SessionLog, report: CheckReport) -> None:

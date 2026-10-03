@@ -8,12 +8,15 @@
 models:
   deepseek:
     slug: deepseek/deepseek-v4.1-flash   # DeepSeek V4.1 Flash
-    price_in: 0.021
-    price_out: 0.383
+    price_in: 0.14
+    price_out: 0.42
     reasoning: {enabled: false}          # effort low is ignored: thinking uses the whole 400-token cap and no bid is submitted
     providers:                           # Phase A hosts; never switch hosts inside a session
-      primary: {name: Morph, quantization: fp8, price_in: 0.021, price_out: 0.383}
-      fallback: {name: DeepInfra, quantization: fp8, price_in: 0.14, price_out: 0.42}
+      # Morph (the first choice) was dropped on 2026-10-03: 502s in pilot_tiny, uptime 88.6% over 5 minutes, no forced tool choice.
+      # Makora was left out for its $0.99 output price. Rerun a failed session with --host fallback, then --host backup.
+      primary: {name: DeepInfra, quantization: fp8, price_in: 0.14, price_out: 0.42}
+      fallback: {name: NextBit, quantization: fp8, price_in: 0.21, price_out: 0.84}
+      backup: {name: CoreWeave, quantization: fp8, price_in: 0.20, price_out: 0.65}
   gpt-oss:
     slug: openai/gpt-oss-120b            # GPT-oss-120b
     price_in: 0.05
@@ -22,6 +25,7 @@ models:
     providers:
       primary: {name: Crusoe, quantization: bf16, price_in: 0.05, price_out: 0.25}
       fallback: {name: AkashML, quantization: bf16, price_in: 0.037, price_out: 0.187}
+      backup: {name: DekaLLM, quantization: bf16, price_in: 0.03, price_out: 0.18}
   glm:
     slug: z-ai/glm-5.3-flash             # GLM-5.3 Flash, Phase B only; host not chosen
     price_in: 0.02625

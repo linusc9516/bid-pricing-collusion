@@ -88,6 +88,7 @@ Rule-based, no LLM.
 - `openai` SDK pointed at the OpenRouter base URL (async client).
 - Bid returned through a tool call with a JSON schema, `{"reasoning": str, "bid": number}`; no free-text parsing. The request uses `tool_choice: auto`: Morph, Crusoe and AkashML reject a forced or required tool call (5.5), and the prompt tells the firm it must submit its bid with the tool.
 - On a missing/invalid tool call or out-of-range bid: retry with a short corrective message, up to `max_retries`. After that the firm sits out the round (`valid=false`).
+- A request that fails with a transient provider error (connection error, timeout, HTTP 408, 429 or 5xx, or an error body in a 200 response such as `provider_unavailable`) is repeated on the same host with the same seed, up to `llm.provider_retries` (4) times, waiting about 2, 4, 8 and 16 seconds with ±25% jitter (a `Retry-After` is honoured, capped at 30 s). A 4xx, an unrecognised failure, or a reply from a different host is never retried. After 20 retries in one session (`llm.session_retry_cap`) the session is abandoned. These retries are separate from the corrective retries above, add no rows to `calls.jsonl`, and are counted in `session.json` (3).
 - Records per attempt: prompt, raw response, reasoning text, parsed bid, error, tokens, latency, serving provider.
 - Caps output at `llm.max_output_tokens`, which counts hidden thinking as well as the reply, and states the cap in the system prompt. Hidden thinking is set per model in `configs/models.yaml` (5.6). Output tokens dominate the cost per call (5.4).
 - Tracks cumulative spend against the config's `budget.max_cost_usd` and aborts the sweep if exceeded.
@@ -196,6 +197,8 @@ One directory per session: `logs/<run_id>/<condition_id>/<session_id>/`
 | `temperature` | float | |
 | `prompt_version` | str | |
 | `providers` | map of model alias to pinned host and quantisation | fixed for the whole session (5.5) |
+| `provider_retries` | int | requests repeated after a transient provider error, summed over the session's firms |
+| `provider_errors` | list of str | the first 20 failed requests, as `round R firm F phase attempt N: HTTP 502: message`, including the failure that ended a retry run |
 | `git_sha` | str | |
 | `started_at`, `finished_at` | ISO 8601 | |
 | `status` | `running` \| `complete` \| `failed` | |
@@ -314,7 +317,7 @@ Steps 2 and 3 are the expensive ones because they must reproduce known answers f
 - **Gate between steps:** `uv run pytest` and `uv run ruff check src/` pass, and the acceptance check in section 4 for that step holds, before the next step starts. Commit after each step.
 - **Before step 5:** the slugs and tool-calling support for all four models were verified on 3 October 2026 (5.3). Phase A uses two of them; the other two are only needed for Phase B. Provider pinning for Phase A is decided (5.5); run the pre-pilot smoke test there before the first live call.
 - **Before step 7:** run the smoke test and then the end-to-end check (`configs/pilot_tiny.yaml`), both in 5.5. Confirm the bid increment check is in the pilot report (5.1) and that `configs/pilot.yaml` still matches 7.1. The smoke test passed on 3 October (5.5).
-- **Cost outside the build:** Phase A itself is estimated at about $1.81 at 1,000 output tokens per call, inside a $2 tripwire and the $10 Phase A budget (5.4, 5.5).
+- **Cost outside the build:** Phase A itself is estimated at about $2.01 at 1,000 output tokens per call, inside a $2.50 tripwire and the $10 Phase A budget (5.4, 5.5).
 
 
 ## 5. Open questions and risks
@@ -389,11 +392,11 @@ Each item has a proposed default, already reflected in `configs/`. Items marked 
 
 **Phase A budget: $10 of OpenRouter credits.** **Phase B budget: not set yet**, expected to be much higher if needed, and decided after Phase A measures tokens per call. Every figure below is an estimate from assumed token counts, not a measurement; the pilot replaces them.
 
-Assumptions: a repeated-round call averages about 1,000 input tokens (history grows through the session; about 610 over Phase A's 25 rounds) and 250 output tokens in the Phase B estimates (Phase A is costed at 1,000 output tokens, see 5.5); a one-shot control call about 250 in and 250 out. Prices are the OpenRouter listing prices of 3 October 2026 in `configs/models.yaml` (DeepSeek $0.02 in and $0.60 out, GPT-oss $0.037 and $0.17, GLM $0.026 and $0.90, Qwen3.7 Flash $0.03 and $0.13 per million tokens). Actual prices depend on provider routing (5.3). Measured on 3 October (5.6): the round-1 prompt is about 680 input tokens, not the 250 assumed for a one-shot call, and calls cost $0.00004 to $0.00007 each with thinking off or at low effort.
+Assumptions: a repeated-round call averages about 1,000 input tokens (history grows through the session; about 610 over Phase A's 25 rounds) and 250 output tokens in the Phase B estimates (Phase A is costed at 1,000 output tokens, see 5.5); a one-shot control call about 250 in and 250 out. Prices are the OpenRouter listing prices of 3 October 2026 in `configs/models.yaml` (DeepSeek $0.14 in and $0.42 out at DeepInfra, GPT-oss $0.05 and $0.25 at Crusoe, GLM $0.026 and $0.90, Qwen3.7 Flash $0.03 and $0.13 per million tokens). Actual prices depend on provider routing (5.3). Measured on 3 October (5.6): the round-1 prompt is about 680 input tokens, not the 250 assumed for a one-shot call, and calls cost $0.00004 to $0.00007 each with thinking off or at low effort.
 
 | Config | Phase | Calls | Estimate | Cap in config |
 |---|---|---|---|---|
-| `pilot.yaml` | A | 6,750 + BAFO rebids | $1.81 (at 1,000 output tokens per call) | $2 tripwire, inside the $10 Phase A budget |
+| `pilot.yaml` | A | 6,750 + BAFO rebids | $2.01 (at 1,000 output tokens per call) | $2.50 tripwire, inside the $10 Phase A budget |
 | `main_tiebreak.yaml` | B | 64,800 + BAFO rebids | $8.44 | placeholder $6.50, to be set |
 | `supporting_info.yaml` | B | 2,700 | $0.46 | placeholder $0.40, to be set |
 | `supporting_n.yaml` | B | 6,300 | $1.04 | placeholder $0.80, to be set |
@@ -402,35 +405,39 @@ Assumptions: a repeated-round call averages about 1,000 input tokens (history gr
 
 The Phase B caps in the configs were set when the whole project had $10 and the models had placeholder prices. At live prices they sit below the estimates and would stop the runs early, so they are placeholders until the Phase B budget is set. The main experiment costs about $0.47 per session index (one seed across all 24 cells). BAFO rebids add at most one call per tied firm per tied round and are not in the estimates.
 
-- **Phase A is costed at 1,000 output tokens per call, as a stress case for reasoning models.** With the pinned hosts in 5.5 (Morph for DeepSeek, Crusoe for GPT-oss; Qwen has one provider, Alibaba, and is not pinned) that is about $1.81 for 6,750 calls; at 250 output tokens it is $0.53, at 400 $0.78 and at 500 $0.96. It reaches the $2 tripwire at about 1,100 output tokens per call, so with the pilot's 1,000-token cap only BAFO rebids and retries can trip it. The rest of the $10 budget is left for a rerun or a pivot. The measured cost per call (5.6) puts the real cost nearer $0.4. Phase B estimates below still assume 250 until Phase A measures tokens per call.
+- **Phase A is costed at 1,000 output tokens per call, as a stress case for reasoning models.** With the pinned hosts in 5.5 (DeepInfra for DeepSeek, Crusoe for GPT-oss; Qwen has one provider, Alibaba, and is not pinned) that is about $2.01 for 6,750 calls; at 250 output tokens it is $0.66, at 400 $0.93 and at 500 $1.11. It reaches the $2.50 tripwire at about 1,270 output tokens per call, so with the pilot's 1,000-token cap only BAFO rebids and retries can trip it. The rest of the $10 budget is left for a rerun or a pivot. The measured cost per call (5.6) puts the real cost nearer $0.4. Phase B estimates below still assume 250 until Phase A measures tokens per call.
 - **Output length is the Phase B cost driver.** At 400 output tokens per call the main experiment is about $12.81 (supporting ablations $2.96), and at 1,000 about $30.31. The Phase B output cap and thinking mode are TBD (5.6); with thinking on, a call costs 3 to 5 times as much as with it off at the sizes measured so far.
 - **Levers if Phase B comes in above the budget that is set:** tighten the output cap; pin cheaper providers (5.3); drop GLM, the most expensive model per call after its real price (about $4.5 for the main experiment without it); drop to 15 sessions, the low end of the planned range.
 
 ### 5.5 Phase A model providers and routing
 
-Chosen on 3 October 2026 from OpenRouter's live endpoint lists, with cost a secondary concern. Listings change, so re-run the endpoint check on the day of the pilot.
+Chosen on 3 October 2026 from OpenRouter's live endpoint lists, with cost a secondary concern. Listings change, so re-run the endpoint check on the day of the pilot. The DeepSeek hosts were changed later on 3 October, after Morph failed in `pilot_tiny`.
 
-| Model | Slug | Primary | Fallback |
-|---|---|---|---|
-| `deepseek` | `deepseek/deepseek-v4.1-flash` | **Morph**: fp8, $0.021 in and $0.383 out per M, 100% uptime | **DeepInfra**: fp8, $0.14 and $0.42, 99.9% |
-| `gpt-oss` | `openai/gpt-oss-120b` | **Crusoe**: bf16, $0.05 and $0.25, 100% uptime | **AkashML**: bf16, $0.037 and $0.187, 99.9% |
-| `qwen` | `qwen/qwen3.7-flash` | **Alibaba**, its only provider, so not pinned (quantisation not listed): $0.03 and $0.13 | none |
+| Model | Slug | Primary | Fallback | Backup |
+|---|---|---|---|---|
+| `deepseek` | `deepseek/deepseek-v4.1-flash` | **DeepInfra**: fp8, $0.14 in and $0.42 out per M, uptime 99.8% to 99.9% | **NextBit**: fp8, $0.21 and $0.84, 100% | **CoreWeave**: fp8, $0.20 and $0.65, 98.9% to 99.6% |
+| `gpt-oss` | `openai/gpt-oss-120b` | **Crusoe**: bf16, $0.05 and $0.25, 100% uptime | **AkashML**: bf16, $0.037 and $0.187, 99.9% | **DekaLLM**: bf16, $0.03 and $0.18, 99.3% to 99.5% |
+| `qwen` | `qwen/qwen3.7-flash` | **Alibaba**, its only provider, so not pinned (quantisation not listed): $0.03 and $0.13 | none | none |
 
-**Why these four hosts.** Each lists tool calling, `tool_choice`, `seed` (reproducibility) and reasoning controls, allows well over the output cap, runs fp8 or bf16 weights, and reported at least 99.9% uptime. Uptime is a 30-minute snapshot, and the latency and throughput fields were empty, so hosts could not be ranked on speed. The listing overstated tool-choice support: Morph, Crusoe and AkashML reject a forced or required tool call, so every call uses `tool_choice: auto` (smoke test, below).
+**Why these hosts.** Each lists tool calling, `tool_choice`, `seed` (reproducibility) and reasoning controls, allows well over the output cap, and runs fp8 (DeepSeek, the same precision as the Morph runs it replaces) or bf16 weights. The gpt-oss hosts reported at least 99.9% uptime in a 30-minute snapshot; the DeepSeek hosts were re-checked later on 3 October over 5-minute, 30-minute and 1-day windows (99.8% to 100%, except CoreWeave at 98.9% over the day). The latency and throughput fields were empty, so hosts could not be ranked on speed. Re-checked on 3 October (5-minute, 30-minute and 1-day windows): gpt-oss on Crusoe 100% in all three, AkashML 99.9% to 100%, and the DekaLLM backup 99.3% to 99.5%; Qwen3.7 Flash has one endpoint, Alibaba, at 100%, 99.9% and 99.9%, so OpenRouter offers no spare tier for it. The listing overstated tool-choice support: Morph, Crusoe and AkashML reject a forced or required tool call, so every call uses `tool_choice: auto` (smoke test, below). DeepInfra, NextBit and CoreWeave do accept one.
 
 **Avoided, and why.**
 - GPT-oss endpoints without tool support (DigitalOcean, Amazon Bedrock, Google, SiliconFlow).
 - Endpoints flagged degraded when checked (Together, Novita, Mara, Mancer, and the cheapest DeepInfra GPT-oss listing at about 72% uptime).
 - DeepSeek on fp4 hosts (Decart, Sail Research), a different precision from the other runs.
-- DeepSeek hosts without `seed` support (DeepSeek's own endpoint, Modal, Together, Fireworks). The first-party endpoint is the reference implementation but has an unknown quantisation and costs $0.60 per M output; use it only if fidelity to the official model matters more than reproducibility. At that price Phase A would cost about $2.11 at 1,000 output tokens per call.
+- Morph, the first DeepSeek primary: dropped on 3 October. It returned 502 `provider_unavailable` errors in `pilot_tiny`, its uptime read 88.6% over 5 minutes and 94.7% over 30, and it rejects forced and required tool calls.
+- DeepInfra's second gpt-oss listing (`deepinfra/turbo`, $0.15 in and $0.60 out, 100% uptime): passed over on price, and it shares a provider name with DeepInfra's cheaper listing, so it would need pinning by tag.
+- Makora (fp8, good uptime): $0.99 per M output, more than twice DeepInfra's. Other fp8 hosts with good uptime were passed over on price ($0.72 to $1.20 per M output) or for lacking forced tool choice.
+- DeepSeek hosts without `seed` support (DeepSeek's own endpoint, Modal, Together, Fireworks). The first-party endpoint is the reference implementation but has an unknown quantisation and costs $0.60 per M output; use it only if fidelity to the official model matters more than reproducibility.
 
 **Routing rules.**
-- Restrict each model to its two vetted hosts, and require providers that support every parameter in the request (tools, tool choice, seed).
+- Restrict each model to its vetted hosts (primary, fallback and, for `deepseek`, backup), and require providers that support every parameter in the request (tools, tool choice, seed).
 - Log the serving provider on every call (`calls.jsonl`) and record the pinned host and quantisation per model in `session.json` (`providers`).
-- Never switch hosts inside a session. If the primary fails, abandon the session and rerun it from scratch on the fallback, flagged as such, because a mid-session switch would confound the session.
+- Never switch hosts inside a session. If a host fails, abandon the session and rerun it from scratch on the next host (`--host fallback`, then `--host backup`; a model with fewer tiers reuses its last one), flagged as such, because a mid-session switch would confound the session. Failover stays manual, so the host mix of each cell is a deliberate choice.
+- Transient provider errors are retried on the same host first (2.3), so a short outage does not abandon a session. This is the only protection for `qwen`, which has no spare host.
 - The spend tracker should use the serving host's price, not the headline listing price.
 
-**Cost and tripwire.** Phase A is costed at 1,000 output tokens per call: about $1.81 for the three models (Morph $0.88, Crusoe $0.61, Alibaba $0.32). The pilot cap is a $2 tripwire inside the $10 Phase A budget, leaving about $8 for a rerun or a pivot. See 5.4.
+**Cost and tripwire.** Phase A is costed at 1,000 output tokens per call: about $2.01 for the three models (DeepInfra $1.08, Crusoe $0.61, Alibaba $0.32). The pilot cap is a $2.50 tripwire, reached at about 1,270 output tokens per call, inside the $10 Phase A budget; at the measured sizes the real cost is nearer $0.4. See 5.4.
 
 **Pre-pilot smoke test** (a few cents, once per host, before the first pilot call; output cap 500). Send one bid request to each pinned host with a seed and the model's reasoning setting, and check that:
 1. a tool call comes back and parses;
@@ -442,6 +449,8 @@ Chosen on 3 October 2026 from OpenRouter's live endpoint lists, with cost a seco
 Record the result in `PREP_LOG.md`. If a host fails, swap in the fallback and note it.
 
 **Result, 3 October 2026.** The first run failed on all four hosts. Morph, Crusoe and AkashML returned a 404 (no endpoint supports the `tool_choice` value) for a forced call, and DeepInfra accepted it but DeepSeek spent all 400 tokens thinking and submitted no bid. After switching to `tool_choice: auto` and setting thinking per model (5.6), the rerun passed 5 of 5 calls, including Qwen3.7 Flash on its single provider, Alibaba, which has no pinned host: each returned a valid bid, accepted the seed, was served by the expected host and used 113 to 204 output tokens. Charged prices matched the listing within 10% except DeepInfra, which billed about 60% below the $0.14 and $0.42 in `models.yaml` (so the fallback estimate is conservative). The provider names `morph`, `crusoe`, `deepinfra` and `akashml` were accepted as written. Total spend about half a cent, including diagnosis.
+
+**Host change, 3 October 2026.** `pilot_tiny` then failed one DeepSeek session twice on a Morph 502, and the DeepSeek hosts were re-picked (table above). A smoke test of the three new hosts passed 3 of 3: each returned a valid bid with thinking off (0 reasoning tokens), accepted the seed, and was served by the pinned host (113 to 146 output tokens). NextBit and CoreWeave billed exactly the listing; DeepInfra billed about 23% below it. Total spend about $0.0006. DekaLLM, the gpt-oss backup added afterwards, passed the same test: a valid bid served by DekaLLM, 151 output tokens of which 79 were thinking at `effort: low`, billed exactly the listing.
 
 **End-to-end check** (a few cents, after the smoke test passes and before the pilot). `configs/pilot_tiny.yaml` runs the full harness with real models at the base output cap of 500 tokens: one 3-round session per model under each of the three tie-break rules, each with its one-shot control, 18 sessions and 162 calls, on its own seeds and run id. Then:
 1. run `uv run python scripts/check_logs.py logs/pilot_tiny --expect-cap 500`. It checks every logged prompt: round *t* shows rounds 1 to *t* − 1 only, no other firm's cost appears, the control shows no history, each session's system prompt states its own tie-break rule and no other, and the prompt rebuilds exactly from the bid log. It also checks the auction rules, the costs against the seeded draw, the bids against the calls, and the serving hosts. Then read a few prompts by hand: `--pick` lists representative ones and `--show` prints one;
@@ -473,6 +482,7 @@ Measured on 3 October 2026 with scratch scripts against the pinned hosts; the sc
 
 **Consequences and open items.**
 - DeepSeek and Qwen run as non-thinking models in Phase A and gpt-oss at low thinking, so the models are not matched on reasoning mode. Phase A results and the paper must say so.
+- The probes ran on Morph. Thinking off was then confirmed on DeepInfra, NextBit and CoreWeave by the smoke tests (0 reasoning tokens in each), but not re-measured at scale.
 - Reasoning traces for hand-coding come from the tool-call field. For gpt-oss the provider's reasoning is also kept in the raw response.
 - Qwen with thinking off is the least reliable of the three tested: 2 of 24 first attempts failed and its longest replies reach 400 tokens. Retries cover the failures, and the pilot, which now includes Qwen, should report its sit-out rate.
 - Phase B thinking mode and cap (TBD): thinking off at a modest cap is cheap and reliable at the sizes measured. Thinking on would need a cap well above 3,000 tokens to avoid cutting off replies, at 3 to 5 times the cost per call. Decide after Phase A, together with the reasoning-length question in 5.1 and 7.2. Claiming that thinking does not matter for collusion behaviour would need a larger comparison over whole sessions.
@@ -565,11 +575,11 @@ Phase A must be complete and reviewed before Phase B starts. Phase B does not be
 - **Reasoning-trace coding.** Too judgment-heavy for a solo pre-team pitch. Deferred to Phase B with a team-agreed rubric (section 8). Short reasoning is still logged in Phase A, so traces exist for drafting that rubric.
 - **Bootstrap confidence intervals and the pre-declared tests.** Report raw numbers per model and rule instead — collusion index, its control, win shares, tie rate, tie price, rebid delta — each with the explicit caveat "n = 5, directional only".
 
-**Cost: about $1.80 at 1,000 output tokens per call, with a $2 tripwire inside a $10 budget.** 3 models × 3 rules × 5 sessions × 25 rounds × 3 firms = 3,375 repeated calls and the same again for the controls, 6,750 in all, plus BAFO rebids. With the hosts pinned in 5.5 that is about $1.81 at 1,000 output tokens per call, $0.78 at 400 and $0.53 at 250. This should not be re-estimated upward from the Phase B figures, which are for 18 sessions of 50 rounds across four models. Measured costs per call (5.6) suggest about $0.4 in practice.
+**Cost: about $2.00 at 1,000 output tokens per call, with a $2.50 tripwire inside a $10 budget.** 3 models × 3 rules × 5 sessions × 25 rounds × 3 firms = 3,375 repeated calls and the same again for the controls, 6,750 in all, plus BAFO rebids. With the hosts pinned in 5.5 that is about $2.01 at 1,000 output tokens per call, $0.93 at 400 and $0.66 at 250. This should not be re-estimated upward from the Phase B figures, which are for 18 sessions of 50 rounds across four models. Measured costs per call (5.6) suggest about $0.4 in practice.
 
 **What it needs built.** Build-order steps 1–6, without the bootstrap, the permutation tests or the trace export.
 
-`configs/pilot.yaml` is the Phase A config: 18 cells, with a spending cap of $2, a tripwire inside the $10 Phase A budget.
+`configs/pilot.yaml` is the Phase A config: 18 cells, with a spending cap of $2.50, a tripwire inside the $10 Phase A budget.
 
 ### 7.2 Phase B — full run, during the sprint
 
