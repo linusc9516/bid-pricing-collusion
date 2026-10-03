@@ -381,3 +381,18 @@ def test_pilot_allows_long_replies_a_long_timeout() -> None:
 
     assert LLMSettings.from_config(load_config(CONFIGS / "pilot.yaml")["llm"]).request_timeout_s == 300
     assert LLMSettings.from_config(load_config(CONFIGS / "pilot_tiny.yaml")["llm"]).request_timeout_s == 120
+
+
+def test_run_plan_reports_progress_per_session(tmp_path: Path) -> None:
+    config, models, plan = small("pilot.yaml", n_rounds=2)
+    lines: list[str] = []
+    asyncio.run(run_plan(plan[:3], config, models, tmp_path, lambda: FakeOpenAI(fn=bid_from_prompt), progress=lines.append))
+    assert [line.split("]")[0] for line in lines] == ["[1/3", "[2/3", "[3/3"]
+    assert all("complete" in line and "spent $" in line for line in lines)
+
+
+def test_progress_marks_failures(tmp_path: Path) -> None:
+    config, models, plan = one_session()
+    lines: list[str] = []
+    asyncio.run(run_plan(plan, config, models, tmp_path, lambda: FakeOpenAI(fn=flaky_then_fine(10**6)), progress=lines.append))
+    assert len(lines) == 1 and lines[0].startswith("[1/1] FAILED")

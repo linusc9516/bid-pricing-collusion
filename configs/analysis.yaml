@@ -85,5 +85,7 @@ labelling_rule:
 # Supporting per-session metrics, reported beside (never inside) the collusion, tie and rotation measures.
 supporting_metrics:
   - bid_cost_corr          # mean over firms of corr(own bid, own cost): near 1 when competitive, falls for cover bids
+  - rival_lag_coef         # reward-punishment regression: bid on own cost, own lagged bid and rivals' lagged mean bid
+  - own_lag_coef           # (firm fixed effects); the one-shot control is the placebo, so read repeated against it
   - reserve_bid_rate       # non-competitive unilateral bids (preliminary observation, PLANNING.md 2.6)
   - below_cost_bid_rate

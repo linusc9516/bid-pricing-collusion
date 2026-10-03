@@ -324,8 +324,12 @@ async def run_plan(
     log_dir: Path,
     client_factory: Callable[[], Any] | None = None,
     host_role: str = "primary",
+    progress: Callable[[str], None] | None = None,
 ) -> RunResult:
-    """Run every session not yet complete, up to `llm.max_concurrency` at once; stops at the spend cap."""
+    """Run every session not yet complete, up to `llm.max_concurrency` at once; stops at the spend cap.
+
+    `progress` gets one line per finished session: how many of the sessions to run are done, and the spend so far.
+    """
     result = RunResult()
     todo = []
     for p in plan:
@@ -345,6 +349,11 @@ async def run_plan(
     gate = asyncio.Semaphore(llm.get("max_concurrency", 8))
     stop = asyncio.Event()
 
+    def report(status: str, session_id: str) -> None:
+        if progress is not None:
+            done = len(result.completed) + len(result.failed)
+            progress(f"[{done}/{len(todo)}] {status} {session_id} (spent ${spend.spent_usd:.3f})")
+
     async def guarded(p: PlannedSession) -> None:
         async with gate:
             if stop.is_set():
@@ -355,10 +364,13 @@ async def run_plan(
                 stop.set()
                 result.budget_exceeded = True
                 result.failed[p.meta.session_id] = str(exc)
+                report("STOPPED, spending cap reached:", p.meta.session_id)
             except ProviderError as exc:
                 result.failed[p.meta.session_id] = str(exc)
+                report("FAILED", p.meta.session_id)
             else:
                 result.completed.append(p.meta.session_id)
+                report("complete", p.meta.session_id)
 
     await asyncio.gather(*(guarded(p) for p in todo))
     result.spent_usd = spend.spent_usd

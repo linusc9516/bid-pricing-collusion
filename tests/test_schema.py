@@ -32,7 +32,7 @@ BID_FIELDS = [
 CALL_FIELDS = [
     "session_id", "round", "firm_id", "attempt", "phase", "model", "provider", "prompt",
     "raw_response", "reasoning", "parsed_bid", "error", "prompt_tokens", "completion_tokens",
-    "latency_ms",
+    "latency_ms", "reasoning_tokens", "finish_reason", "thinking", "content",
 ]  # fmt: skip
 
 
@@ -102,3 +102,27 @@ def test_call_row_round_trip() -> None:
         error=None, prompt_tokens=100, completion_tokens=20, latency_ms=350.0,
     )  # fmt: skip
     assert CallRow.from_dict(json.loads(json.dumps(call.to_dict()))) == call
+
+
+def test_trace_fields_from_each_response_shape() -> None:
+    from bidrig.schema import trace_fields
+
+    thinking_on = {"choices": [{"finish_reason": "tool_calls", "message": {"content": None, "reasoning": "step by step", "reasoning_details": [{"text": "step by step"}]}}],
+                   "usage": {"completion_tokens_details": {"reasoning_tokens": 77}}}
+    assert trace_fields(thinking_on) == {"reasoning_tokens": 77, "finish_reason": "tool_calls", "thinking": "step by step", "content": None}
+    details_only = {"choices": [{"message": {"reasoning_details": [{"text": "a"}, {"summary": "b"}, {"text": ""}]}}]}
+    assert trace_fields(details_only)["thinking"] == "a\nb"
+    chatty = {"choices": [{"finish_reason": "length", "message": {"content": "Notes before the tool call."}}], "usage": {}}
+    assert trace_fields(chatty) == {"reasoning_tokens": None, "finish_reason": "length", "thinking": None, "content": "Notes before the tool call."}
+    assert trace_fields({}) == {"reasoning_tokens": None, "finish_reason": None, "thinking": None, "content": None}
+
+
+def test_old_call_rows_are_filled_from_their_raw_response(tmp_path: Path) -> None:
+    from bidrig.schema import read_calls
+
+    raw = json.dumps({"choices": [{"finish_reason": "length", "message": {"content": "hi", "reasoning": "why"}}], "usage": {"completion_tokens_details": {"reasoning_tokens": 5}}})
+    old = {k: None for k in CALL_FIELDS[:-4]} | {"session_id": "s", "round": 1, "firm_id": "A", "attempt": 1, "phase": "bid", "model": "m", "prompt": "[]", "raw_response": raw}
+    (tmp_path / "calls.jsonl").write_text(json.dumps(old) + "\n")  # a row written before the four fields existed
+    (row,) = read_calls(tmp_path)
+    assert (row.finish_reason, row.thinking, row.content, row.reasoning_tokens) == ("length", "why", "hi", 5)
+    assert read_calls(tmp_path / "missing") == []

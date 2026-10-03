@@ -15,7 +15,7 @@ from typing import Any
 
 import yaml
 
-from bidrig.schema import CallPhase, CallRow
+from bidrig.schema import CallPhase, CallRow, trace_fields
 
 DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 TOOL_NAME = "submit_bid"
@@ -359,6 +359,7 @@ class OpenRouterClient:
 
             bid, reasoning, error = parse_bid(response, reserve_price)
             dump = response.model_dump_json() if hasattr(response, "model_dump_json") else repr(response)
+            trace = trace_fields(json.loads(dump)) if dump.startswith("{") else {}
             rows.append(
                 CallRow(
                     session_id=session_id,
@@ -376,6 +377,7 @@ class OpenRouterClient:
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
                     latency_ms=latency_ms,
+                    **trace,
                 )
             )
             if error is None:

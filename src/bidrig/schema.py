@@ -5,7 +5,7 @@ Field definitions and agent visibility are in PLANNING.md section 3.
 
 import json
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -127,6 +127,10 @@ class CallRow:
     prompt_tokens: int | None
     completion_tokens: int | None
     latency_ms: float | None
+    reasoning_tokens: int | None = None  # hidden thinking tokens, counted inside completion_tokens
+    finish_reason: str | None = None  # `length` means the reply hit the output cap
+    thinking: str | None = None  # the provider's hidden reasoning text, where it returned any
+    content: str | None = None  # free text the model wrote outside the tool call, where it wrote any
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-ready dict with the field names of PLANNING.md section 3."""
@@ -157,6 +161,36 @@ class BidResponse:
 
     bid: float | None
     n_attempts: int = 1
+
+
+def trace_fields(raw: dict[str, Any]) -> dict[str, Any]:
+    """`reasoning_tokens`, `finish_reason`, `thinking` and `content` from a chat-completion dict; absent pieces are None.
+
+    The thinking text is `message.reasoning` (or `reasoning_content`), else the text of `reasoning_details`.
+    """
+    choice = (raw.get("choices") or [{}])[0] or {}
+    message = choice.get("message") or {}
+    details = (raw.get("usage") or {}).get("completion_tokens_details") or {}
+    thinking = message.get("reasoning") or message.get("reasoning_content")
+    if not thinking:
+        parts = [d.get("text") or d.get("summary") or "" for d in (message.get("reasoning_details") or []) if isinstance(d, dict)]
+        thinking = "\n".join(p for p in parts if p) or None
+    return {
+        "reasoning_tokens": details.get("reasoning_tokens"),
+        "finish_reason": choice.get("finish_reason"),
+        "thinking": thinking,
+        "content": message.get("content") or None,
+    }
+
+
+def fill_trace(call: CallRow) -> CallRow:
+    """A call row from before these fields existed, with them read back out of its raw response; others unchanged."""
+    if call.finish_reason is not None or not (call.raw_response or "").startswith("{"):
+        return call
+    try:
+        return replace(call, **trace_fields(json.loads(call.raw_response)))
+    except (json.JSONDecodeError, AttributeError, TypeError):
+        return call
 
 
 def firm_ids(n_bidders: int) -> list[str]:
@@ -207,7 +241,7 @@ def read_calls(path: Path) -> list[CallRow]:
     if not calls.exists():
         return []
     with calls.open() as handle:
-        return [CallRow.from_dict(json.loads(line)) for line in handle if line.strip()]
+        return [fill_trace(CallRow.from_dict(json.loads(line))) for line in handle if line.strip()]
 
 
 def read_session(path: Path) -> tuple[SessionMeta, list[BidRow]]:

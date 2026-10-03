@@ -86,6 +86,9 @@ class CheckReport:
     findings: list[Finding] = field(default_factory=list)
     caps: Counter[int] = field(default_factory=Counter)  # output-token cap each system prompt states
     providers: Counter[tuple[str, str]] = field(default_factory=Counter)  # (model alias, serving provider)
+    cutoffs: int = 0  # attempts that hit the output cap (finish_reason `length`)
+    with_thinking: int = 0  # attempts with hidden thinking text
+    with_free_text: int = 0  # attempts with text outside the tool call
 
     def fail(self, check: str, session_id: str, detail: str) -> None:
         """Record a finding."""
@@ -287,6 +290,9 @@ def check_calls(log: SessionLog, report: CheckReport, template: Path = DEFAULT_T
             report.fail("structure", sid, f"{label}: call has no matching bid row")
             continue
         report.items["provider"] += 1
+        report.cutoffs += call.finish_reason == "length"
+        report.with_thinking += bool(call.thinking)
+        report.with_free_text += bool(call.content)
         report.providers[(call.model, call.provider or "none")] += 1
         pinned = meta.providers.get(call.model)
         if call.model != models[call.firm_id]:

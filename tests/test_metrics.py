@@ -11,6 +11,7 @@ from helpers import FnBidder, custom_session, fixed, make_meta, scripted_session
 from bidrig.analysis.metrics import (
     SESSION_METRIC_COLUMNS,
     add_control_deltas,
+    call_summary,
     load_run,
     manipulation_verdict,
     non_competitive_bids,
@@ -463,3 +464,61 @@ def test_manipulation_verdict_needs_enough_rounds() -> None:
     assert manipulation_verdict(0.2, 0.2, 0.01, 0.003, rounds=18, min_rounds=300) == "insufficient"
     assert manipulation_verdict(0.0, 0.0, 0.01, 0.003, rounds=750, min_rounds=300) == "failed"
     assert manipulation_verdict(0.2, 0.2, 0.01, 0.003, rounds=300, min_rounds=300) == "proceed"
+
+
+# --- reward-punishment regression, call-summary thinking columns ---
+
+
+def lagged_session(rival_weight: float, own_weight: float, rounds: int = 40) -> list:
+    """Three firms whose bid is exactly a + 0.2 cost + own_weight own-lag + rival_weight rival-lag, no noise."""
+    import numpy as np
+
+    rng = np.random.default_rng(3)
+    intercept = [5.0, 8.0, 11.0]
+    costs = rng.uniform(10, 90, size=(rounds, 3))
+    bids = np.zeros((rounds, 3))
+    bids[0] = costs[0] + 10
+    for t in range(1, rounds):
+        for i in range(3):
+            rivals = np.delete(bids[t - 1], i).mean()
+            bids[t, i] = intercept[i] + 0.2 * costs[t, i] + own_weight * bids[t - 1, i] + rival_weight * rivals
+    return hand_rows(3, [[(float(costs[t, i]), float(bids[t, i]), bool(bids[t, i] == bids[t].min())) for i in range(3)] for t in range(rounds)])
+
+
+def test_rival_lag_regression_recovers_known_coefficients() -> None:
+    m = session_metrics(make_meta(["llm"] * 3, n_rounds=40), lagged_session(rival_weight=0.4, own_weight=0.3))
+    assert m["rival_lag_coef"] == pytest.approx(0.4, abs=1e-6) and m["own_lag_coef"] == pytest.approx(0.3, abs=1e-6)
+    m = session_metrics(make_meta(["llm"] * 3, n_rounds=40), lagged_session(rival_weight=0.0, own_weight=0.0))
+    assert m["rival_lag_coef"] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_rival_lag_is_a_placebo_for_bidders_that_ignore_history() -> None:
+    m = session_metrics(*scripted_session("bne", n=3, n_rounds=200))
+    assert abs(m["rival_lag_coef"]) < 0.05 and abs(m["own_lag_coef"]) < 0.05  # bids depend on this round's cost only
+
+
+def test_rival_lag_needs_enough_rounds() -> None:
+    rows = hand_rows(3, [[(10, 20, True), (30, 50, False), (20, 40, False)]] * 4)
+    assert math.isnan(session_metrics(make_meta(["llm"] * 3, n_rounds=4), rows)["rival_lag_coef"])  # 9 usable observations
+
+
+def test_call_summary_reports_cutoffs_and_thinking_tokens() -> None:
+    from dataclasses import replace
+
+    from bidrig.schema import CallRow
+
+    meta, rows = scripted_session("bne", n=3, n_rounds=2)
+    template = CallRow(session_id=meta.session_id, round=1, firm_id="A", attempt=1, phase="bid", model="m", provider="p", prompt="[]",
+                       raw_response="{}", reasoning="r", parsed_bid=1.0, error=None, prompt_tokens=100, completion_tokens=1000, latency_ms=1.0)
+    calls = [
+        replace(template, completion_tokens=4000, reasoning_tokens=3900, finish_reason="length", error="no submit_bid tool call"),
+        replace(template, completion_tokens=900, reasoning_tokens=800, finish_reason="tool_calls", content="notes"),
+        replace(template, completion_tokens=100, reasoning_tokens=0, finish_reason="tool_calls"),
+        replace(template, completion_tokens=200, reasoning_tokens=100, finish_reason="tool_calls"),
+    ]
+    summary = call_summary([(meta, rows, calls)])
+    row = summary.iloc[0]
+    assert row["cutoff_rate"] == 0.25 and row["free_text_rate"] == 0.25
+    assert row["mean_reasoning_tokens"] == pytest.approx((3900 + 800 + 0 + 100) / 4)
+    old_logs = call_summary([(meta, rows, [replace(template)])]).iloc[0]  # rows without the new fields
+    assert math.isnan(old_logs["cutoff_rate"]) and math.isnan(old_logs["mean_reasoning_tokens"])

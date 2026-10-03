@@ -79,7 +79,7 @@ def main() -> int:
         timeout = LLMSettings.from_config(config.get("llm", {})).request_timeout_s
         client_factory = lambda: make_openai_client(key, base_url, timeout=timeout)
 
-    result = asyncio.run(run_plan(pending, config, models, log_dir, client_factory, args.host))
+    result = asyncio.run(run_plan(pending, config, models, log_dir, client_factory, args.host, progress=lambda line: print(line, flush=True)))
     print(f"completed {len(result.completed)}, already complete {len(plan) - len(pending)}, failed {len(result.failed)}")
     for session_id, error in result.failed.items():
         print(f"  failed {session_id}: {error}")

@@ -94,6 +94,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {name:16s} {report.items[name]:6d} {len(report.failures(name)):9d}")
     if report.caps:
         print(f"output caps stated in the prompts: {dict(report.caps)}")
+        print(f"attempts cut off at the cap: {report.cutoffs} of {report.calls}; with hidden thinking text: {report.with_thinking}; "
+              f"with free text outside the tool call: {report.with_free_text}")
     if report.providers:
         print("serving hosts: " + ", ".join(f"{model}/{host} {n}" for (model, host), n in sorted(report.providers.items())))
     for name in CHECKS:

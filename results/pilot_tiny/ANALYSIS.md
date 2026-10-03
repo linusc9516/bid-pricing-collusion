@@ -35,8 +35,8 @@ Bids at the reserve or below the firm's own cost, over both runs (324 valid bids
 - **Bids look sensible overall:** mostly a modest markup above cost and below the BNE bid, as the plan expects.
 
 ## Open items
-1. Whether to log `message.content` as a second trace field (matters for Qwen).
+1. Resolved after this analysis: call rows now carry `thinking`, `content`, `finish_reason` and `reasoning_tokens` as their own fields (PLANNING.md section 3), and rows from these runs are filled from `raw_response` when read.
 2. The prompt is unchanged: the reserve bids and below-cost bids are preliminary observations for the pilot to measure, not something to patch.
-3. The pilot (cap 1,000 tokens) reports the two new rates per model and rule, and the trace rubric tags each case as coordination, unilateral bid-to-lose, mistaken payoff reasoning or incidental convergence (PLANNING.md section 8).
+3. The pilot (cap 4,000 tokens, thinking on) reports the two new rates per model and rule, and the trace rubric tags each case as coordination, unilateral bid-to-lose, mistaken payoff reasoning or incidental convergence (PLANNING.md section 8).
 
 To check by hand: `calls.jsonl` of a session holds the prompt, the raw response (including `content`) and the parsed reasoning; `bids.jsonl` holds the outcomes. `uv run python scripts/check_logs.py logs/pilot_tiny_rerun --pick` lists representative prompts and `--show` prints one.

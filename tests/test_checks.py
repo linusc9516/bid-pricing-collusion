@@ -321,3 +321,13 @@ def test_cli_pick_and_show(cli: Any, tie_run: Path, capsys: pytest.CaptureFixtur
     repeated = next(line for line in picked if line.startswith("bafo") and "repeated" in line).split("--show ")[1].split()[0]
     assert cli.main([str(tie_run), "--show", repeated, "2", "A"]) == 0
     assert f"session {repeated}\n" in capsys.readouterr().out
+
+
+def test_cli_reports_cutoffs_and_free_text(normal_run: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("check_logs", Path(__file__).parents[1] / "scripts" / "check_logs.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.main([str(normal_run)]) == 0
+    assert "attempts cut off at the cap: 0 of 162; with hidden thinking text: 162; with free text outside the tool call: 0" in capsys.readouterr().out

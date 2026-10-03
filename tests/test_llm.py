@@ -33,18 +33,30 @@ HOST = Host("Morph", "fp8", 0.021, 0.383)
 
 
 def completion(
-    args: dict[str, Any] | str | None, provider: str | None = "Morph", tokens: tuple[int, int] = (500, 100)
+    args: dict[str, Any] | str | None,
+    provider: str | None = "Morph",
+    tokens: tuple[int, int] = (500, 100),
+    thinking: str | None = None,
+    content: str | None = None,
+    reasoning_tokens: int = 0,
+    finish: str = "tool_calls",
 ) -> SimpleNamespace:
-    """A chat completion shaped like the openai SDK's, with OpenRouter's `provider` field."""
+    """A chat completion shaped like the openai SDK's, with OpenRouter's `provider` field and a JSON dump of its body."""
     tool_calls = None
     if args is not None:
         arguments = args if isinstance(args, str) else json.dumps(args)
         tool_calls = [SimpleNamespace(function=SimpleNamespace(name="submit_bid", arguments=arguments))]
-    message = SimpleNamespace(content=None, tool_calls=tool_calls, reasoning="hidden thoughts")
+    message = SimpleNamespace(content=content, tool_calls=tool_calls, reasoning=thinking or "hidden thoughts")
+    body = {
+        "choices": [{"finish_reason": finish, "message": {"content": content, "reasoning": thinking or "hidden thoughts"}}],
+        "provider": provider,
+        "usage": {"prompt_tokens": tokens[0], "completion_tokens": tokens[1], "completion_tokens_details": {"reasoning_tokens": reasoning_tokens}},
+    }
     return SimpleNamespace(
-        choices=[SimpleNamespace(message=message)],
+        choices=[SimpleNamespace(message=message, finish_reason=finish)],
         provider=provider,
         usage=SimpleNamespace(prompt_tokens=tokens[0], completion_tokens=tokens[1]),
+        model_dump_json=lambda: json.dumps(body),
     )
 
 
@@ -390,3 +402,17 @@ def test_config_reasoning_override_beats_the_model_default() -> None:
     assert client.request_kwargs(spec, None, [{"role": "user", "content": "u"}], 1, 100)["extra_body"]["reasoning"] == {"effort": "low"}
     other = ModelSpec("qwen", "x/y", 1, 1, reasoning={"enabled": False})  # no override: its own default stays
     assert client.request_kwargs(other, None, [{"role": "user", "content": "u"}], 1, 100)["extra_body"]["reasoning"] == {"enabled": False}
+
+
+def test_call_rows_carry_the_trace_fields() -> None:
+    fake = FakeOpenAI([completion({"reasoning": "r", "bid": 55}, thinking="I computed the equilibrium.", content="Some notes first.", tokens=(500, 1200), reasoning_tokens=1100)])
+    _, rows, _ = ask(fake)
+    (row,) = rows
+    assert (row.thinking, row.content, row.reasoning_tokens, row.finish_reason) == ("I computed the equilibrium.", "Some notes first.", 1100, "tool_calls")
+    assert json.loads(row.raw_response)["choices"][0]["message"]["reasoning"] == "I computed the equilibrium."  # raw stays raw
+
+
+def test_a_reply_cut_off_at_the_cap_is_marked_and_retried() -> None:
+    fake = FakeOpenAI([completion(None, finish="length", tokens=(500, 4000), reasoning_tokens=4000), completion({"reasoning": "r", "bid": 60})])
+    bid, rows, _ = ask(fake)
+    assert bid == 60 and [r.finish_reason for r in rows] == ["length", "tool_calls"] and rows[0].reasoning_tokens == 4000

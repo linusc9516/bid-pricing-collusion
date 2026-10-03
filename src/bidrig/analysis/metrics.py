@@ -45,6 +45,8 @@ SESSION_METRIC_COLUMNS = [
     "reserve_bid_rate",
     "below_cost_bid_rate",
     "bid_cost_corr",
+    "rival_lag_coef",
+    "own_lag_coef",
     "tie_rate",
     "tie_rate_early",
     "tie_rate_late",
@@ -87,6 +89,39 @@ def _chi2_stat(win_counts: Sequence[int]) -> float:
         return float("nan")
     expected = total / len(win_counts)
     return float(sum((count - expected) ** 2 / expected for count in win_counts))
+
+
+def _lagged_rival_coefs(valid_bids: pd.DataFrame) -> tuple[float, float]:
+    """(`rival_lag_coef`, `own_lag_coef`): reward-punishment regression on a session's valid original bids.
+
+    A firm's bid in round t on its own cost in t, its own bid in t-1 and the mean of its rivals' bids in t-1, with
+    a firm fixed effect (the reduced form of Fish et al.'s lag regression, with the cost control a private-cost
+    setting needs). A positive rival coefficient means bids follow rivals' past bids. NaN with under 12
+    usable observations or a rank-deficient design. A one-shot control shows no history, so its rival
+    coefficient should sit near 0, which makes it the placebo.
+    """
+    if valid_bids.empty:
+        return float("nan"), float("nan")
+    wide = valid_bids.pivot(index="round", columns="firm_id", values="bid")
+    wide = wide.reindex(range(int(wide.index.min()), int(wide.index.max()) + 1))  # a missing round breaks the lag
+    previous = wide.shift(1)
+    others_sum = previous.sum(axis=1).to_numpy()[:, None] - previous.fillna(0).to_numpy()
+    others_count = previous.notna().sum(axis=1).to_numpy()[:, None] - previous.notna().to_numpy()
+    rival_lag = pd.DataFrame(others_sum / np.where(others_count > 0, others_count, np.nan), index=wide.index, columns=wide.columns)
+    cost = valid_bids.pivot(index="round", columns="firm_id", values="cost").reindex(wide.index)
+    long = pd.concat(
+        {"bid": wide.stack(), "cost": cost.stack(), "own_lag": previous.stack(), "rival_lag": rival_lag.stack()}, axis=1
+    ).dropna()
+    if len(long) < 12:
+        return float("nan"), float("nan")
+    columns = ["bid", "cost", "own_lag", "rival_lag"]
+    frame = long.reset_index().rename(columns={"firm_id": "firm"})
+    demeaned = frame[columns] - frame.groupby("firm")[columns].transform("mean")
+    design = demeaned[["cost", "own_lag", "rival_lag"]].to_numpy()
+    if np.linalg.matrix_rank(design) < 3:
+        return float("nan"), float("nan")
+    coefficients = np.linalg.lstsq(design, demeaned["bid"].to_numpy(), rcond=None)[0]
+    return float(coefficients[2]), float(coefficients[1])
 
 
 def _bid_cost_corr(valid_bids: pd.DataFrame) -> float:
@@ -139,6 +174,7 @@ def session_metrics(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, obje
     cost_ticks = valid_bids["cost"].map(lambda v: to_ticks(v, meta.bid_increment))
     reserve_ticks = to_ticks(meta.reserve_price, meta.bid_increment)
 
+    lag_coefs = _lagged_rival_coefs(valid_bids)
     win_counts = [int((won["firm_id"] == entry.firm_id).sum()) for entry in meta.lineup]
     return {
         "condition_id": meta.condition_id,
@@ -160,6 +196,8 @@ def session_metrics(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, obje
         "reserve_bid_rate": _mean(bid_ticks == reserve_ticks),
         "below_cost_bid_rate": _mean(bid_ticks < cost_ticks),
         "bid_cost_corr": _bid_cost_corr(valid_bids),
+        "rival_lag_coef": lag_coefs[0],
+        "own_lag_coef": lag_coefs[1],
         "tie_rate": _mean(tied),
         "tie_rate_early": _mean(tied[early]),
         "tie_rate_late": _mean(tied[~early]),
@@ -221,6 +259,10 @@ CALL_SUMMARY_COLUMNS = [
     "mean_completion_tokens",
     "p95_completion_tokens",
     "max_completion_tokens",
+    "cutoff_rate",
+    "mean_reasoning_tokens",
+    "p95_reasoning_tokens",
+    "free_text_rate",
 ]
 
 
@@ -243,6 +285,8 @@ def call_summary(sessions: Iterable[tuple[SessionMeta, Sequence[BidRow], Sequenc
         rows = entry["rows"]
         valid = [r for r in rows if r.valid]
         completion = calls["completion_tokens"].dropna().astype(float)
+        thinking = calls["reasoning_tokens"].dropna().astype(float)
+        finished = calls["finish_reason"].dropna()
         records.append(
             {
                 "condition_id": cid,
@@ -257,6 +301,10 @@ def call_summary(sessions: Iterable[tuple[SessionMeta, Sequence[BidRow], Sequenc
                 "mean_completion_tokens": _mean(completion),
                 "p95_completion_tokens": float(completion.quantile(0.95)) if len(completion) else float("nan"),
                 "max_completion_tokens": float(completion.max()) if len(completion) else float("nan"),
+                "cutoff_rate": _mean(finished == "length"),  # attempts that hit the output cap, share of attempts
+                "mean_reasoning_tokens": _mean(thinking),
+                "p95_reasoning_tokens": float(thinking.quantile(0.95)) if len(thinking) else float("nan"),
+                "free_text_rate": _mean(calls["content"].notna()) if finished.size else float("nan"),  # text outside the tool call
             }
         )
     return pd.DataFrame(records, columns=CALL_SUMMARY_COLUMNS)
