@@ -310,3 +310,7 @@ def test_cli_pick_and_show(cli: Any, tie_run: Path, capsys: pytest.CaptureFixtur
     out = capsys.readouterr().out
     assert "--- system ---" in out and "No earlier rounds are shown." in out and "--- answer, attempt 1" in out
     assert cli.main([str(tie_run), "--show", "no-such-session", "1", "A"]) == 2
+    # An exact id wins even when it is also a substring of its one-shot control's id.
+    repeated = next(line for line in picked if line.startswith("bafo") and "repeated" in line).split("--show ")[1].split()[0]
+    assert cli.main([str(tie_run), "--show", repeated, "2", "A"]) == 0
+    assert f"session {repeated}\n" in capsys.readouterr().out

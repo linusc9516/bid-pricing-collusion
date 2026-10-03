@@ -41,7 +41,7 @@ def pick(logs: list[SessionLog], run_dir: Path) -> list[str]:
 
 def show(logs: list[SessionLog], session_id: str, round_number: int, firm_id: str, phase: str) -> int:
     """Print the first attempt of one call: the conversation sent and what the model answered."""
-    matches = [log for log in logs if session_id in log.meta.session_id]
+    matches = [log for log in logs if log.meta.session_id == session_id] or [log for log in logs if session_id in log.meta.session_id]
     if len(matches) != 1:
         print(f"{len(matches)} sessions match {session_id!r}", file=sys.stderr)
         return 2
