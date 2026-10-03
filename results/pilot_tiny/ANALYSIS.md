@@ -15,8 +15,8 @@ No invalid rows, no rounds without a winner, no sit-outs. Prompts show only earl
 
 Three first attempts failed (of about 330 calls) and all recovered on attempt 2: DeepSeek on Morph returned 4 tokens with no tool call; two Qwen replies ran to the 500-token cap (one cut off before the tool call, one with truncated JSON arguments). DeepSeek on DeepInfra matched Morph on tokens (about 135 completion tokens per call). Latency: first run p95 16.0 s with a tail to 28 s (not broken out by host); rerun p95 4.3 s.
 
-## Non-competitive unilateral bids (new metrics, `non_competitive_bids.csv`)
-Bids at the reserve or below the firm's own cost, over both runs (324 valid bids):
+## Non-competitive unilateral bids (new metrics, `non_competitive_bids.csv`): preliminary observation
+Bids at the reserve or below the firm's own cost, over both runs (324 valid bids). Descriptive counts from a tiny sample; 6 of the 8 reserve bids are gpt-oss, a low-effort reasoning model, so this may be model-specific, and the prompt or the 3-round sessions may matter too. The pilot is the first real measurement.
 
 | Model | Kind | Bids | At reserve | Below cost |
 |---|---|---|---|---|
@@ -36,7 +36,7 @@ Bids at the reserve or below the firm's own cost, over both runs (324 valid bids
 
 ## Open items
 1. Whether to log `message.content` as a second trace field (matters for Qwen).
-2. The prompt is unchanged: the reserve bids and below-cost bids are findings for the pilot to measure, not something to patch.
+2. The prompt is unchanged: the reserve bids and below-cost bids are preliminary observations for the pilot to measure, not something to patch.
 3. The pilot (cap 1,000 tokens) reports the two new rates per model and rule, and the trace rubric tags each case as coordination, unilateral bid-to-lose, mistaken payoff reasoning or incidental convergence (PLANNING.md section 8).
 
 To check by hand: `calls.jsonl` of a session holds the prompt, the raw response (including `content`) and the parsed reasoning; `bids.jsonl` holds the outcomes. `uv run python scripts/check_logs.py logs/pilot_tiny_rerun --pick` lists representative prompts and `--show` prints one.
