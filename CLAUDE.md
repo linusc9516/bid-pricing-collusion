@@ -19,6 +19,8 @@ Dependencies are managed with uv (`uv sync` once; then prefix commands with `uv 
 - `uv run python scripts/run_experiment.py configs/<name>.yaml --run-id <id>` —
   Phase B: `main_tiebreak.yaml`, then the `supporting_*.yaml` configs, under one run id
 - `uv run python scripts/analyze.py logs/<run_id>` — logs to result tables
+- `uv run python scripts/check_logs.py logs/<run_id>` — checks the raw logs (auction rules, every
+  prompt, hosts); `--pick` / `--show` print prompts to read by hand. Run it on every live run first
 - Lint: `uv run ruff check src/` (fix with `uv run ruff check --fix src/` before committing)
 
 Configs that call models ask for confirmation unless `--yes` is given. Before the first
@@ -119,6 +121,7 @@ scripts/
   run_experiment.py      CLI: run a config
   analyze.py             CLI: logs -> results
   smoke_test.py          CLI: one call per pinned host (PLANNING.md 5.5)
+  check_logs.py          CLI: consistency checks on a run's raw logs (src/bidrig/checks.py)
 tests/                   one test file per built module; helpers.py builds scripted sessions;
                          snapshots/ holds the prompt snapshots (regenerate with UPDATE_SNAPSHOTS=1)
 logs/                    raw per-session output (gitignored)

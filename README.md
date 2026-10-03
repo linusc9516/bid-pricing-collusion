@@ -33,8 +33,9 @@ uv run python scripts/run_experiment.py configs/sanity_tiebreak.yaml
 # 2. Pre-pilot smoke test: one call per pinned host (a few cents); without --yes it only prints the plan
 uv run python scripts/smoke_test.py --yes
 
-# 3. End-to-end check: 18 sessions of 3 rounds (every model and rule) with real models; read every prompt in calls.jsonl
+# 3. End-to-end check: 18 sessions of 3 rounds (every model and rule) with real models, then check the logs
 uv run python scripts/run_experiment.py configs/pilot_tiny.yaml
+uv run python scripts/check_logs.py logs/pilot_tiny --expect-cap 500   # --pick / --show print prompts to read by hand
 
 # 4. Phase A pilot: three models under all three tie-break rules, on its own seeds
 uv run python scripts/run_experiment.py configs/pilot.yaml --dry-run   # call + cost estimate
@@ -111,7 +112,7 @@ writes tables and figures to `results/<run_id>/`:
 configs/        base defaults, model list, sanity checks, pilot, main experiment, supporting ablations, analysis plan
 prompts/        bidder system prompt template
 src/bidrig/     auction, bidders, prompts, llm, bne, runner, analysis/
-scripts/        run_experiment.py, analyze.py
+scripts/        run_experiment.py, analyze.py, check_logs.py, smoke_test.py
 tests/
 logs/           raw output (gitignored)
 results/        aggregated tables and figures
