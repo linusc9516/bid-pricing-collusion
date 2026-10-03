@@ -52,7 +52,7 @@ uv run python scripts/run_experiment.py configs/supporting_lineup.yaml --run-id 
 
 Run the sanity checks first and confirm the scripted bidders read as expected before spending on LLM calls: BNE bidders near 0, markup bidders negative, the overbidding bidder high but not flagged as collusive, the rotating cartel flagged, and bid-matching bidders rotating exactly under least-wins-first. Commit `configs/analysis.yaml` before the main experiment; it pre-declares the comparisons. Runs are resumable: completed sessions are skipped.
 
-The Phase A budget is $10 of OpenRouter credits (estimated spend about $2.00 at the 1,000-token stress case and likely nearer $0.4, with a $2.50 tripwire). The Phase B budget is not set yet and is expected to be much higher if needed; it is decided after Phase A measures tokens per call, which the estimates depend on. See `PLANNING.md` section 5.4.
+The Phase A budget is $10 of OpenRouter credits (estimated spend about $7.41 if every call used the whole 4,000-token cap and likely about $3, with an $8 tripwire; roughly 2 hours of wall clock). The Phase B budget is not set yet and is expected to be much higher if needed; it is decided after Phase A measures tokens per call, which the estimates depend on. See `PLANNING.md` section 5.4.
 
 ## Experiments
 

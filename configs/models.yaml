@@ -10,7 +10,7 @@ models:
     slug: deepseek/deepseek-v4.1-flash   # DeepSeek V4.1 Flash
     price_in: 0.14
     price_out: 0.42
-    reasoning: {enabled: false}          # effort low is ignored: thinking uses the whole 400-token cap and no bid is submitted
+    reasoning: {enabled: false}          # effort low is ignored at a 400-token cap: thinking uses it all. configs/pilot.yaml turns it on at 4,000
     providers:                           # Phase A hosts; never switch hosts inside a session
       # Morph (the first choice) was dropped on 2026-10-03: 502s in pilot_tiny, uptime 88.6% over 5 minutes, no forced tool choice.
       # Makora was left out for its $0.99 output price. Rerun a failed session with --host fallback, then --host backup.
@@ -34,4 +34,4 @@ models:
     slug: qwen/qwen3.7-flash             # Qwen3.7 Flash, in the Phase A pilot and Phase B; single provider (Alibaba)
     price_in: 0.03                       # cached input is 0.006
     price_out: 0.13
-    reasoning: {enabled: false}          # same as deepseek: thinking on uses all 400 tokens and no bid is submitted
+    reasoning: {enabled: false}          # same as deepseek (the pilot overrides it with effort low at a 4,000-token cap)

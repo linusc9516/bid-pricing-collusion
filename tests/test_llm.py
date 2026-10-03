@@ -380,3 +380,13 @@ def test_provider_retries_and_model_retries_are_independent() -> None:
 def test_settings_from_config() -> None:
     settings = LLMSettings.from_config({"max_output_tokens": 500, "provider_retries": 1, "retry_base_s": 0, "unknown": 1})
     assert (settings.max_output_tokens, settings.provider_retries, settings.retry_base_s, settings.session_retry_cap) == (500, 1, 0, 20)
+
+
+def test_config_reasoning_override_beats_the_model_default() -> None:
+    spec = ModelSpec("deepseek", SPEC.slug, 0.021, 0.383, reasoning={"enabled": False})
+    settings = LLMSettings.from_config({"reasoning_overrides": {"deepseek": {"effort": "low"}}, "request_timeout_s": 300})
+    assert settings.request_timeout_s == 300
+    client = OpenRouterClient(FakeOpenAI(), settings, SpendTracker(1.0))
+    assert client.request_kwargs(spec, None, [{"role": "user", "content": "u"}], 1, 100)["extra_body"]["reasoning"] == {"effort": "low"}
+    other = ModelSpec("qwen", "x/y", 1, 1, reasoning={"enabled": False})  # no override: its own default stays
+    assert client.request_kwargs(other, None, [{"role": "user", "content": "u"}], 1, 100)["extra_body"]["reasoning"] == {"enabled": False}

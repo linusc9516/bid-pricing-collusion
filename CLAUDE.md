@@ -24,7 +24,7 @@ Dependencies are managed with uv (`uv sync` once; then prefix commands with `uv 
 - Lint: `uv run ruff check src/` (fix with `uv run ruff check --fix src/` before committing)
 
 Configs that call models ask for confirmation unless `--yes` is given. Before the first
-live call, run `uv run python scripts/smoke_test.py` (prints the plan) and then with
+live call, run `uv run python scripts/smoke_test.py` (prints the plan; `--config configs/pilot.yaml` sends the pilot's settings) and then with
 `--yes`, then the end-to-end check `configs/pilot_tiny.yaml` (PLANNING.md 5.5). If a
 pinned host fails, rerun with `--host fallback`, then `--host backup`.
 

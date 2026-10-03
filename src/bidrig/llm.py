@@ -118,12 +118,15 @@ class LLMSettings:
     retry_base_s: float = 2.0  # wait before retry k is retry_base_s * 2**k seconds, with jitter
     retry_cap_s: float = 30.0  # longest single wait, also the cap on a Retry-After
     session_retry_cap: int = 20  # abandon the session after this many provider retries in total
+    request_timeout_s: float = 120.0  # per request; a long thinking reply at a large cap needs more
+    reasoning_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)  # per model alias, beats models.yaml
 
     @classmethod
     def from_config(cls, llm: dict[str, Any]) -> "LLMSettings":
         """Settings from a config's `llm` block; absent keys keep the defaults above."""
         names = ["temperature", "max_output_tokens", "max_retries", "reasoning_effort", "tool_choice",
-                 "provider_retries", "retry_base_s", "retry_cap_s", "session_retry_cap"]
+                 "provider_retries", "retry_base_s", "retry_cap_s", "session_retry_cap", "request_timeout_s",
+                 "reasoning_overrides"]
         return cls(**{name: llm[name] for name in names if name in llm})
 
 
@@ -289,7 +292,7 @@ class OpenRouterClient:
     ) -> dict[str, Any]:
         """Keyword arguments for `chat.completions.create`, including OpenRouter routing."""
         extra: dict[str, Any] = {"usage": {"include": True}}
-        reasoning = spec.reasoning
+        reasoning = self.settings.reasoning_overrides.get(spec.alias, spec.reasoning)
         if reasoning is None and self.settings.reasoning_effort:
             reasoning = {"effort": self.settings.reasoning_effort}
         if reasoning is not None:
@@ -381,8 +384,8 @@ class OpenRouterClient:
         return None, rows
 
 
-def make_openai_client(api_key: str, base_url: str | None = None, max_retries: int = 3) -> Any:
+def make_openai_client(api_key: str, base_url: str | None = None, max_retries: int = 3, timeout: float = 120.0) -> Any:
     """Async OpenAI SDK client pointed at OpenRouter; the SDK retries 429, 5xx and timeouts itself."""
     from openai import AsyncOpenAI
 
-    return AsyncOpenAI(api_key=api_key, base_url=base_url or DEFAULT_BASE_URL, max_retries=max_retries, timeout=120)
+    return AsyncOpenAI(api_key=api_key, base_url=base_url or DEFAULT_BASE_URL, max_retries=max_retries, timeout=timeout)

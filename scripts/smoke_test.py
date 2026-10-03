@@ -1,6 +1,6 @@
 """Pre-pilot smoke test (PLANNING.md 5.5): one forced tool call per pinned host.
 
-Usage: smoke_test.py [--yes] [--models deepseek gpt-oss] [--roles primary fallback]
+Usage: smoke_test.py [--yes] [--models deepseek gpt-oss] [--roles primary fallback] [--config configs/pilot.yaml]
 Without --yes it prints the planned calls and spends nothing. Costs a few cents in total.
 """
 
@@ -40,9 +40,9 @@ def round_one_meta() -> SessionMeta:
     )  # fmt: skip
 
 
-def base_settings() -> LLMSettings:
-    """Call settings from configs/base.yaml, so the smoke test sends what the pilot will send."""
-    return LLMSettings.from_config(load_config(ROOT / "configs" / "base.yaml")["llm"])
+def base_settings(config: Path = ROOT / "configs" / "base.yaml") -> LLMSettings:
+    """Call settings from a config (default base.yaml; pass the pilot's), so the smoke test sends what that run will send."""
+    return LLMSettings.from_config(load_config(config)["llm"])
 
 
 async def check_host(client: OpenRouterClient, spec, host) -> dict:
@@ -82,6 +82,7 @@ async def main() -> int:
     parser.add_argument("--yes", action="store_true", help="actually call the API")
     parser.add_argument("--models", nargs="+", default=["deepseek", "gpt-oss"])
     parser.add_argument("--roles", nargs="+", default=["primary", "fallback", "backup"])
+    parser.add_argument("--config", type=Path, default=ROOT / "configs" / "base.yaml", help="config whose llm settings are sent")
     args = parser.parse_args()
 
     specs = load_models(ROOT / "configs" / "models.yaml")
@@ -92,8 +93,8 @@ async def main() -> int:
             host = specs[m].host(r)
             if (m, host.name if host else None) not in [(s.alias, h.name if h else None) for s, h in plan]:
                 plan.append((specs[m], host))
-    settings = base_settings()
-    print(f"settings from configs/base.yaml: {settings}")
+    settings = base_settings(args.config)
+    print(f"settings from {args.config}: {settings}")
     for spec, host in plan:
         where = f"{host.role:8s} {host.name} ({host.quantization})" if host else "unpinned"
         print(f"{spec.alias:9s} {spec.slug:32s} {where}")
@@ -107,7 +108,8 @@ async def main() -> int:
         print("OPENROUTER_API_KEY is not set (see .env.example)", file=sys.stderr)
         return 1
     base_url = os.environ.get("OPENROUTER_BASE_URL") or None
-    client = OpenRouterClient(make_openai_client(key, base_url), base_settings(), SpendTracker(CAP_USD))
+    settings = base_settings(args.config)
+    client = OpenRouterClient(make_openai_client(key, base_url, timeout=settings.request_timeout_s), settings, SpendTracker(CAP_USD))
     results = [await check_host(client, spec, host) for spec, host in plan]
 
     out = ROOT / "logs" / "smoke" / f"{datetime.now(UTC):%Y%m%dT%H%M%SZ}.json"

@@ -32,7 +32,7 @@ llm:
                           # pilot.yaml sets 1000; Phase B configs set TBD (PLANNING.md 5.6)
   reasoning_effort: low   # default OpenRouter `reasoning.effort` for models with no `reasoning` entry in models.yaml; null to omit
   tool_choice: auto       # auto | required | forced. Morph, Crusoe and AkashML reject required and forced (smoke test, 2026-10-03)
-  reasoning_mode: per_model # thinking is set per model in models.yaml (Phase A). Phase B configs set TBD and the runner
+  reasoning_mode: per_model # thinking is set per model in models.yaml; a config can override it per model with llm.reasoning_overrides (the pilot does). Phase B configs set TBD and the runner
                           # refuses to call models until it is chosen (PLANNING.md 5.6)
   max_concurrency: 8
 

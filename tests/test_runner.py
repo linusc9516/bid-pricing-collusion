@@ -48,7 +48,7 @@ def test_inheritance() -> None:
     config = load_config(CONFIGS / "pilot.yaml")
     assert config["auction"]["n_rounds"] == 25 and config["auction"]["n_bidders"] == 3
     assert config["session"]["base_seed"] == 990000 and config["session"]["n_sessions"] == 5
-    assert config["llm"]["temperature"] == 1.0 and config["budget"]["max_cost_usd"] == 2.5
+    assert config["llm"]["temperature"] == 1.0 and config["budget"]["max_cost_usd"] == 8
     assert "inherits" not in config
 
 
@@ -136,11 +136,11 @@ def test_unknown_model_or_sweep_key_is_rejected() -> None:
 def test_pilot_estimate_matches_planning() -> None:
     config, models, plan = prepare(CONFIGS / "pilot.yaml")
     est = estimate(plan, config, models, "primary")
-    assert est.output_tokens_per_call == 1000
-    assert est.cost_usd == pytest.approx(2.01, abs=0.01)
-    assert est.cost_by_model["deepseek"] == pytest.approx(1.08, abs=0.01)
-    assert est.cost_by_model["gpt-oss"] == pytest.approx(0.61, abs=0.01)
-    assert est.cost_by_model["qwen"] == pytest.approx(0.32, abs=0.01)
+    assert est.output_tokens_per_call == 4000  # stress case: every call uses the whole cap
+    assert est.cost_usd == pytest.approx(7.41, abs=0.01)
+    assert est.cost_by_model["deepseek"] == pytest.approx(3.92, abs=0.01)
+    assert est.cost_by_model["gpt-oss"] == pytest.approx(2.30, abs=0.01)
+    assert est.cost_by_model["qwen"] == pytest.approx(1.20, abs=0.01)
     assert est.cost_usd < config["budget"]["max_cost_usd"]
 
 
@@ -272,7 +272,7 @@ def test_pilot_tiny_is_small_and_on_its_own_seeds() -> None:
 
 def test_llm_caps_by_config() -> None:
     caps = {name: load_config(CONFIGS / name)["llm"]["max_output_tokens"] for name in ["base.yaml", "pilot_tiny.yaml", "pilot.yaml"]}
-    assert caps == {"base.yaml": 500, "pilot_tiny.yaml": 500, "pilot.yaml": 1000}
+    assert caps == {"base.yaml": 500, "pilot_tiny.yaml": 500, "pilot.yaml": 4000}
     assert load_config(CONFIGS / "pilot.yaml")["llm"]["reasoning_mode"] == "per_model"
 
 
@@ -352,3 +352,32 @@ def test_session_retry_cap_abandons_a_flaky_session(tmp_path: Path) -> None:
     result = asyncio.run(run_plan(plan, config, models, tmp_path, lambda: FakeOpenAI(fn=flaky_then_fine(10**6))))
     assert "session retry cap of 2" in next(iter(result.failed.values()))
     assert read_meta(session_dir(tmp_path, plan[0].meta)).provider_retries == 2
+
+
+def reasoning_sent(config_name: str, tmp_path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """The `reasoning` object each model's requests carried when a config ran against a fake client."""
+    config, models, plan = small(config_name, n_rounds=2)
+    fake = FakeOpenAI(fn=bid_from_prompt)
+    asyncio.run(run_plan(plan, config, models, tmp_path, lambda: fake))
+    by_slug = {m.slug: alias for alias, m in models.items()}
+    return {by_slug[r["model"]]: r["extra_body"].get("reasoning") for r in fake.requests}, fake.requests
+
+
+def test_pilot_runs_deepseek_and_qwen_with_thinking_on_at_low_effort(tmp_path: Path) -> None:
+    sent, requests = reasoning_sent("pilot.yaml", tmp_path)
+    assert sent == {"deepseek": {"effort": "low"}, "gpt-oss": {"effort": "low"}, "qwen": {"effort": "low"}}
+    assert {r["max_tokens"] for r in requests} == {4000}
+    assert all("limited to 4000 tokens" in r["messages"][0]["content"] for r in requests)
+
+
+def test_pilot_tiny_and_the_default_keep_thinking_off(tmp_path: Path) -> None:
+    sent, requests = reasoning_sent("pilot_tiny.yaml", tmp_path)
+    assert sent == {"deepseek": {"enabled": False}, "gpt-oss": {"effort": "low"}, "qwen": {"enabled": False}}
+    assert {r["max_tokens"] for r in requests} == {500}
+
+
+def test_pilot_allows_long_replies_a_long_timeout() -> None:
+    from bidrig.llm import LLMSettings
+
+    assert LLMSettings.from_config(load_config(CONFIGS / "pilot.yaml")["llm"]).request_timeout_s == 300
+    assert LLMSettings.from_config(load_config(CONFIGS / "pilot_tiny.yaml")["llm"]).request_timeout_s == 120

@@ -12,7 +12,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from bidrig.llm import make_openai_client
+from bidrig.llm import LLMSettings, make_openai_client
 from bidrig.runner import (
     check_llm_settings,
     estimate,
@@ -76,7 +76,8 @@ def main() -> int:
             print("OPENROUTER_API_KEY is not set (see .env.example)", file=sys.stderr)
             return 1
         base_url = os.environ.get("OPENROUTER_BASE_URL") or None
-        client_factory = lambda: make_openai_client(key, base_url)
+        timeout = LLMSettings.from_config(config.get("llm", {})).request_timeout_s
+        client_factory = lambda: make_openai_client(key, base_url, timeout=timeout)
 
     result = asyncio.run(run_plan(pending, config, models, log_dir, client_factory, args.host))
     print(f"completed {len(result.completed)}, already complete {len(plan) - len(pending)}, failed {len(result.failed)}")
