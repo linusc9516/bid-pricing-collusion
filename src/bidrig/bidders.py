@@ -1,35 +1,23 @@
 """Bidder interface, scripted control bidders (BNE, markup, overbid, rotating cartel, match), and the LLM bidder.
 
-Scripted rules and their expected readings are in PLANNING.md section 2.7. The LLM bidder
-is not implemented yet (build step 5).
+Scripted rules and their expected readings are in PLANNING.md section 2.7. `BidRequest` and
+`BidResponse` live in schema.py and are re-exported here.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import ClassVar, Protocol
 
 from bidrig.bne import BneBenchmark
-from bidrig.schema import BidderType, CallPhase
-
-
-@dataclass(frozen=True)
-class BidRequest:
-    """What the auctioneer hands one firm for one bid; holds that firm's own cost and no other firm's."""
-
-    firm_id: str
-    slot: int  # 0-indexed position in the lineup
-    round: int  # 1-indexed
-    cost: float
-    phase: CallPhase = "bid"
-    tied_price: float | None = None  # rebid only: the price the firms tied at
-    n_tied: int | None = None  # rebid only: how many firms tied, not which
-
-
-@dataclass(frozen=True)
-class BidResponse:
-    """A firm's answer; `bid` is None when it sits out, `n_attempts` counts tries (1 for scripted)."""
-
-    bid: float | None
-    n_attempts: int = 1
+from bidrig.llm import Host, ModelSpec, OpenRouterClient
+from bidrig.prompts import build_messages
+from bidrig.schema import (
+    BidderType,
+    BidRequest,
+    BidResponse,
+    BidRow,
+    CallRow,
+    SessionMeta,
+)
 
 
 class Bidder(Protocol):
@@ -140,3 +128,41 @@ def make_scripted_bidder(
     if bidder_type not in SCRIPTED_BIDDERS:
         raise ValueError(f"not a scripted bidder type: {bidder_type!r}")
     return SCRIPTED_BIDDERS[bidder_type](bne, reserve_price, **params)
+
+
+@dataclass
+class LLMBidder:
+    """One firm played by a model; it reads the shared session log only through the prompt builder."""
+
+    spec: ModelSpec
+    host: Host | None
+    client: OpenRouterClient
+    meta: SessionMeta
+    log: list[BidRow]  # the auctioneer's log, appended once per finished round
+    calls: list[CallRow] = field(default_factory=list)
+    reasoning_length: str = "short"
+
+    bidder_type: ClassVar[BidderType] = "llm"
+
+    @property
+    def model(self) -> str:
+        """The model alias from configs/models.yaml."""
+        return self.spec.alias
+
+    async def bid(self, request: BidRequest) -> BidResponse:
+        """The model's bid for `request` (None after every retry failed); attempts go to `calls`."""
+        messages = build_messages(self.meta, self.log, request, self.reasoning_length)
+        bid, rows = await self.client.request_bid(
+            self.spec,
+            self.host,
+            messages,
+            self.meta.reserve_price,
+            session_id=self.meta.session_id,
+            session_seed=self.meta.seed,
+            round_number=request.round,
+            firm_id=request.firm_id,
+            slot=request.slot,
+            phase=request.phase,
+        )
+        self.calls.extend(rows)
+        return BidResponse(bid, len(rows))

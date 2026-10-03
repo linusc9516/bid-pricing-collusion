@@ -136,6 +136,27 @@ class CallRow:
         return cls(**data)
 
 
+@dataclass(frozen=True)
+class BidRequest:
+    """What the auctioneer hands one firm for one bid; holds that firm's own cost and no other firm's."""
+
+    firm_id: str
+    slot: int  # 0-indexed position in the lineup
+    round: int  # 1-indexed
+    cost: float
+    phase: CallPhase = "bid"
+    tied_price: float | None = None  # rebid only: the price the firms tied at
+    n_tied: int | None = None  # rebid only: how many firms tied, not which
+
+
+@dataclass(frozen=True)
+class BidResponse:
+    """A firm's answer; `bid` is None when it sits out, `n_attempts` counts tries (1 for scripted)."""
+
+    bid: float | None
+    n_attempts: int = 1
+
+
 def firm_ids(n_bidders: int) -> list[str]:
     """Firm ids `A`, `B`, ... in slot order; n_bidders in 1..26."""
     if not 1 <= n_bidders <= 26:

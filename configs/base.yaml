@@ -24,10 +24,11 @@ llm:
   reasoning_length: short # short = two or three sentences. REMINDER (Phase B): choose long if an LLM judge
                           # will analyse traces; re-estimate budget first (PLANNING.md 7.2)
   max_output_tokens: 400  # (open) main budget lever; output tokens dominate the cost per call
+  reasoning_effort: low   # sent as OpenRouter `reasoning.effort`; null to omit. The 5.5 smoke test checks it is honoured
   max_concurrency: 8
 
 prompt:
-  template: prompts/bidder_system.md   # not written yet
+  template: prompts/bidder_system.md
   version: v0
 
 budget:

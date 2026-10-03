@@ -7,8 +7,7 @@ PLANNING.md section 3, the prompt contents in 2.2 and 6.3.
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
-from bidrig.bidders import BidRequest
-from bidrig.schema import BidRow, InfoCondition, SessionMeta, TieBreakRule
+from bidrig.schema import BidRequest, BidRow, InfoCondition, SessionMeta, TieBreakRule
 
 DEFAULT_TEMPLATE = Path(__file__).resolve().parents[2] / "prompts" / "bidder_system.md"
 
