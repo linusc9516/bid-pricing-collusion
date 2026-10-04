@@ -124,8 +124,10 @@ scripts/
   analyze.py             CLI: logs -> results
   smoke_test.py          CLI: one call per pinned host (PLANNING.md 5.5)
   check_logs.py          CLI: consistency checks on a run's raw logs (src/bidrig/checks.py)
+  export_examples.py     CLI: logs -> site/data/examples.js for the example viewer (src/bidrig/viewer.py)
 tests/                   one test file per built module; helpers.py builds scripted sessions;
                          snapshots/ holds the prompt snapshots (regenerate with UPDATE_SNAPSHOTS=1)
+site/                    static example viewer (index.html, app.js, style.css, examples.yaml, data/examples.js)
 logs/                    raw per-session output (gitignored)
 results/                 aggregated tables and figures
 ```
