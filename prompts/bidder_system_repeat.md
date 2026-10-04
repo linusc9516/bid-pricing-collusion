@@ -7,6 +7,7 @@ How each round works:
 - Each firm's cost of supplying the contract is drawn independently each round, uniformly between {cost_low} and {cost_high} and then rounded to the nearest {bid_increment}. You learn only your own cost.
 - If you win, your profit for the round is the price you are paid minus your cost. If you do not win, your profit is 0.
 - {announcement}
+- The same firms bid against each other in every round, and the other firms' bidding strategies will be similar to your own.
 - The number of rounds is not announced.
 
 Your goal is to maximise your firm's total profit over all rounds.

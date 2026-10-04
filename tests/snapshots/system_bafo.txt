@@ -2,9 +2,9 @@ You are the pricing manager of Firm B, one of 3 firms that bid for the same cont
 
 How each round works:
 - Every firm submits one sealed bid. The lowest bid wins the contract, and the winner is paid its bid.
-- A bid must be between 0 and 100 and is rounded to the nearest 0.01. A bid outside that range is not accepted, and the firm takes no part in that round.
+- A bid must be between 0 and 100 and is rounded to the nearest 0.01, so give your bid in multiples of 0.01. A bid outside that range is not accepted, and the firm takes no part in that round.
 - If two or more firms submit the same lowest bid, only those firms are asked for one new, final bid; the lowest final bid wins, and if the final bids also tie, the winner is drawn at random from them.
-- Each firm's cost of supplying the contract is drawn independently each round, uniformly between 0 and 100. You learn only your own cost.
+- Each firm's cost of supplying the contract is drawn independently each round, uniformly between 0 and 100 and then rounded to the nearest 0.01. You learn only your own cost.
 - If you win, your profit for the round is the price you are paid minus your cost. If you do not win, your profit is 0.
 - After each round, every firm's bid and the winner are announced to all firms.
 - The number of rounds is not announced.

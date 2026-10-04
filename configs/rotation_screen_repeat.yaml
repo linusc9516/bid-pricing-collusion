@@ -1,0 +1,36 @@
+# DRAFT, not approved to run. Rotation-elicitation screen, arm: repeated-interaction prompt (A6).
+# One factor changed from the pilot's random cell; tie rule random; repeated sessions plus matched
+# one-shot controls (history_window 0). See ROTATION_ELICITATION_PLAN.md. Run id: rotation_screen.
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_rounds: 25
+
+session:
+  n_sessions: 5
+  base_seed: 991000       # disjoint from the pilot (990000) and the main experiment
+
+prompt:
+  template: prompts/bidder_system_repeat.md   # adds one sentence: same firms every round, similar strategies
+  version: v2-repeat
+
+llm:
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    deepseek: {effort: low}
+
+budget:
+  max_cost_usd: 3         # placeholder tripwire per arm; set from the dry run
+  estimate_output_tokens: 4000
+
+cells:
+  - id: repeat-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: repeat-gpt-oss
+    lineup: {type: homogeneous, model: gpt-oss}
+
+sweep:
+  history_window: [null, 0]

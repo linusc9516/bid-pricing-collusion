@@ -38,7 +38,7 @@ llm:
 
 prompt:
   template: prompts/bidder_system.md
-  version: v0
+  version: v1
 
 budget:
   max_cost_usd: 1         # per config; the runner aborts when a config's spend exceeds its cap.

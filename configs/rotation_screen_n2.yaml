@@ -1,0 +1,33 @@
+# DRAFT, not approved to run. Rotation-elicitation screen, arm: N = 2 bidders (A1).
+# One factor changed from the pilot's random cell; tie rule random; repeated sessions plus matched
+# one-shot controls (history_window 0). See ROTATION_ELICITATION_PLAN.md. Run id: rotation_screen.
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 25
+
+session:
+  n_sessions: 5
+  base_seed: 991000       # disjoint from the pilot (990000) and the main experiment
+
+llm:
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    deepseek: {effort: low}
+
+budget:
+  max_cost_usd: 3         # placeholder tripwire per arm; set from the dry run
+  estimate_output_tokens: 4000
+
+cells:
+  - id: n2-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: n2-gpt-oss
+    lineup: {type: homogeneous, model: gpt-oss}
+
+sweep:
+  history_window: [null, 0]
