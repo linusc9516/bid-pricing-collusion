@@ -28,6 +28,7 @@ SESSION_METRIC_COLUMNS = [
     "seed",
     "lineup_id",
     "n_bidders",
+    "bid_increment",
     "info_condition",
     "tie_break_rule",
     "is_control",
@@ -182,6 +183,7 @@ def session_metrics(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, obje
         "seed": meta.seed,
         "lineup_id": meta.lineup_id,
         "n_bidders": meta.n_bidders,
+        "bid_increment": meta.bid_increment,
         "info_condition": meta.info_condition,
         "tie_break_rule": meta.tie_break_rule,
         "is_control": meta.is_control,
@@ -351,12 +353,13 @@ def _clopper_pearson(tied: int, rounds: int) -> tuple[float, float]:
     return low, high
 
 
-def tie_check(table: pd.DataFrame, chance: dict[int, float]) -> pd.DataFrame:
+def tie_check(table: pd.DataFrame, chance: dict[tuple[int, float], float]) -> pd.DataFrame:
     """The pilot's tie manipulation check (PLANNING.md 7.1): ties per model and rule, with the chance benchmark.
 
     One row per (lineup, rule) over repeated sessions, plus pooled rows over all lineups per rule and one
     row, `pooled`, for the `random` and `least_wins` arms together, which is what the decision rule reads.
-    `chance` maps a bidder count to `bne.chance_tie_rate`. Shares are in [0, 1].
+    `chance` maps (bidder count, bid increment) to `bne.chance_tie_rate`, so one run can mix grids and N.
+    Shares are in [0, 1].
     """
     repeated = table[~table["is_control"]]
     controls = table[table["is_control"]]
@@ -368,7 +371,9 @@ def tie_check(table: pd.DataFrame, chance: dict[int, float]) -> pd.DataFrame:
         rounds = int(sessions["n_valid_rounds"].sum())
         tied = round((sessions["tie_rate"] * sessions["n_valid_rounds"]).sum())
         low, high = _clopper_pearson(tied, rounds)
-        benchmark = float(np.mean([chance[int(n)] for n in sessions["n_bidders"]]))
+        benchmark = float(
+            np.mean([chance[(int(n), float(inc))] for n, inc in zip(sessions["n_bidders"], sessions["bid_increment"], strict=True)])
+        )
         rate = tied / rounds if rounds else float("nan")
         records.append(
             {

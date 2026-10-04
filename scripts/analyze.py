@@ -62,7 +62,10 @@ def main() -> int:
     calls.to_csv(out / "call_summary.csv", index=False)
     noncompetitive = non_competitive_bids(table)
     noncompetitive.to_csv(out / "non_competitive_bids.csv", index=False)
-    chance = {m.n_bidders: chance_tie_rate(m.n_bidders, m.cost_low, m.cost_high, m.bid_increment) for m, _, _ in loaded}
+    chance = {
+        (m.n_bidders, float(m.bid_increment)): chance_tie_rate(m.n_bidders, m.cost_low, m.cost_high, m.bid_increment)
+        for m, _, _ in loaded
+    }
     ties = tie_check(table, chance)
     ties.to_csv(out / "tie_check.csv", index=False)
     decision = yaml.safe_load((ROOT / "configs" / "analysis.yaml").read_text())["manipulation_check"]["decision"]
