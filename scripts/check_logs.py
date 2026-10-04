@@ -64,6 +64,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check a run's logs against the auction rules and the prompt design.")
     parser.add_argument("run_dir", type=Path, help="logs/<run_id>")
     parser.add_argument("--expect-cap", type=int, help="fail unless every system prompt states this output-token cap")
+    parser.add_argument("--template", type=Path, help="system prompt template the run used (default: prompts/bidder_system.md)")
     parser.add_argument("--max-failures", type=int, default=3, help="examples printed per failing check")
     parser.add_argument("--include-incomplete", action="store_true", help="also check running or failed sessions")
     parser.add_argument("--pick", action="store_true", help="list representative prompts to read by hand")
@@ -81,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no complete sessions under {args.run_dir}", file=sys.stderr)
         return 2
 
-    report = check_run(logs, include_incomplete=args.include_incomplete)
+    report = check_run(logs, **({"template": args.template} if args.template else {}), include_incomplete=args.include_incomplete)
     if args.expect_cap is not None and set(report.caps) - {args.expect_cap}:
         report.fail("tokens", "-", f"system prompts state caps {dict(report.caps)}, expected {args.expect_cap}")
 

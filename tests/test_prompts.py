@@ -258,3 +258,19 @@ def test_bafo_history_under_winner_price_shows_final_price_only() -> None:
     assert "52.00" not in text  # A's final bid is not C's to see
     text_a = user_prompt(meta, rows, BidRequest("A", 0, 5, 10.0))
     assert "your final bid was 52.00" in text_a
+
+
+REPEAT_TEMPLATE = Path(__file__).parents[1] / "prompts" / "bidder_system_repeat.md"
+REPEAT_SENTENCE = "The same firms bid against each other in every round, and the other firms' bidding strategies will be similar to your own."
+
+
+def test_repeated_interaction_template_adds_one_sentence_only() -> None:
+    """Arm A6 of the rotation screen: the variant differs from the default by one bullet, and names no model."""
+    meta, _ = scripted_log("random")
+    default = system_prompt(meta, "A", "short", 400)
+    variant = system_prompt(meta, "A", "short", 400, template=REPEAT_TEMPLATE)
+    check_snapshot("system_random_repeat", variant)
+    assert variant.replace(f"- {REPEAT_SENTENCE}\n", "") == default
+    assert variant.count(REPEAT_SENTENCE) == 1
+    assert not [w for w in ["model", "same model", "identical", "copy", "AI", "LLM"] if w in variant]
+    assert not [word for word in FORBIDDEN if word in variant]

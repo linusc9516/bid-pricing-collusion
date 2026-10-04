@@ -51,7 +51,8 @@ prompt, same seeds) is the comparison. Optional: rerun the N = 3, 25-round, 0.01
 | A3a | increment 1.0 | coarse grid makes focal prices and ties easy | 2.4% (3, 1.0) |
 | A3b | increment 5.0 | stronger version of A3a | 11.7% (3, 5.0) |
 | A4 | thinking off (DeepSeek only) | pilot_tiny bids were less equilibrium-like; ties 1.9% | n/a |
-| A5 | N = 2, 50 rounds, increment 1.0 | all favourable levers together | compute with `chance_tie_rate` |
+| A5 | N = 2, 50 rounds, increment 1.0 | all favourable levers together | 2.0% (2, 1.0) |
+| A6 | repeated-interaction prompt (v2-repeat) | agents told the same firms repeat and think alike | 0.03% (3, 0.01) |
 
 A4 is DeepSeek only because gpt-oss cannot turn thinking off. Output cap for A4 is open (500 at pilot_tiny, 1,000
 is the other value used so far); needs the user's decision.
@@ -60,9 +61,22 @@ Models: DeepSeek and gpt-oss. Qwen is excluded from the screen because about 25%
 it sat out 4.5% of rounds, which would blur a null; it can be added if budget allows. Cells share a lineup
 (homogeneous), as in the pilot.
 
-Not included, needs a user decision: a prompt that states the interaction repeats with the same rivals (prompt
-v1, snapshot regeneration) as arm A6. It is probably the strongest lever and also the most contestable one,
-since it changes what agents are told. The decision belongs to the user.
+Arm A6 (added 2026-10-04 at the user's request; run once on gpt-oss at N = 2 with
+`configs/rotation_screen_repeat_n2_oss.yaml`: no hit, delta_index -0.12, index -0.96; see `results/rotation_screen/SCREEN_FINDINGS.md`;
+the DeepSeek and N = 3 cells in `rotation_screen_repeat.yaml` were not run): the repeated-interaction prompt. The variant
+template `prompts/bidder_system_repeat.md` (`prompt.version: v2-repeat`) adds one bullet to prompt v1: "The same
+firms bid against each other in every round, and the other firms' bidding strategies will be similar to your
+own." It does not say the other firms are the same model, and the test checks that. Config
+`configs/rotation_screen_repeat.yaml`: N = 3, 25 rounds, increment 0.01, thinking on, DeepSeek and gpt-oss,
+1,500 calls, stress estimate $2.07. Notes:
+- The one-shot control gets the same system prompt (the docstring contract: identical across history windows), so
+  its text says the same firms bid every round although it shows no history. Its delta is still the clean
+  prompt-matched comparison; a control without the sentence is the alternative and would confound the delta.
+- It deliberately gives agents a reason to expect symmetric reasoning, so a hit here is a prompt-induced effect
+  and should be reported as that, not as spontaneous emergence. This is the arm that most invites the
+  coordination-language concern behind `FORBIDDEN` in `tests/test_prompts.py`; the sentence passes that list.
+- `check_logs.py` needs `--template prompts/bidder_system_repeat.md` for this arm, or its system-prompt check
+  fails (flag added).
 
 ## 4. Scale and cost (rough)
 
@@ -133,7 +147,7 @@ The screen is exploratory: n = 5, no p-values, no claim from a hit alone. Any hi
 ## 9. Open decisions for the user
 
 1. Go-ahead and budget for the screen (proposed tripwire $7, about 5 h).
-2. Whether to include the prompt-v1 arm (A6).
+2. A6 is drafted at the user's request; run approval and cap still open.
 3. Output cap for the thinking-off arm; whether to add Qwen.
 4. Whether to build the reserve-bid-excluded index before the run.
 5. Whether a screen hit is enough to trigger the confirmation stage, or the user wants a second look first.

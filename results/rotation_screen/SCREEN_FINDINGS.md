@@ -52,3 +52,20 @@ competitive pricing". combined DeepSeek has two sessions with an index above 0 (
 +0.166) and a cell mean of -0.03. Thinking off moves DeepSeek well below the benchmark (index -0.42 vs about -0.08
 to 0 thinking on), with bid_cost_corr 0.99, ties 0.8% and 0 sit-outs, so thinking-off bidders price more
 aggressively, not less. rival_lag_coef stays within +-0.05 of its control.
+
+## Update 2026-10-04: arm A6, repeated-interaction prompt (gpt-oss, N = 2)
+Config `configs/rotation_screen_repeat_n2_oss.yaml`: prompt v2-repeat (one added bullet: the same firms bid against
+each other every round and their strategies will be similar to the agent's own; the other firms' model is not
+named), N = 2, 25 rounds, increment 0.01, thinking low, 5 sessions plus 5 one-shot controls (same system prompt).
+10 of 10 sessions completed, 0 failed, $0.046, no cutoffs or sit-outs.
+
+| delta_index (mean) | sessions delta>0 | collusion_index (control) | lowest-cost win share (repeated vs control) | tie rate | reserve-bid rate |
+|---|---|---|---|---|---|
+| -0.12 | 1/5 | -0.956 (-0.837) | .95 vs .89 | 3.2% vs 0.8% | 19% vs 15% |
+
+Not a hit: no session has an index above 0, and the lowest-cost win share rose, not fell. bid_cost_corr 0.94 and
+rival_lag_coef 0.007 are close to the control. The extra sentence did not raise prices. One cell, n = 5.
+check_logs.py: the rows of this arm pass against `prompts/bidder_system_repeat.md` (run with `--template`); the
+504 default-template failures and the 6,815 repeat-template failures together cover every row because this
+arm was written into the same run id as arms on the default template. Use a separate run id for any further
+repeat-prompt arm.
