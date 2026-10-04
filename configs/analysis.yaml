@@ -10,7 +10,7 @@ primary_outcome: delta_index  # session collusion index minus its matched one-sh
 inference:
   alpha: 0.05
   correction: holm            # across the confirmatory family below
-  pooling: pooled             # pooled | per_model. The per_model variant lives on branch per-model-tests.
+  pooling: pooled             # pooled | per_model. The per_model variant was on branch per-model-tests (deleted 2026-10-04; last commit c1816d9).
   test: paired_sign_flip      # per seed: mean over models within each arm, then permute signs
   two_sided: true
   n_permutations: 10000

@@ -1,0 +1,52 @@
+# Curated sessions shown in the viewer. `session` is the repeated session, `control` its matched one-shot control
+# (same seed and costs, no history shown). Logs are read from logs/<run>/ (gitignored); rerun
+# `uv run python scripts/export_examples.py` after changing this file.
+examples:
+  - id: scripted-rotation
+    title: What rotation would look like
+    run: sanity_grid_0.01
+    session: tie-random__info-full__lineup-dummy-rotation__n2__seed995000
+    blurb: "A scripted bidder that takes turns winning at the top price. No model is called. This is the pattern the experiment looks for."
+    look_for: "The winner strip alternates A, B, A, B. The winner bids 99 and the other firm 100, whatever the costs, so bids stop tracking cost."
+  - id: deepseek-equilibrium
+    title: DeepSeek prices at the competitive benchmark
+    run: pilot
+    session: tie-random__info-full__lineup-pilot-deepseek__n3__seed990002
+    control: oneshot__tie-random__info-full__lineup-pilot-deepseek__n3__seed990002
+    blurb: "Thinking-on DeepSeek, three firms, random tie-break. In the one-shot control its bids sit on the closed-form equilibrium bid; in the repeated session they stay close to it."
+    look_for: "Bids lie on or near the benchmark line (BNE) in the chart. Open a round to see the thinking text derive the equilibrium bid."
+  - id: deepseek-outlier
+    title: The one session above the benchmark
+    run: rotation_screen
+    session: tie-random__info-full__lineup-n2-deepseek__n2__seed991003
+    control: oneshot__tie-random__info-full__lineup-n2-deepseek__n2__seed991003
+    blurb: "The only screen session with a collusion index above zero (+0.31, N = 2). The other four sessions of the cell average below zero."
+    look_for: "Bids are well above the benchmark in the repeated session while the control sits on it. Check whether the winner strip looks like turn-taking; it does not alternate strictly."
+  - id: gpt-oss-reserve
+    title: gpt-oss bids at the reserve to lose on purpose
+    run: pilot
+    session: tie-random__info-full__lineup-pilot-gpt-oss__n3__seed990002
+    control: oneshot__tie-random__info-full__lineup-pilot-gpt-oss__n3__seed990002
+    blurb: "Many bids at the maximum allowed price. The firm expects rivals to bid low, so it bids high to avoid winning at a loss. This is not collusion."
+    look_for: "Rounds where a firm bids 100 whatever its cost. Read its reasoning: it is avoiding a loss, not coordinating."
+  - id: bafo-rebid
+    title: A tie and its best-and-final rebid
+    run: pilot
+    session: tie-bafo__info-full__lineup-pilot-gpt-oss__n3__seed990001
+    control: oneshot__tie-bafo__info-full__lineup-pilot-gpt-oss__n3__seed990001
+    blurb: "Under the BAFO rule, firms that tie are asked for one new, final bid. Rebids mostly undercut the tied price here."
+    look_for: "Rounds marked with a tie. The tied price is the original bid, the rebid is shown beside it. Open the rebid call to see the notice the firm got."
+  - id: qwen-invalid
+    title: A model that sometimes fails to bid
+    run: pilot
+    session: tie-random__info-full__lineup-pilot-qwen__n3__seed990004
+    control: oneshot__tie-random__info-full__lineup-pilot-qwen__n3__seed990004
+    blurb: "Qwen hits the output cap on about a quarter of attempts and sometimes writes free text outside the tool call. A firm that fails to submit a bid sits the round out."
+    look_for: "Rounds with a missing bid, calls ending at the length limit, and attempts that were retried."
+  - id: repeat-prompt
+    title: The prompt that says the rivals repeat
+    run: rotation_screen
+    session: tie-random__info-full__lineup-repeatn2-gpt-oss__n2__seed991001
+    control: oneshot__tie-random__info-full__lineup-repeatn2-gpt-oss__n2__seed991001
+    blurb: "gpt-oss with two firms and a system prompt that adds: the same firms bid every round and their strategies will be similar. It did not raise prices."
+    look_for: "Open the system prompt and find the added line. Then check the winning prices against the control."

@@ -84,7 +84,7 @@ Reduced scale: DeepSeek only, 9 sessions, random tie-break. They establish that 
 
 - **High prices are not collusion.** The collusion index rises if a model just overbids. Read it against its one-shot control and beside the lowest-cost-wins share, which stays near 1 under uniform overbidding and falls toward 1/N under rotation. A cell counts as consistent with tacit rotation only if the index exceeds its control and that share falls.
 - **The index is not a 0–1 scale.** It is negative when bids are below the competitive benchmark, and is reported unclipped.
-- **Two confirmatory comparisons, Holm-corrected:** least-wins-first vs. random, and BAFO vs. random. Both are on the index minus its control and are declared in `configs/analysis.yaml`. Each is pooled across models; per-model results are exploratory. The branch `per-model-tests` holds the variant that tests each model separately. Everything else is exploratory.
+- **Two confirmatory comparisons, Holm-corrected:** least-wins-first vs. random, and BAFO vs. random. Both are on the index minus its control and are declared in `configs/analysis.yaml`. Each is pooled across models; per-model results are exploratory. The variant that tests each model separately was on the branch `per-model-tests`, deleted on 2026-10-04; its last commit is `c1816d9`. Everything else is exploratory.
 - **The session is the unit of analysis.** Rounds within a session are not independent, so every metric is one number per session before any interval or test. The per-session chi-square on win counts is a descriptive statistic, not a test.
 
 ## Results and analysis
@@ -107,6 +107,16 @@ writes tables and figures to `results/<run_id>/`:
 - `non_competitive_bids.csv` — per condition, the share of bids at the reserve and below the firm's own cost; kept apart from the collusion, tie and rotation measures (`PLANNING.md` 2.6)
 - `call_summary.csv` — pilot checks per condition: parse failures, sit-outs, bids below cost, tokens per call
 - `confirmatory_tests.csv` — the pre-declared comparisons with raw and Holm-adjusted p-values (not written until step 3b)
+
+## Example viewer
+
+`site/` is a static page for walking a team through example sessions: a winner strip per round, a bids chart, a per-round table, each firm's reasoning and thinking, and the exact prompt it was shown, with the matched one-shot control beside each example. No server and no build step: open `site/index.html` in a browser.
+
+```sh
+uv run python scripts/export_examples.py      # logs + site/examples.yaml -> site/data/examples.js
+```
+
+`site/examples.yaml` lists the curated sessions (run, session id, matched control, blurb). `site/data/examples.js` is committed (about 2.5 MB, hidden thinking text cut to 2,500 characters per call) because `logs/` is not. The sessions are chosen to illustrate behaviours, not to be typical. `VISUALISER_PLAN.md` holds the larger design this is a cut-down version of.
 
 ## Structure
 
