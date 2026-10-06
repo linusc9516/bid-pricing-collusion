@@ -69,3 +69,12 @@ check_logs.py: the rows of this arm pass against `prompts/bidder_system_repeat.m
 504 default-template failures and the 6,815 repeat-template failures together cover every row because this
 arm was written into the same run id as arms on the default template. Use a separate run id for any further
 repeat-prompt arm.
+
+## Observation 2026-10-06: the n2 DeepSeek session above the benchmark (seed 991003)
+Read by hand from the session's logs (`tie-random__info-full__lineup-n2-deepseek__n2__seed991003`, collusion index +0.31, delta +0.31); one session out of five, picked because it is the only one with an index above 0, so a lead and not a result. The other four sessions of the cell have indices of -0.06 to -0.14. Its matched one-shot control prices on the benchmark (mean gap between bid and equilibrium bid 0.1, against 14.1 in the repeated session).
+
+- Rounds 1 to 9 look like the others: winning prices 50 to 68 except one round at 96.
+- From round 10 on, both firms bid 94 to 96 in most rounds whatever their cost, including costs of 2.4, 18 and 26 (rounds 23, 15 and 19), where the equilibrium bid is 51 to 63.
+- Winning prices creep down by cents within a high phase (95.9, 95.5, 95.49 in rounds 11 to 13; 94.97, 94.85, 94.70 in rounds 17 to 19; 94.45, 94.35, 94.30 in rounds 21 to 23), and drop to 48.9 to 50.0 in rounds 16, 20 and 24, when a firm with a low cost bids near the benchmark and the other stays high. The index is high because most rounds sit in the high phase, not because every round does.
+- The reasoning of the winning firm in round 11 names the pattern: the rival's bids alternate between a low mode (about 50 to 60, when it wins) and a high mode (about 96 to 98, when it loses), and it chooses to target the high-mode rounds by bidding just under the rival's high bid. This is a firm reacting to a rival's observed history, in a session with two bidders and full history.
+- The pilot's reward-and-punish regression (`rival_lag_coef`) is averaged over the cell and does not isolate this session. Whether the pattern is stable or a one-off needs more sessions at two bidders with DeepSeek; none has been run. It is shown in the viewer as "The one session above the benchmark" (`site/index.html#/deepseek-outlier/0/15`, control at `/1/15`).
