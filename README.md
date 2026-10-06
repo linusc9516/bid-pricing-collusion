@@ -1,131 +1,143 @@
 # Tie-break rules and tacit bid rotation among LLM bidders
 
-Can the rule an auction uses to break exact-match bids hand LLM bidders an easy way to collude, and can a different rule take it away? Firm-agents bid repeatedly in a first-price sealed-bid procurement auction (lowest bid wins) with private costs drawn fresh each round. They are told only to maximise cumulative profit; there is no communication channel, and the auctioneer is deterministic code. The main experiment compares three tie-break rules: random, least-wins-first, and a best-and-final-offer rebid. Prices are measured with a collusion index (0 at the competitive Bayes-Nash benchmark, 1 at the reserve price, negative below the benchmark), and every condition is compared with a one-shot control that shows no history, so that models which simply bid high are not mistaken for models that collude.
+Do LLM bidders drift into taking turns winning at high prices, without communicating? Does the rule that breaks tied bids make that easier or harder?
 
-Design: [`BidPricingCollusion.md`](BidPricingCollusion.md). Build plan, budget and open questions: [`PLANNING.md`](PLANNING.md). [`CLAUDE.md`](CLAUDE.md) documents repo conventions and the non-negotiable design constraints for anyone, human or Claude Code, working on the codebase.
+**Setup.** Repeated first-price sealed-bid procurement auction: the lowest bid wins and is paid its bid. Private costs are drawn fresh each round. Bidders are told only to maximise cumulative profit. There is no communication channel. The auctioneer is deterministic code, never an LLM. Three tie-break rules are compared: random, least-wins-first, and a best-and-final-offer (BAFO) rebid.
 
-> **Status: harness built, smoke test passed (3 October 2026), no pilot yet.** Everything needed for the Phase A pilot is implemented and tested; the pre-pilot smoke test passed against all pinned hosts, and the end-to-end check (`configs/pilot_tiny.yaml`) is next. Thinking mode and the output-token cap for Phase B are TBD. Bootstrap intervals, the confirmatory tests and the plots (`analysis/stats.py`, `analysis/report.py`) wait until after the pilot.
+**Status (6 October 2026).** Harness built and tested. Phase A pilot and a rotation screen run: 190 sessions, three cheap models, about $6 of OpenRouter credits. The full experiment (Phase B) has not started. Next: repeat with OpenAI and Claude models.
 
-## Disclosure
+Built for the Apart Research AI Collusion Sprint (23–25 October 2026), Track 1, Markets and Collusion.
 
-The design was done before the sprint weekend (Oct 23–25, 2026), and a pre-team feasibility pilot (Phase A in `PLANNING.md` section 7) is planned for before it. [`PREP_LOG.md`](PREP_LOG.md) is the dated record of what has actually been done; the pilot is logged there once it has run. The full ablation sweep and the analysis are conducted during the sprint.
+## Results so far
+
+Every cell has 5 sessions. Descriptive only: no tests, no intervals.
+
+- **No tacit rotation.** No cell prices above the competitive benchmark on average. Repeated play does not raise prices over the one-shot control.
+- **DeepSeek with thinking on bids the equilibrium price.** gpt-oss and Qwen bid well below it.
+- **Bids at the reserve rise under repeated play.** The stated reason is avoiding a loss, not coordination.
+- **Ties do happen** (3.07% of rounds against 0.03% by chance), so the tie rule has something to act on. With no baseline rotation it has nothing to move.
+- **One lead.** In one DeepSeek session with two bidders, both firms hold bids at 94 to 96 from round 10 on, whatever their cost. Four sibling sessions do not.
+
+![Pilot: collusion index and delta by model and tie rule](results/pilot/pilot_chart.png)
+
+Numbers and caveats: [`results/README.md`](results/README.md).
+
+## Where things are
+
+| File | What |
+|---|---|
+| [`results/README.md`](results/README.md) | Index of runs and findings |
+| [`PLANNING.md`](PLANNING.md) | Spec the code implements, data schema, decisions, run plan, budget |
+| [`BidPricingCollusion.md`](BidPricingCollusion.md) | Original design note |
+| [`ROTATION_ELICITATION_PLAN.md`](ROTATION_ELICITATION_PLAN.md) | Design and hit rule of the rotation screen |
+| [`reports/`](reports/), [`research_notes/`](research_notes/) | Literature review and its source notes |
+| [`site/`](site/) | Example viewer |
+| [`PREP_LOG.md`](PREP_LOG.md) | Dated record of all work, for the sprint's disclosure rule |
+| [`CLAUDE.md`](CLAUDE.md) | Repo conventions and design constraints, for humans and coding agents |
 
 ## Setup
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 
 ```sh
 uv sync                 # creates .venv and installs dependencies
-cp .env.example .env    # then add your key
+cp .env.example .env    # then add OPENROUTER_API_KEY
 ```
 
-`.env` holds `OPENROUTER_API_KEY`. It is gitignored and must never be committed.
+`.env` is gitignored. Never commit it. Without uv: `python -m venv .venv`, activate, `pip install -e ".[dev]"`.
 
-Without uv: `python -m venv .venv`, activate it, then `pip install -e ".[dev]"`.
-
-## Running
+## Run
 
 ```sh
-# 1. Sanity checks: scripted bidders only, no API calls
+uv run pytest
+
+# Scripted bidders, no API calls
 uv run python scripts/run_experiment.py configs/sanity_dummy.yaml
 uv run python scripts/run_experiment.py configs/sanity_tiebreak.yaml
 
-# 2. Pre-pilot smoke test: one call per pinned host (a few cents); without --yes it only prints the plan
-uv run python scripts/smoke_test.py --yes
-
-# 3. End-to-end check: 18 sessions of 3 rounds (every model and rule) with real models, then check the logs
+# Before the first live call with a model or host (a few cents)
+uv run python scripts/smoke_test.py            # prints the plan; add --yes to send
 uv run python scripts/run_experiment.py configs/pilot_tiny.yaml
-uv run python scripts/check_logs.py logs/pilot_tiny --expect-cap 500   # --pick / --show print prompts to read by hand
+uv run python scripts/check_logs.py logs/pilot_tiny --expect-cap 500
 
-# 4. Phase A pilot: three models under all three tie-break rules, on its own seeds
-uv run python scripts/run_experiment.py configs/pilot.yaml --dry-run   # call + cost estimate
+# Phase A pilot
+uv run python scripts/run_experiment.py configs/pilot.yaml --dry-run   # calls and cost estimate
 uv run python scripts/run_experiment.py configs/pilot.yaml             # asks before the first call
-uv run python scripts/run_experiment.py configs/pilot.yaml --host fallback   # rerun failed sessions on the fallback host (then --host backup)
 
-# 5. Phase B, only after Phase A is reviewed: main experiment, then the
-#    supporting ablations, under one run id
-uv run python scripts/run_experiment.py configs/main_tiebreak.yaml     --run-id run1
-uv run python scripts/run_experiment.py configs/supporting_info.yaml   --run-id run1
-uv run python scripts/run_experiment.py configs/supporting_n.yaml      --run-id run1
-uv run python scripts/run_experiment.py configs/supporting_lineup.yaml --run-id run1
+# Logs to tables, then check the logs
+uv run python scripts/analyze.py logs/pilot
+uv run python scripts/check_logs.py logs/pilot
 ```
 
-Run the sanity checks first and confirm the scripted bidders read as expected before spending on LLM calls: BNE bidders near 0, markup bidders negative, the overbidding bidder high but not flagged as collusive, the rotating cartel flagged, and bid-matching bidders rotating exactly under least-wins-first. Commit `configs/analysis.yaml` before the main experiment; it pre-declares the comparisons. Runs are resumable: completed sessions are skipped.
-
-The Phase A budget is $10 of OpenRouter credits (estimated spend about $7.41 if every call used the whole 4,000-token cap and likely about $3, with an $8 tripwire; roughly 2 hours of wall clock). The Phase B budget is not set yet and is expected to be much higher if needed; it is decided after Phase A measures tokens per call, which the estimates depend on. See `PLANNING.md` section 5.4.
+- Runs resume: completed sessions are skipped.
+- A config that calls models asks for confirmation unless `--yes` is given.
+- If a pinned host fails, rerun with `--host fallback`, then `--host backup`. Hosts never switch inside a session.
+- Rotation screen: one config per arm, `configs/rotation_screen_*.yaml`, all with `--run-id rotation_screen`.
+- Phase B (`main_tiebreak.yaml`, then `supporting_*.yaml`, under one `--run-id`) is not runnable yet: thinking mode and output cap are unset and the runner refuses to call models.
 
 ## Experiments
 
-### Main experiment: tie-break rule
-
-All four models, same-model lineup, full history, N = 3, 18 sessions per condition, each with a matched one-shot control.
+### Main: tie-break rule
 
 | Rule | How an exact tie at the lowest bid resolves |
 |---|---|
-| Random (default) | The winner is drawn at random from the tied firms |
-| Least-wins-first | The tied firm with the fewest wins so far this session wins |
-| BAFO rebid | The tied firms submit one private rebid; the lowest rebid wins |
+| `random` (default) | The winner is drawn at random from the tied firms |
+| `least_wins` | The tied firm with the fewest wins so far this session wins |
+| `bafo` | The tied firms submit one private rebid; the lowest rebid wins |
 
-Least-wins-first lets firms rotate by simply matching bids, with none of the execution risk of cover-bidding. BAFO instead reopens competition among the tied firms, so tying high earns no guaranteed win. The two are a deliberate contrast: the finding is not "tie-breaks are bad" but "some tie-break designs are exploitable and some are not". BAFO is not assumed collusion-proof; firms could learn to coordinate on the rebid.
+Least-wins-first lets firms rotate by matching bids, with none of the execution risk of cover-bidding. BAFO reopens competition among the tied firms, so tying high earns no guaranteed win. The intended finding is not "tie-breaks are bad" but "some tie-break designs are exploitable and some are not". BAFO is not assumed collusion-proof.
 
-The conditions need different metrics. Under least-wins-first the rule forces uniform wins whenever firms tie, so win uniformity is not diagnostic; use tie frequency over the session, the tie price against the competitive benchmark, and the reasoning traces. Under BAFO the win-pattern statistics remain valid, with one addition: the rebid price against the original tied bid. Details in `PLANNING.md` section 6.
+Every cell has a matched **one-shot control**: same seed and costs, no history shown. It separates "bids high in isolation" from "bids high because of repeated play".
 
-### Supporting ablations
+### Supporting ablations (planned, not run)
 
-Reduced scale: DeepSeek only, 9 sessions, random tie-break. They establish that the baseline rotation phenomenon exists and behaves as expected, which is the premise the main claim builds on. They are reported as context, with intervals and without tests, not as separate findings.
+| Ablation | Levels |
+|---|---|
+| Information revelation | all bids + winner / winner + price / winner only |
+| Number of bidders | 2 / 3 / 5 |
+| Model lineup | same-model / one mixed lineup |
 
-| Ablation | Levels | What it shows |
-|---|---|---|
-| Information revelation | all bids + winner / winner + price / winner only | How much signal rotation needs |
-| Number of bidders | 2 / 3 / 5 | Whether coordination decays as N grows, as IO theory predicts |
-| Model lineup | same-model / one mixed lineup of three models | Whether rotation survives mixed models |
+## Reading the results
 
-### Reading the results
+- **Collusion index:** 0 at the competitive Bayes-Nash benchmark, 1 when every winning bid is at the reserve price, negative below the benchmark. Not a 0–1 scale. Never clipped.
+- **Primary outcome, `delta_index`:** a session's index minus its control's.
+- **High prices are not collusion.** A model that overbids raises the index with no coordination. A cell is "consistent with tacit rotation" only if delta is above 0, the index is above 0, and the lowest-cost firm wins less often than in the control.
+- **Bids at the reserve or below cost are not collusion either.** They are reported in their own table.
+- **Metrics depend on the tie rule.** Under `least_wins` the rule forces even win counts whenever firms tie, so win-pattern statistics are not valid there. Use tie frequency over time and the tie price against the benchmark. Under `bafo`, also read the rebid minus the tied bid.
+- **The session is the unit of analysis.** A round is never an observation. The per-session chi-square on win counts is descriptive, not a test.
+- **Two confirmatory comparisons, Holm-corrected** (`configs/analysis.yaml`): least-wins-first vs. random, and BAFO vs. random, on delta, pooled across models. Everything else is exploratory. The tests are not built yet.
 
-- **High prices are not collusion.** The collusion index rises if a model just overbids. Read it against its one-shot control and beside the lowest-cost-wins share, which stays near 1 under uniform overbidding and falls toward 1/N under rotation. A cell counts as consistent with tacit rotation only if the index exceeds its control and that share falls.
-- **The index is not a 0–1 scale.** It is negative when bids are below the competitive benchmark, and is reported unclipped.
-- **Two confirmatory comparisons, Holm-corrected:** least-wins-first vs. random, and BAFO vs. random. Both are on the index minus its control and are declared in `configs/analysis.yaml`. Each is pooled across models; per-model results are exploratory. The variant that tests each model separately was on the branch `per-model-tests`, deleted on 2026-10-04; its last commit is `c1816d9`. Everything else is exploratory.
-- **The session is the unit of analysis.** Rounds within a session are not independent, so every metric is one number per session before any interval or test. The per-session chi-square on win counts is a descriptive statistic, not a test.
+## Output
 
-## Results and analysis
+Raw logs: `logs/<run_id>/<condition_id>/<session_id>/` (gitignored, back them up).
 
-Raw logs land in `logs/<run_id>/<condition_id>/<session_id>/` (gitignored — back them up):
+- `session.json`: session config and status
+- `bids.jsonl`: one row per firm per round
+- `calls.jsonl`: every LLM attempt, with prompt, raw response, reasoning and hidden thinking
 
-- `session.json` — session config and status
-- `bids.jsonl` — one row per firm per round
-- `calls.jsonl` — every LLM attempt, with prompt, raw response and reasoning
-
-```sh
-uv run python scripts/analyze.py logs/<run_id>
-```
-
-writes tables and figures to `results/<run_id>/`:
-
-- `session_metrics.csv` — one row per session; the input to all inference
-- `condition_summary.csv` — per-condition means; the bootstrap 95% CI columns stay blank until step 3b is built
-- `tie_check.csv` — the pre-declared tie manipulation check per lineup and rule, with the chance-tie benchmark; `analyze.py` also prints the proceed / borderline / failed verdict from the thresholds in `configs/analysis.yaml` (`PLANNING.md` 7.1)
-- `non_competitive_bids.csv` — per condition, the share of bids at the reserve and below the firm's own cost; kept apart from the collusion, tie and rotation measures (`PLANNING.md` 2.6)
-- `call_summary.csv` — pilot checks per condition: parse failures, sit-outs, bids below cost, tokens per call
-- `confirmatory_tests.csv` — the pre-declared comparisons with raw and Holm-adjusted p-values (not written until step 3b)
+`scripts/analyze.py` writes `results/<run_id>/`: `session_metrics.csv`, `condition_summary.csv`, `tie_check.csv`, `non_competitive_bids.csv`, `call_summary.csv`. Schema: `PLANNING.md` section 3.
 
 ## Example viewer
 
-`site/` is a static page for walking a team through example sessions: a winner strip per round, a bids chart, a per-round table, each firm's reasoning and thinking, and the exact prompt it was shown, with the matched one-shot control beside each example. No server and no build step: open `site/index.html` in a browser.
+Open `site/index.html` in a browser. Seven hand-picked sessions, each beside its control: winner strip, bids chart, per-round table, reasoning, exact prompts. It does not yet list every run; [`site/README.md`](site/README.md) outlines how to make it general.
 
-```sh
-uv run python scripts/export_examples.py      # logs + site/examples.yaml -> site/data/examples.js
-```
-
-`site/examples.yaml` lists the curated sessions (run, session id, matched control, blurb). `site/data/examples.js` is committed (about 2.5 MB, hidden thinking text cut to 2,500 characters per call) because `logs/` is not. The sessions are chosen to illustrate behaviours, not to be typical. `VISUALISER_PLAN.md` holds the larger design this is a cut-down version of.
-
-## Structure
+## Layout
 
 ```
-configs/        base defaults, model list, sanity checks, pilot, main experiment, supporting ablations, analysis plan
-prompts/        bidder system prompt template
-src/bidrig/     auction, bidders, prompts, llm, bne, runner, analysis/
-scripts/        run_experiment.py, analyze.py, check_logs.py, smoke_test.py
+configs/        base defaults, model list, analysis plan, one file per experiment
+prompts/        bidder system prompt templates
+src/bidrig/     auction, bidders, prompts, llm, bne, runner, checks, viewer, analysis/
+scripts/        run_experiment, analyze, check_logs, smoke_test, export_examples, plot_pilot
 tests/
+site/           example viewer
 logs/           raw output (gitignored)
-results/        aggregated tables and figures
+results/        per-run tables and findings
 ```
+
+## Disclosure
+
+Design, harness, pilot and screen were all done before the sprint weekend, with AI coding and research assistance. [`PREP_LOG.md`](PREP_LOG.md) is the dated record.
+
+## License
+
+[MIT](LICENSE).

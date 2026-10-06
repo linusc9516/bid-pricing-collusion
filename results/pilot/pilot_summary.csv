@@ -1,0 +1,10 @@
+lineup_id,tie_break_rule,sessions,index,delta,delta_pos,lcw,reserve,rival_lag,tie_rate,rebid_delta,control_index,control_lcw,control_reserve
+pilot-deepseek,random,5,-0.078,-0.067,0,0.88,0.035,0.015,0.008,,-0.011,0.984,0.003
+pilot-deepseek,least_wins,5,-0.119,-0.117,0,0.84,0.032,0.028,0.016,,-0.001,0.968,0.003
+pilot-deepseek,bafo,5,-0.07,-0.069,0,0.816,0.045,0.005,0.008,5.745,-0.001,0.968,0.0
+pilot-gpt-oss,random,5,-0.458,0.009,2,0.904,0.275,0.023,0.04,,-0.468,0.928,0.136
+pilot-gpt-oss,least_wins,5,-0.445,0.031,4,0.8,0.336,-0.003,0.072,,-0.476,0.928,0.16
+pilot-gpt-oss,bafo,5,-0.502,-0.034,2,0.888,0.339,-0.066,0.072,-32.181,-0.468,0.832,0.179
+pilot-qwen,random,5,-0.366,-0.097,1,0.776,0.109,-0.05,0.016,,-0.269,0.856,0.011
+pilot-qwen,least_wins,5,-0.357,-0.115,0,0.768,0.119,0.04,0.032,,-0.242,0.776,0.005
+pilot-qwen,bafo,5,-0.35,-0.109,0,0.8,0.119,-0.047,0.032,-23.785,-0.241,0.88,0.014
