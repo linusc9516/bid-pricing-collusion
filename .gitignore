@@ -30,3 +30,7 @@ build/
 dist/
 .pytest_cache/
 .ipynb_checkpoints/
+
+# literature review and source notes: kept local, not published
+reports/
+research_notes/

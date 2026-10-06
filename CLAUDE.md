@@ -134,7 +134,7 @@ scripts/
 tests/                   one test file per built module; helpers.py builds scripted sessions;
                          snapshots/ holds the prompt snapshots (regenerate with UPDATE_SNAPSHOTS=1)
 site/                    static example viewer (index.html, app.js, style.css, examples.yaml, data/examples.js); README.md has the note on generalising it
-reports/, research_notes/  literature review and its source notes
+reports/, research_notes/  literature review and its source notes (gitignored, local only)
 logs/                    raw per-session output (gitignored)
 results/                 README.md (index of runs), then one directory per run id with its CSVs and findings file
 ```

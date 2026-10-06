@@ -30,7 +30,6 @@ Numbers and caveats: [`results/README.md`](results/README.md).
 | [`PLANNING.md`](PLANNING.md) | Spec the code implements, data schema, decisions, run plan, budget |
 | [`BidPricingCollusion.md`](BidPricingCollusion.md) | Original design note |
 | [`ROTATION_ELICITATION_PLAN.md`](ROTATION_ELICITATION_PLAN.md) | Design and hit rule of the rotation screen |
-| [`reports/`](reports/), [`research_notes/`](research_notes/) | Literature review and its source notes |
 | [`site/`](site/) | Example viewer |
 | [`PREP_LOG.md`](PREP_LOG.md) | Dated record of all work, for the sprint's disclosure rule |
 | [`CLAUDE.md`](CLAUDE.md) | Repo conventions and design constraints, for humans and coding agents |
