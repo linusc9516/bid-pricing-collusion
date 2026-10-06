@@ -34,3 +34,8 @@ dist/
 # literature review and source notes: kept local, not published
 reports/
 research_notes/
+
+# working documents: kept local, not published
+PREP_LOG.md
+CLAUDE.md
+ROTATION_ELICITATION_PLAN.md

@@ -29,10 +29,7 @@ Numbers and caveats: [`results/README.md`](results/README.md).
 | [`results/README.md`](results/README.md) | Index of runs and findings |
 | [`PLANNING.md`](PLANNING.md) | Spec the code implements, data schema, decisions, run plan, budget |
 | [`BidPricingCollusion.md`](BidPricingCollusion.md) | Original design note |
-| [`ROTATION_ELICITATION_PLAN.md`](ROTATION_ELICITATION_PLAN.md) | Design and hit rule of the rotation screen |
 | [`site/`](site/) | Example viewer |
-| [`PREP_LOG.md`](PREP_LOG.md) | Dated record of all work, for the sprint's disclosure rule |
-| [`CLAUDE.md`](CLAUDE.md) | Repo conventions and design constraints, for humans and coding agents |
 
 ## Setup
 
@@ -135,7 +132,7 @@ results/        per-run tables and findings
 
 ## Disclosure
 
-Design, harness, pilot and screen were all done before the sprint weekend, with AI coding and research assistance. [`PREP_LOG.md`](PREP_LOG.md) is the dated record.
+Design, harness, pilot and screen were all done before the sprint weekend, with AI coding and research assistance.
 
 ## License
 

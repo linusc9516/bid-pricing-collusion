@@ -189,7 +189,7 @@ def test_call_seed_is_deterministic_and_distinct() -> None:
 
 def test_models_yaml_loads() -> None:
     specs = load_models(MODELS)
-    assert set(specs) == {"deepseek", "gpt-oss", "glm", "qwen"}
+    assert set(specs) == {"deepseek", "gpt-oss", "glm", "qwen", "gpt-luna", "gemini"}
     assert specs["deepseek"].host("primary") == Host("DeepInfra", "fp8", 0.14, 0.42, "primary")
     assert specs["deepseek"].host("fallback").name == "NextBit" and specs["deepseek"].host("backup") == Host("CoreWeave", "fp8", 0.20, 0.65, "backup")
     assert specs["gpt-oss"].host("backup") == Host("DekaLLM", "bf16", 0.03, 0.18, "backup")

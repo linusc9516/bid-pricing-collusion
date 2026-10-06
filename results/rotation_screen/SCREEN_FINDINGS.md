@@ -2,7 +2,7 @@
 
 n = 5 sessions per cell, exploratory, no tests or intervals. Tie rule `random`, DeepSeek and gpt-oss, thinking on at
 low effort with a 4,000-token cap unless the arm says otherwise, prompt v1, run id `rotation_screen`. Each cell has
-a matched one-shot control on the same seeds. Design and hit rule: `ROTATION_ELICITATION_PLAN.md`. Generated tables
+a matched one-shot control on the same seeds. The hit rule is stated below. Generated tables
 are the CSVs in this directory.
 
 ## Run

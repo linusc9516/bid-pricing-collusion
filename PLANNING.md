@@ -1,6 +1,6 @@
 # Implementation plan
 
-Design source: `BidPricingCollusion.md`. This file holds the spec the code implements (sections 2, 3 and 6), the decisions behind it (5) and the run plan (7). Results are in `results/README.md`. The dated record of what was done is `PREP_LOG.md`. Where this file and the design document differ, this file is current.
+Design source: `BidPricingCollusion.md`. This file holds the spec the code implements (sections 2, 3 and 6), the decisions behind it (5) and the run plan (7). Results are in `results/README.md`. Where this file and the design document differ, this file is current.
 
 **Status (6 October 2026).** The harness is built and tested, except `analysis/stats.py` and `analysis/report.py` (bootstrap, tests, plots), which only Phase B needs. The Phase A pilot and the rotation screen have been run. Phase B has not started. No cell shows tacit rotation, so the main tie-break experiment has no baseline to act on (7.3). Next: repeat with OpenAI and Claude models, and follow up one DeepSeek session at N = 2 (7.4).
 
@@ -18,9 +18,8 @@ A preparatory experiment for a workshop paper (Apart Research AI Collusion Sprin
 BidPricingCollusion.md   original experimental design
 PLANNING.md              this file
 README.md                setup, how to run, results in brief
-CLAUDE.md                repo conventions and non-negotiable design constraints
-PREP_LOG.md              dated record of pre-sprint work, for disclosure
-ROTATION_ELICITATION_PLAN.md   design and hit rule of the rotation screen
+CLAUDE.md, PREP_LOG.md, ROTATION_ELICITATION_PLAN.md   working documents, gitignored and local only:
+                         repo conventions, dated work record, rotation screen design
 configs/
   base.yaml              shared defaults (auction, session, llm, budget)
   models.yaml            model aliases -> OpenRouter slugs, prices, hosts
@@ -581,7 +580,7 @@ Everything in the Scope section and section 6: the main experiment with the full
 
 ### 7.3 Rotation screen (done, 4 October 2026)
 
-Because the positive control was not met, a screen asked whether any setting within the fixed design constraints produces rotation under `random`. One lever at a time from the pilot baseline: N = 2, a coarse bid grid (1.0 and 5.0), thinking off, all favourable levers together, and a repeated-interaction prompt. DeepSeek and gpt-oss, 5 sessions per cell with matched controls, 100 sessions, about $3.0. Design and the pre-declared hit rule: `ROTATION_ELICITATION_PLAN.md`.
+Because the positive control was not met, a screen asked whether any setting within the fixed design constraints produces rotation under `random`. One lever at a time from the pilot baseline: N = 2, a coarse bid grid (1.0 and 5.0), thinking off, all favourable levers together, and a repeated-interaction prompt. DeepSeek and gpt-oss, 5 sessions per cell with matched controls, 100 sessions, about $3.0. The pre-declared hit rule is restated in the findings file.
 
 **Outcome: no cell is a hit.** No cell has a mean index above 0. One DeepSeek session at N = 2 (seed 991003) reads +0.31, with both firms holding bids at 94 to 96 from round 10 on; the other four sessions of that cell are below 0. Full numbers: `results/rotation_screen/SCREEN_FINDINGS.md`.
 
@@ -589,7 +588,7 @@ Because the positive control was not met, a screen asked whether any setting wit
 
 Budget has been granted for more runs. Models, settings and the size of the budget are not recorded here yet.
 
-- **OpenAI and Claude models.** Repeat the pilot cells with models from those two families, to see whether the no-rotation result holds beyond the three cheap models. Each new model goes into `configs/models.yaml` first (models are only ever called from there), then through the checks in 5.5.
+- **OpenAI, Google and Claude models.** Repeat the pilot cells with models from those families, to see whether the no-rotation result holds beyond the three cheap models. In `configs/models.yaml` since 6 October: `gpt-luna` (`openai/gpt-6-luna`, $0.10 in and $0.50 out per M) and `gemini` (`google/gemini-3.8-flash`, $0.75 and $3.75). The Claude model is not chosen. None is smoke-tested, no host is pinned and no reasoning setting is chosen; each goes through the checks in 5.5 first. No GPT-6 Luna endpoint lists `temperature` as a supported parameter, and requests are sent with a temperature and `require_parameters`, so the smoke test has to show whether it can be called as the harness stands. Gemini's output price is about 9 times DeepSeek's, so re-estimate with `--dry-run`.
 - **The DeepSeek N = 2 session.** One session of five is a lead, not a result. Following it up means more sessions of that cell on fresh seeds, judged by the screen's hit rule.
 
 Open decisions carried forward:
