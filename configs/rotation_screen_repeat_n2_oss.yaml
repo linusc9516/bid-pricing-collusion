@@ -1,4 +1,4 @@
-# DRAFT, run on request 2026-10-04. Repeated-interaction prompt (v2-repeat) at N = 2, gpt-oss only.
+# Repeated-interaction prompt (v2-repeat) at N = 2, gpt-oss only.
 # 25 rounds, increment 0.01, thinking at low effort (gpt-oss default), tie rule random; repeated sessions plus
 # matched one-shot controls (history_window 0), which get the same system prompt. See ROTATION_ELICITATION_PLAN.md (A6).
 

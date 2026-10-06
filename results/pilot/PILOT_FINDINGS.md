@@ -1,7 +1,10 @@
 # Phase A pilot findings (2026-10-03)
 
 n = 5 sessions per cell, directional only; no tests or intervals. Config `configs/pilot.yaml`, run id `pilot`,
-thinking on at low effort, 4,000-token cap. Generated tables are the CSVs in this directory.
+thinking on at low effort, 4,000-token cap, prompt v0. Generated tables are the CSVs in this directory;
+`pilot_summary.csv` and `pilot_chart.png` (one row and one group per model x rule) come from `scripts/plot_pilot.py`.
+
+![Collusion index and delta by model and tie rule](pilot_chart.png)
 
 ## Run
 90 of 90 sessions completed, 0 failed, 1 provider retry (one session). All on the primary hosts (DeepInfra,
@@ -42,10 +45,10 @@ indistinguishable from the placebo, so no reward-punishment response to rivals' 
 Versus BNE: DeepSeek's one-shot index is about 0 (near the benchmark bid); gpt-oss (-0.47) and Qwen (-0.27)
 bid well below it, gpt-oss often at cost.
 
-## Caveats and open questions for the user
-- Thinking-on, effort-low settings; not comparable to pilot_tiny.
+## Caveats and open questions
+- Thinking-on, effort-low settings; not comparable to the thinking-off `pilot_tiny` harness checks.
 - Qwen's cut-off rate (about 25%) and sit-outs are a data-quality issue for Phase B's cap decision.
 - The ties come mostly from gpt-oss bidding at cost or at the reserve, not from coordination; the gate passes on
-  tie frequency, not on collusion. Whether the tie lever matters when there is no baseline rotation is a design
-  question for the user.
-- Phase B thinking mode, cap, reasoning length, budget and tie grid remain the user's decisions.
+  tie frequency, not on collusion. Whether the tie lever matters when there is no baseline rotation is an open
+  design question; the rotation screen (`../rotation_screen/SCREEN_FINDINGS.md`) looked for a baseline and found none.
+- Phase B thinking mode, cap, reasoning length, budget and tie grid are undecided.

@@ -1,3 +1,7 @@
+> Original design note, kept as written. `PLANNING.md` is current where the two differ: the main experiment is now
+> the tie-break rule (PLANNING.md section 6) with the three ablations below as supporting context, sessions are 50
+> rounds, the fourth model is Qwen3.7 Flash, and the model prices listed here are out of date (`configs/models.yaml`).
+
 ## Environment Setup
 
 ### **Auction structure** 

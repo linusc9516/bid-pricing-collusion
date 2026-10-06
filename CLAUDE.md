@@ -6,8 +6,9 @@ tacit bid rotation emerges, and whether tie-break rule design (random /
 least-wins-first / BAFO rebid) acts as a lever on it. Target: Apart Research
 AI Collusion Sprint, Track 1 (Markets and Collusion), question 1.5.
 
-Full design: see BidPricingCollusion.md and PLANNING.md. Read both before
-making structural changes.
+Full design: see BidPricingCollusion.md (original note) and PLANNING.md
+(current spec and run plan). Read both before making structural changes.
+Results so far: results/README.md.
 
 ## Commands
 Dependencies are managed with uv (`uv sync` once; then prefix commands with `uv run`).
@@ -90,10 +91,11 @@ pinned host fails, rerun with `--host fallback`, then `--host backup`.
 
 ## File structure
 ```
-BidPricingCollusion.md   experimental design
-PLANNING.md              build plan, data schema, budget, phased execution, risks
-README.md                setup, how to run, what the experiments are
+BidPricingCollusion.md   original experimental design
+PLANNING.md              spec, data schema, decisions, budget, phased execution, risks
+README.md                setup, how to run, results in brief
 PREP_LOG.md              dated record of pre-sprint work (disclosure)
+ROTATION_ELICITATION_PLAN.md  design and hit rule of the rotation screen
 CLAUDE.md                this file
 pyproject.toml, uv.lock  dependencies (uv)
 .env.example             expected env vars; .env holds the key and is gitignored
@@ -105,11 +107,12 @@ configs/
   sanity_tiebreak.yaml   scripted bidders under the three tie-break rules
   pilot_tiny.yaml        end-to-end check before the pilot: 18 sessions of 3 rounds
   pilot.yaml             Phase A pilot: three models, three tie-break rules
+  rotation_screen_*.yaml rotation screen arms, one config per arm, run id rotation_screen
   main_tiebreak.yaml     main experiment: tie-break rule, with one-shot controls
   supporting_info.yaml   supporting ablation: information revelation
   supporting_n.yaml      supporting ablation: number of bidders
   supporting_lineup.yaml supporting ablation: same-model vs. mixed lineup
-prompts/                 bidder_system.md, the bidder system prompt template
+prompts/                 bidder_system.md (v1) and bidder_system_repeat.md (v2-repeat), the bidder system prompt templates
 src/bidrig/              all built except analysis/stats.py and analysis/report.py (step 3b)
   schema.py              session / bid-row / call-row dataclasses
   bne.py                 closed-form BNE benchmark
@@ -118,6 +121,8 @@ src/bidrig/              all built except analysis/stats.py and analysis/report.
   prompts.py             visibility filter and history formatters
   llm.py                 OpenRouter wrapper
   runner.py              sweep orchestrator
+  checks.py              consistency checks on raw logs
+  viewer.py              export for the example viewer
   analysis/              metrics.py, stats.py, report.py
 scripts/
   run_experiment.py      CLI: run a config
@@ -125,11 +130,13 @@ scripts/
   smoke_test.py          CLI: one call per pinned host (PLANNING.md 5.5)
   check_logs.py          CLI: consistency checks on a run's raw logs (src/bidrig/checks.py)
   export_examples.py     CLI: logs -> site/data/examples.js for the example viewer (src/bidrig/viewer.py)
+  plot_pilot.py          CLI: results/pilot/session_metrics.csv -> pilot_chart.png, pilot_summary.csv
 tests/                   one test file per built module; helpers.py builds scripted sessions;
                          snapshots/ holds the prompt snapshots (regenerate with UPDATE_SNAPSHOTS=1)
-site/                    static example viewer (index.html, app.js, style.css, examples.yaml, data/examples.js)
+site/                    static example viewer (index.html, app.js, style.css, examples.yaml, data/examples.js); README.md has the note on generalising it
+reports/, research_notes/  literature review and its source notes
 logs/                    raw per-session output (gitignored)
-results/                 aggregated tables and figures
+results/                 README.md (index of runs), then one directory per run id with its CSVs and findings file
 ```
 
 ## Gotchas
