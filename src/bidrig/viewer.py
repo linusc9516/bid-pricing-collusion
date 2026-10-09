@@ -116,3 +116,39 @@ def session_bundle(
         "system": systems,
         "rounds": rounds,
     }
+
+
+INDEX_METRIC_KEYS = [
+    "collusion_index", "delta_index", "lowest_cost_win_share", "tie_rate", "reserve_bid_rate", "bid_cost_corr",
+]  # fmt: skip
+
+
+def index_entry(meta: SessionMeta, rows: Sequence[BidRow], metrics: dict[str, Any]) -> dict[str, Any]:
+    """One session's row in the run list: settings, headline metrics and per-round strings `w` (winner or '-'),
+    `t` (1 = tie) and `m` (1 = the lowest-cost firm won), all of length n_rounds."""
+    winners, ties, mins = [], [], []
+    for number in sorted({row.round for row in rows}):
+        in_round = [row for row in rows if row.round == number]
+        winner = next((row for row in in_round if row.is_winner), None)
+        winners.append(winner.firm_id if winner else "-")
+        ties.append("1" if in_round[0].tie_resolution != "none" else "0")
+        mins.append("1" if winner is not None and winner.is_min_cost else "0")
+    return {
+        "id": meta.session_id,
+        "condition": meta.condition_id,
+        "lineup": meta.lineup_id,
+        "control": meta.is_control,
+        "seed": meta.seed,
+        "models": sorted({entry.model or entry.bidder_type for entry in meta.lineup}),
+        "n_bidders": meta.n_bidders,
+        "n_rounds": meta.n_rounds,
+        "tie_break_rule": meta.tie_break_rule,
+        "info": meta.info_condition,
+        "increment": meta.bid_increment,
+        "prompt_version": meta.prompt_version,
+        "status": meta.status,
+        "metrics": {k: _clean(metrics.get(k)) for k in INDEX_METRIC_KEYS},
+        "w": "".join(winners),
+        "t": "".join(ties),
+        "m": "".join(mins),
+    }

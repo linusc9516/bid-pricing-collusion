@@ -39,3 +39,7 @@ research_notes/
 PREP_LOG.md
 CLAUDE.md
 ROTATION_ELICITATION_PLAN.md
+
+# per-run viewer exports (scripts/export_site.py); data/examples.js is committed
+site/data/sessions/
+site/data/runs.js
