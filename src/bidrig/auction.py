@@ -12,7 +12,7 @@ from decimal import ROUND_HALF_UP, Decimal
 import numpy as np
 
 from bidrig.bidders import Bidder, BidRequest
-from bidrig.bne import BneBenchmark
+from bidrig.bne import Benchmark, make_benchmark
 from bidrig.schema import BidRow, SessionMeta, TieResolution
 
 # Separate streams, so the number of tie-break draws a condition uses can never shift the costs.
@@ -131,7 +131,7 @@ def _round_requests(meta: SessionMeta, round_number: int, costs: Sequence[float]
 async def _run_round(
     meta: SessionMeta,
     bidders: Sequence[Bidder],
-    bne: BneBenchmark,
+    bne: Benchmark,
     round_number: int,
     costs: Sequence[float],
     wins: Sequence[int],
@@ -221,7 +221,7 @@ async def run_session(
     """
     if not len(bidders) == len(meta.lineup) == meta.n_bidders:
         raise ValueError("bidders, meta.lineup and meta.n_bidders must agree")
-    bne = BneBenchmark(meta.n_bidders, meta.cost_low, meta.cost_high)
+    bne = make_benchmark(meta.n_bidders, meta.cost_low, meta.cost_high, meta.cost_spread)
     costs = draw_costs(meta.seed, meta.n_bidders, meta.n_rounds, meta.cost_low, meta.cost_high, meta.bid_increment, meta.cost_spread)
     rng = np.random.default_rng([meta.seed, meta.n_bidders, _TIE_STREAM])
     wins = [0] * meta.n_bidders

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar, Protocol
 
-from bidrig.bne import BneBenchmark
+from bidrig.bne import Benchmark
 from bidrig.llm import Host, ModelSpec, OpenRouterClient, ProviderStats
 from bidrig.prompts import DEFAULT_TEMPLATE, build_messages
 from bidrig.schema import (
@@ -36,7 +36,7 @@ class Bidder(Protocol):
 class ScriptedBidder:
     """Deterministic bidder; subclasses set `bidder_type` and implement `quote`."""
 
-    bne: BneBenchmark
+    bne: Benchmark
     reserve_price: float
 
     bidder_type: ClassVar[BidderType]
@@ -121,7 +121,7 @@ SCRIPTED_BIDDERS: dict[str, type[ScriptedBidder]] = {
 
 def make_scripted_bidder(
     bidder_type: BidderType,
-    bne: BneBenchmark,
+    bne: Benchmark,
     reserve_price: float,
     **params: float,
 ) -> ScriptedBidder:

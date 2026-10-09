@@ -17,7 +17,7 @@ import yaml
 
 from bidrig.auction import run_session
 from bidrig.bidders import Bidder, LLMBidder, make_scripted_bidder
-from bidrig.bne import BneBenchmark
+from bidrig.bne import make_benchmark
 from bidrig.llm import (
     BudgetExceeded,
     LLMSettings,
@@ -285,7 +285,7 @@ async def _run_one(
     bidders: list[Bidder]
     if planned.scripted:
         params = {k: v for k, v in planned.scripted.items() if k != "bidder"}
-        bne = BneBenchmark(meta.n_bidders, meta.cost_low, meta.cost_high)
+        bne = make_benchmark(meta.n_bidders, meta.cost_low, meta.cost_high, meta.cost_spread)
         bidders = [make_scripted_bidder(planned.scripted["bidder"], bne, meta.reserve_price, **params) for _ in meta.lineup]
     else:
         if client is None:
