@@ -148,7 +148,7 @@ def check_structure(log: SessionLog, report: CheckReport, include_incomplete: bo
 def check_costs(log: SessionLog, report: CheckReport) -> None:
     """Every logged cost equals the cost matrix regenerated from (seed, n_bidders) alone."""
     meta, sid = log.meta, log.meta.session_id
-    matrix = draw_costs(meta.seed, meta.n_bidders, meta.n_rounds, meta.cost_low, meta.cost_high, meta.bid_increment)
+    matrix = draw_costs(meta.seed, meta.n_bidders, meta.n_rounds, meta.cost_low, meta.cost_high, meta.bid_increment, meta.cost_spread)
     slots = {entry.firm_id: slot for slot, entry in enumerate(meta.lineup)}
     for row in log.rows:
         report.items["costs"] += 1

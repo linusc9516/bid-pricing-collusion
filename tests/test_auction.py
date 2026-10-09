@@ -401,3 +401,17 @@ def test_parallel_failure_surfaces_the_bidders_own_error() -> None:
     meta = dc_replace(make_meta([b.bidder_type for b in bidders], "random", 1, 10), history_window=0)
     with pytest.raises(ProviderError):
         asyncio.run(run_session(meta, bidders, round_concurrency=5))
+def test_common_cost_draw_stays_in_range_and_within_spread() -> None:
+    costs = draw_costs(7, 3, 2_000, 0, 100, 0.01, cost_spread=5)
+    assert costs.min() >= 0 and costs.max() <= 100
+    assert np.all(costs.max(axis=1) - costs.min(axis=1) <= 10 + 1e-9)
+    assert np.array_equal(costs, draw_costs(7, 3, 2_000, 0, 100, 0.01, cost_spread=5))
+
+
+def test_zero_spread_reproduces_iid_draw() -> None:
+    assert np.array_equal(draw_costs(11, 3, 50, 0, 100, 0.01), draw_costs(11, 3, 50, 0, 100, 0.01, cost_spread=0))
+
+
+def test_common_cost_spread_too_wide_raises() -> None:
+    with pytest.raises(ValueError):
+        draw_costs(1, 2, 5, 0, 100, 0.01, cost_spread=50)

@@ -43,7 +43,7 @@ from bidrig.schema import (
     write_session,
 )
 
-AUCTION_KEYS = {"cost_low", "cost_high", "reserve_price", "bid_increment", "tie_break_rule", "n_rounds", "n_bidders"}
+AUCTION_KEYS = {"cost_low", "cost_high", "cost_spread", "reserve_price", "bid_increment", "tie_break_rule", "n_rounds", "n_bidders"}
 SESSION_KEYS = {"n_sessions", "base_seed", "info_condition", "history_window", "disclose_horizon"}
 SCRIPTED_PARAMS = {"markup", "shade", "undercut", "price"}
 # Slot assignment uses its own stream, so it never shifts costs or tie-breaks.
@@ -189,6 +189,7 @@ def plan_sessions(
                     ],
                     cost_low=auction["cost_low"],
                     cost_high=auction["cost_high"],
+                    cost_spread=auction.get("cost_spread", 0.0),
                     reserve_price=auction["reserve_price"],
                     bid_increment=auction["bid_increment"],
                     n_rounds=auction["n_rounds"],
