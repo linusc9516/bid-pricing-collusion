@@ -20,7 +20,7 @@ const METRICS = [
   ["Reserve bids", "reserve_bid_rate", "pct", "Share of bids placed at the maximum allowed price."],
   ["Bid-cost correlation", "bid_cost_corr", 2, "Near 1 when bids follow the firm's own cost."],
 ];
-const state = { mode: "examples", ex: 0, s: 0, round: 1, showCost: false, showBne: false, run: null, custom: null, filter: {} };
+const state = { mode: "examples", ex: 0, s: 0, round: 1, showCost: false, showBne: false, run: null, custom: null, filter: {}, hist: "repeated" };
 const view = () => state.custom || EXAMPLES[state.ex];
 
 function h(tag, attrs, ...kids) {
@@ -352,6 +352,62 @@ function renderRuns() {
     : h("p", null, "No runs exported yet. Run ", h("code", null, "uv run python scripts/export_site.py"), " and reload."));
 }
 
+const MODEL_COLORS = ["var(--firm-a)", "var(--firm-b)", "var(--firm-c)", "var(--accent)", "var(--warn)"];
+
+// Share of each model's valid bids by (bid - equilibrium bid), one bar per model in each bin.
+function histogramCard(run, sessions) {
+  const bins = run.diff_bins;
+  const use = sessions.filter((e) => e.diff_hist && (state.hist === "both" || (state.hist === "controls") === e.control));
+  if (!bins || !use.length) return null;
+  const models = [...new Set(use.flatMap((e) => Object.keys(e.diff_hist)))].sort();
+  const counts = Object.fromEntries(models.map((m) => [m, new Array(bins.n).fill(0)]));
+  for (const e of use) for (const [m, c] of Object.entries(e.diff_hist)) c.forEach((v, i) => { counts[m][i] += v; });
+  const totals = Object.fromEntries(models.map((m) => [m, counts[m].reduce((a, b) => a + b, 0)]));
+  const share = (m, i) => (totals[m] ? counts[m][i] / totals[m] : 0);
+  const W = 900, H = 280, ml = 46, mr = 12, mt = 12, mb = 34;
+  const binW = (W - ml - mr) / bins.n, barW = Math.max(1, (binW - 1) / models.length);
+  const top = Math.max(0.01, ...models.flatMap((m) => counts[m].map((_, i) => share(m, i))));
+  const ymax = Math.ceil(top * 20) / 20;
+  const y = (v) => mt + (1 - v / ymax) * (H - mt - mb);
+  const edge = (i) => bins.low + i * bins.step;
+  const root = svg("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Histogram of each model's bid minus the equilibrium bid" });
+  for (let g = 0; g <= 4; g += 1) {
+    const v = (ymax * g) / 4;
+    root.append(svg("line", { x1: ml, x2: W - mr, y1: y(v), y2: y(v), stroke: "var(--grid)", "stroke-width": 1 }));
+    root.append(svg("text", { x: ml - 6, y: y(v) + 4, "text-anchor": "end" }, `${(v * 100).toFixed(0)}%`));
+  }
+  for (let i = 0; i <= bins.n; i += 5) {
+    const label = i === 0 ? `≤${edge(i)}` : i === bins.n ? `≥${edge(i)}` : String(edge(i));
+    root.append(svg("text", { x: ml + i * binW, y: H - 16, "text-anchor": "middle" }, label));
+  }
+  root.append(svg("text", { x: ml + (W - ml - mr) / 2, y: H - 2, "text-anchor": "middle" }, "bid minus equilibrium bid (bid units)"));
+  models.forEach((m, k) => {
+    for (let i = 0; i < bins.n; i += 1) {
+      const v = share(m, i);
+      if (!v) continue;
+      const bar = svg("rect", {
+        x: (ml + i * binW + k * barW).toFixed(1), y: y(v).toFixed(1), width: (barW - 0.5).toFixed(1), height: (y(0) - y(v)).toFixed(1),
+        fill: MODEL_COLORS[k % MODEL_COLORS.length],
+      });
+      bar.append(svg("title", null, `${m}: ${(v * 100).toFixed(1)}% of bids (${counts[m][i]}) from ${edge(i)} to ${edge(i + 1)}`));
+      root.append(bar);
+    }
+  });
+  const zero = ml + ((0 - bins.low) / bins.step) * binW;
+  root.append(svg("line", { x1: zero, x2: zero, y1: mt, y2: H - mb, stroke: "var(--text)", "stroke-width": 1.5, "stroke-dasharray": "4 3" }));
+  root.append(svg("line", { x1: ml, x2: W - mr, y1: y(0), y2: y(0), stroke: "var(--axis)", "stroke-width": 1 }));
+  const pick = h("label", null, "sessions",
+    h("select", { onchange: (e) => { state.hist = e.target.value; renderRun(); } },
+      ...[["repeated", "repeated"], ["controls", "one-shot controls"], ["both", "both"]].map(([v, t]) => h("option", { value: v, selected: state.hist === v }, t))));
+  return h("section", { class: "cond histo" },
+    h("h3", null, "Bid minus equilibrium bid, by model"),
+    h("p", { class: "meta" }, "Share of each model's valid bids per bin. Dashed line = equilibrium bid (0): left of it a firm bids below the benchmark, right of it above. "
+      + "Bids beyond ±50 sit in the end bins. Bids are single unilateral choices, so bars show how far prices sit from the benchmark, not who won."),
+    h("div", { class: "legend" }, ...models.map((m, k) =>
+      h("span", { class: "key" }, h("span", { class: "sw", style: `background:${MODEL_COLORS[k % MODEL_COLORS.length]}` }), `${m} (${totals[m].toLocaleString()} bids)`)), pick),
+    h("div", { class: "chartbox" }, root));
+}
+
 function renderRun() {
   const run = state.run, root = document.getElementById("example");
   if (!run) { root.replaceChildren(h("p", null, "Unknown run. ", h("a", { href: "#/runs" }, "Back to all runs"))); return; }
@@ -406,6 +462,7 @@ function renderRun() {
       h("p", null, `${run.sessions.filter((e) => !e.control).length} repeated sessions and ${run.sessions.filter((e) => e.control).length} one-shot controls. `
         + "Strips show the winner of each round (striped = tie, dot = lowest-cost firm won). Click a seed to open the session. Means are descriptive: sessions are the unit, and there are few per cell.")),
     filters.length ? h("div", { class: "toggles" }, ...filters) : null,
+    histogramCard(run, sessions),
     ...blocks));
 }
 

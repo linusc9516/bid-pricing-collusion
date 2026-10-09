@@ -101,3 +101,18 @@ def test_index_entry_round_strings_match_rounds() -> None:
     assert len(entry["w"]) == len(entry["t"]) == len(entry["m"]) == meta.n_rounds
     assert entry["metrics"]["collusion_index"] is None and entry["metrics"]["delta_index"] == 0.5
     assert entry["control"] is False and entry["n_bidders"] == meta.n_bidders
+
+
+def test_diff_histogram_counts_valid_bids_per_model_and_clamps_tails() -> None:
+    from dataclasses import replace
+
+    from bidrig.viewer import DIFF_BINS, DIFF_LOW, DIFF_STEP, diff_histogram
+
+    meta, rows, _ = two_round_session()
+    hist = diff_histogram(meta, rows)
+    valid = [r for r in rows if r.bid is not None]
+    assert sum(sum(c) for c in hist.values()) == len(valid)
+    assert all(len(c) == DIFF_BINS for c in hist.values())
+    far = [replace(r, bid=r.bne_bid + 10 * DIFF_BINS * DIFF_STEP) for r in valid[:1]] + [replace(r, bid=r.bne_bid + DIFF_LOW * 3) for r in valid[1:2]]
+    counts = next(iter(diff_histogram(meta, far).values()))
+    assert counts[-1] >= 1 and counts[0] >= 1

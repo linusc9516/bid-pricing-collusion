@@ -7,7 +7,14 @@ from pathlib import Path
 
 from bidrig.analysis.metrics import session_metrics_table
 from bidrig.schema import SESSION_FILE, read_calls, read_meta, read_session
-from bidrig.viewer import MAX_THINKING_CHARS, index_entry, session_bundle
+from bidrig.viewer import (
+    DIFF_BINS,
+    DIFF_LOW,
+    DIFF_STEP,
+    MAX_THINKING_CHARS,
+    index_entry,
+    session_bundle,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -54,7 +61,7 @@ def main() -> int:
             (sessions_dir / f"{meta.session_id}.js").write_text(
                 f"(window.SESSIONS=window.SESSIONS||{{}})[{dump(meta.session_id)}]={dump(bundle)};\n"
             )
-        runs.append({"id": run_id, "sessions": entries})
+        runs.append({"id": run_id, "diff_bins": {"low": DIFF_LOW, "step": DIFF_STEP, "n": DIFF_BINS}, "sessions": entries})
         size = sum(f.stat().st_size for f in sessions_dir.iterdir()) / 1e6
         print(f"{run_id}: {len(entries)} sessions, {size:.1f} MB")
 

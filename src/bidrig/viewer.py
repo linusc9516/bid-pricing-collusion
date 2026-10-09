@@ -118,9 +118,25 @@ def session_bundle(
     }
 
 
+DIFF_LOW = -50.0  # histogram of bid minus benchmark bid: lower edge, in bid units
+DIFF_STEP = 2.0  # bin width, in bid units
+DIFF_BINS = 50  # bins cover [DIFF_LOW, DIFF_LOW + DIFF_STEP * DIFF_BINS); the two end bins also hold everything beyond
 INDEX_METRIC_KEYS = [
     "collusion_index", "delta_index", "lowest_cost_win_share", "tie_rate", "reserve_bid_rate", "bid_cost_corr",
 ]  # fmt: skip
+
+
+def diff_histogram(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, list[int]]:
+    """Counts of valid bids by (bid - benchmark bid) bin, per model; bids beyond the range land in the end bins."""
+    models = {entry.firm_id: entry.model or entry.bidder_type for entry in meta.lineup}
+    out: dict[str, list[int]] = {}
+    for row in rows:
+        if row.bid is None:
+            continue
+        slot = int((row.bid - row.bne_bid - DIFF_LOW) // DIFF_STEP)
+        counts = out.setdefault(models[row.firm_id], [0] * DIFF_BINS)
+        counts[min(max(slot, 0), DIFF_BINS - 1)] += 1
+    return out
 
 
 def index_entry(meta: SessionMeta, rows: Sequence[BidRow], metrics: dict[str, Any]) -> dict[str, Any]:
@@ -148,6 +164,7 @@ def index_entry(meta: SessionMeta, rows: Sequence[BidRow], metrics: dict[str, An
         "prompt_version": meta.prompt_version,
         "status": meta.status,
         "metrics": {k: _clean(metrics.get(k)) for k in INDEX_METRIC_KEYS},
+        "diff_hist": diff_histogram(meta, rows),
         "w": "".join(winners),
         "t": "".join(ties),
         "m": "".join(mins),
