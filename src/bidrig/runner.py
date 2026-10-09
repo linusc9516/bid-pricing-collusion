@@ -300,7 +300,7 @@ async def _run_one(
             for alias in planned.models
         ]
     try:
-        await run_session(meta, bidders, log)
+        await run_session(meta, bidders, log, int(config.get("llm", {}).get("control_round_concurrency", 1)))
     except BaseException:
         meta.status, meta.finished_at = "failed", _now()
         meta.provider_retries, meta.provider_errors = stats.retries, stats.errors

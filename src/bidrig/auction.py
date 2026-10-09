@@ -107,6 +107,14 @@ async def _resolve_tie(
     return winner, price, resolution, rebids
 
 
+def _round_requests(meta: SessionMeta, round_number: int, costs: Sequence[float]) -> list[BidRequest]:
+    """What the auctioneer hands each firm for one round, in slot order."""
+    return [
+        BidRequest(firm_id=entry.firm_id, slot=slot, round=round_number, cost=costs[slot])
+        for slot, entry in enumerate(meta.lineup)
+    ]
+
+
 async def _run_round(
     meta: SessionMeta,
     bidders: Sequence[Bidder],
@@ -117,12 +125,24 @@ async def _run_round(
     rng: np.random.Generator,
 ) -> tuple[list[BidRow], int | None]:
     """Run one round; returns its rows in slot order and the winning slot (None if no valid bid)."""
+    requests = _round_requests(meta, round_number, costs)
+    bids = await collect_bids(bidders, requests, meta.reserve_price, meta.bid_increment)
+    return await _settle_round(meta, bidders, bne, round_number, costs, requests, bids, wins, rng)
+
+
+async def _settle_round(
+    meta: SessionMeta,
+    bidders: Sequence[Bidder],
+    bne: BneBenchmark,
+    round_number: int,
+    costs: Sequence[float],
+    requests: Sequence[BidRequest],
+    bids: Sequence[tuple[int | None, int]],
+    wins: Sequence[int],
+    rng: np.random.Generator,
+) -> tuple[list[BidRow], int | None]:
+    """Resolve ties (asking bafo rebids) and build the rows of one round from its collected bids."""
     increment = meta.bid_increment
-    requests = [
-        BidRequest(firm_id=entry.firm_id, slot=slot, round=round_number, cost=costs[slot])
-        for slot, entry in enumerate(meta.lineup)
-    ]
-    bids = await collect_bids(bidders, requests, meta.reserve_price, increment)
     valid = [slot for slot, (ticks, _) in enumerate(bids) if ticks is not None]
 
     winner: int | None = None
@@ -172,6 +192,7 @@ async def run_session(
     meta: SessionMeta,
     bidders: Sequence[Bidder],
     log: list[BidRow] | None = None,
+    round_concurrency: int = 1,
 ) -> list[BidRow]:
     """Run every round of one session; returns n_rounds * n_bidders rows in (round, slot) order.
 
@@ -179,6 +200,11 @@ async def run_session(
     contracts awarded earlier in this session, whatever decided them. If `log` is given, each
     round's rows are appended to it once the round is over, so bidders that share the list
     (through the visibility filter) never see a round before it has happened.
+
+    `round_concurrency` above 1 asks for up to that many rounds' bids at once. It applies only to a one-shot
+    control (`history_window` 0) played by model bidders: no bid there depends on an earlier round, so only
+    the requests overlap. Ties are still resolved in round order, so the winners, prices, tie draws and win
+    counts equal those of a sequential run.
     """
     if not len(bidders) == len(meta.lineup) == meta.n_bidders:
         raise ValueError("bidders, meta.lineup and meta.n_bidders must agree")
@@ -187,8 +213,27 @@ async def run_session(
     rng = np.random.default_rng([meta.seed, meta.n_bidders, _TIE_STREAM])
     wins = [0] * meta.n_bidders
     rows: list[BidRow] = [] if log is None else log
+    collected: dict[int, tuple[list[BidRequest], list[tuple[int | None, int]]]] = {}
+    if round_concurrency > 1 and meta.history_window == 0 and all(b.model is not None for b in bidders):
+        gate = asyncio.Semaphore(round_concurrency)
+
+        async def collect_round(index: int) -> None:
+            async with gate:
+                requests = _round_requests(meta, index + 1, costs[index].tolist())
+                collected[index] = (requests, await collect_bids(bidders, requests, meta.reserve_price, meta.bid_increment))
+
+        try:
+            async with asyncio.TaskGroup() as group:  # one failed round cancels the rest
+                for index in range(meta.n_rounds):
+                    group.create_task(collect_round(index))
+        except ExceptionGroup as failure:  # callers catch the bidder's own error (BudgetExceeded, ProviderError)
+            raise failure.exceptions[0] from None
     for index in range(meta.n_rounds):
-        round_rows, winner = await _run_round(meta, bidders, bne, index + 1, costs[index].tolist(), wins, rng)
+        if index in collected:
+            requests, bids = collected[index]
+            round_rows, winner = await _settle_round(meta, bidders, bne, index + 1, costs[index].tolist(), requests, bids, wins, rng)
+        else:
+            round_rows, winner = await _run_round(meta, bidders, bne, index + 1, costs[index].tolist(), wins, rng)
         rows.extend(round_rows)
         if winner is not None:
             wins[winner] += 1
