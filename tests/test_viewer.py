@@ -91,3 +91,13 @@ def test_export_script_reads_logs_and_writes_a_loadable_js_file(tmp_path: Path, 
     monkeypatch.setattr(sys, "argv", ["export_examples", "--spec", str(spec), "--logs-root", str(logs), "--out", str(out)])
     export_examples.main()
     assert out.read_text() == first_run  # deterministic
+
+
+def test_index_entry_round_strings_match_rounds() -> None:
+    from bidrig.viewer import index_entry
+
+    meta, rows, _ = two_round_session()
+    entry = index_entry(meta, rows, {"collusion_index": float("nan"), "delta_index": 0.5})
+    assert len(entry["w"]) == len(entry["t"]) == len(entry["m"]) == meta.n_rounds
+    assert entry["metrics"]["collusion_index"] is None and entry["metrics"]["delta_index"] == 0.5
+    assert entry["control"] is False and entry["n_bidders"] == meta.n_bidders

@@ -17,11 +17,12 @@
       Pick an example, step through the rounds, and open a round to read what each firm was shown and why it bid as it did.</p>
     <p class="caveat"><strong>How to read this.</strong> These sessions were picked to illustrate a behaviour, not to be typical. The runs behind them have 5 sessions per cell,
       so everything here is descriptive; there are no tests or intervals. A one-shot control is the same seed and costs with no history shown.</p>
-    <p class="caveat"><strong>Scope.</strong> This page shows a hand-picked list of sessions (<code>examples.yaml</code>), not every run.
-      An all-runs index, with one page per run, condition and session, is outlined in <code>site/README.md</code> and is not built.</p>
+    <p class="caveat"><strong>Scope.</strong> <em>Examples</em> is a hand-picked list (<code>examples.yaml</code>). <em>All runs</em> lists every run exported
+      from <code>logs/</code> by <code>scripts/export_site.py</code>: a run, its conditions, then each session beside its matched control.</p>
   </div>
 </header>
 <main class="wrap">
+  <nav id="modes" aria-label="Views"></nav>
   <nav id="examples" aria-label="Examples"></nav>
   <section id="example" aria-live="polite"></section>
 </main>
@@ -40,6 +41,7 @@
 </footer>
 <div id="tip" class="tip" role="presentation" hidden></div>
 <script src="data/examples.js"></script>
+<script src="data/runs.js" onerror="void 0"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -1,8 +1,10 @@
 "use strict";
-// Static viewer for exported auction sessions (site/data/examples.js, built by scripts/export_examples.py).
+// Static viewer for exported auction sessions: curated examples (site/data/examples.js, scripts/export_examples.py)
+// and every exported run (site/data/runs.js plus one file per session, scripts/export_site.py).
 // All text from the data goes in through textContent, never innerHTML.
 
 const EXAMPLES = window.EXAMPLES.examples;
+const RUNS = window.RUNS || [];
 const SVG = "http://www.w3.org/2000/svg";
 const TIE_TEXT = {
   random: "tie resolved by a random draw",
@@ -18,7 +20,8 @@ const METRICS = [
   ["Reserve bids", "reserve_bid_rate", "pct", "Share of bids placed at the maximum allowed price."],
   ["Bid-cost correlation", "bid_cost_corr", 2, "Near 1 when bids follow the firm's own cost."],
 ];
-const state = { ex: 0, s: 0, round: 1, showCost: false, showBne: false };
+const state = { mode: "examples", ex: 0, s: 0, round: 1, showCost: false, showBne: false, run: null, custom: null, filter: {} };
+const view = () => state.custom || EXAMPLES[state.ex];
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -43,22 +46,41 @@ function metric(v, f) {
   if (v == null) return "–";
   return f === "pct" ? (v * 100).toFixed(0) + "%" : v.toFixed(f);
 }
-const current = () => EXAMPLES[state.ex].sessions[state.s];
+const current = () => view().sessions[state.s];
 
 function readHash() {
-  const [id, s, r] = location.hash.replace(/^#\/?/, "").split("/");
+  const [id, a, b2, c, d] = location.hash.replace(/^#\/?/, "").split("/");
+  if (id === "runs") { state.mode = "runs"; return Promise.resolve(); }
+  if (id === "run") { state.mode = "run"; state.run = RUNS.find((r) => r.id === decodeURIComponent(a || "")) || null; return Promise.resolve(); }
+  if (id === "s") {
+    state.mode = "session";
+    return openSession(decodeURIComponent(a || ""), decodeURIComponent(b2 || ""), Number(c) || 0, Number(d) || 1);
+  }
+  state.mode = "examples";
   const i = EXAMPLES.findIndex((e) => e.id === id);
-  if (i < 0) return;
-  state.ex = i;
-  state.s = Math.min(Number(s) || 0, EXAMPLES[i].sessions.length - 1);
-  state.round = Math.min(Math.max(Number(r) || 1, 1), current().rounds.length);
+  if (i >= 0) {
+    state.ex = i;
+    state.s = Math.min(Number(a) || 0, EXAMPLES[i].sessions.length - 1);
+    state.round = Math.min(Math.max(Number(b2) || 1, 1), current().rounds.length);
+  }
+  return Promise.resolve();
 }
 function writeHash() {
-  history.replaceState(null, "", `#/${EXAMPLES[state.ex].id}/${state.s}/${state.round}`);
+  if (state.mode === "examples") history.replaceState(null, "", `#/${EXAMPLES[state.ex].id}/${state.s}/${state.round}`);
+  else if (state.mode === "session") history.replaceState(null, "", `#/s/${encodeURIComponent(state.run.id)}/${encodeURIComponent(state.sid)}/${state.s}/${state.round}`);
+}
+
+function renderModes() {
+  const tab = (mode, label, hash) => h("button", {
+    type: "button", "aria-pressed": String((state.mode === "examples") === (mode === "examples")),
+    onclick: () => { location.hash = hash; },
+  }, label);
+  document.getElementById("modes").replaceChildren(tab("examples", "Examples", `#/${EXAMPLES[state.ex].id}/0/1`), tab("runs", `All runs (${RUNS.length})`, "#/runs"));
 }
 
 function renderNav() {
   const nav = document.getElementById("examples");
+  if (state.mode !== "examples") { nav.replaceChildren(); return; }
   nav.replaceChildren(
     ...EXAMPLES.map((e, i) =>
       h("button", {
@@ -110,8 +132,12 @@ function chips(s) {
 
 function metaLine(s) {
   const m = s.meta;
+  const costs = m.cost_spread
+    ? `costs = market level uniform ${m.cost_range[0] + m.cost_spread}–${m.cost_range[1] - m.cost_spread} ± ${m.cost_spread} per firm (numeric benchmark)`
+    : `costs uniform ${m.cost_range[0]}–${m.cost_range[1]}`;
+  const shown = m.reveal_costs ? " · every firm sees every firm's cost (complete information; benchmark = second-lowest cost)" : "";
   return h("p", { class: "meta" },
-    `${m.n_bidders} firms · ${m.n_rounds} rounds · costs uniform ${m.cost_range[0]}–${m.cost_range[1]} · bids in steps of ${m.increment} up to ${m.reserve} · tie rule ${m.tie_break_rule} · prompt ${m.prompt_version || "v0"}`);
+    `${m.n_bidders} firms · ${m.n_rounds} rounds · ${costs}${shown} · bids in steps of ${m.increment} up to ${m.reserve} · tie rule ${m.tie_break_rule} · prompt ${m.prompt_version || "v0"}`);
 }
 
 function chartFor(s) {
@@ -242,12 +268,11 @@ function systemPrompt(s) {
   return h("details", null, h("summary", null, `System prompt (firm ${ids[0]}; other firms differ only in the firm letter)`), h("pre", null, s.system[ids[0]]));
 }
 
-function render() {
-  const ex = EXAMPLES[state.ex], s = current();
-  renderNav();
+function renderExample() {
+  const ex = view(), s = current();
   const toggle = (key, text) => h("label", null, h("input", { type: "checkbox", checked: state[key], onchange: (e) => { state[key] = e.target.checked; render(); } }), text);
   document.getElementById("example").replaceChildren(...[
-    h("div", { class: "intro" }, h("h2", null, ex.title), h("p", null, ex.blurb), h("p", { class: "look" }, h("b", null, "Look for: "), ex.look_for)),
+    h("div", { class: "intro" }, h("h2", null, ex.title), h("p", null, ex.blurb), ex.look_for ? h("p", { class: "look" }, h("b", null, "Look for: "), ex.look_for) : null),
     firmsLegend(s),
     renderStrips(ex),
     chips(s),
@@ -256,13 +281,165 @@ function render() {
     h("div", { class: "toggles" }, "Filled dot = bid, ringed = winner.", toggle("showCost", "Show costs (hollow circle)"), toggle("showBne", "Show equilibrium bids (diamond)")),
     systemPrompt(s),
     roundPanel(s)].filter(Boolean));
+}
+
+// ---- runs: list of runs, one page per run, one session loaded on demand ----
+
+const mean = (xs) => { const v = xs.filter((x) => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+const fmt = (v, f = 3) => (v == null ? "–" : f === "pct" ? (v * 100).toFixed(0) + "%" : v.toFixed(f));
+
+function loadSession(run, sid) {
+  window.SESSIONS = window.SESSIONS || {};
+  if (window.SESSIONS[sid]) return Promise.resolve(window.SESSIONS[sid]);
+  return new Promise((resolve, reject) => {
+    const el = document.createElement("script");
+    el.src = `data/sessions/${encodeURIComponent(run)}/${encodeURIComponent(sid)}.js`;
+    el.onload = () => (window.SESSIONS[sid] ? resolve(window.SESSIONS[sid]) : reject(new Error(`${sid}: file loaded but empty`)));
+    el.onerror = () => reject(new Error(`${sid}: not exported (run scripts/export_site.py)`));
+    document.head.append(el);
+  });
+}
+
+async function openSession(runId, sid, which, round) {
+  const run = RUNS.find((r) => r.id === runId);
+  const entry = run && run.sessions.find((e) => e.id === sid);
+  if (!entry) { state.mode = "runs"; return; }
+  const controlId = `oneshot__${sid}`;
+  const hasControl = !entry.control && run.sessions.some((e) => e.id === controlId);
+  try {
+    const sessions = await Promise.all([loadSession(runId, sid), ...(hasControl ? [loadSession(runId, controlId)] : [])]);
+    state.run = run; state.sid = sid;
+    state.custom = {
+      id: sid, title: sid, run: runId, sessions,
+      blurb: `Run ${runId}, condition ${entry.condition}. ${hasControl ? "The one-shot control (same seed and costs, no history) is the second session." : ""}`,
+      look_for: "",
+    };
+    state.s = Math.min(which, sessions.length - 1);
+    state.round = Math.min(Math.max(round, 1), sessions[state.s].rounds.length);
+    state.error = null;
+  } catch (err) {
+    state.run = run; state.sid = sid; state.custom = null; state.error = String(err.message || err);
+  }
+}
+
+function miniStrip(e) {
+  return h("div", { class: "ribbon mini", role: "img", "aria-label": `Winner of each round: ${e.w}` },
+    ...[...e.w].map((w, i) => h("span", { class: `cell ${w === "-" ? "none" : cls(w)}` },
+      e.t[i] === "1" ? h("span", { class: "tie" }) : null, e.m[i] === "1" ? h("span", { class: "dot" }) : null)));
+}
+
+function renderRuns() {
+  const rows = RUNS.map((r) => {
+    const rep = r.sessions.filter((e) => !e.control);
+    const models = [...new Set(r.sessions.flatMap((e) => e.models))].sort();
+    const ns = [...new Set(r.sessions.map((e) => e.n_bidders))].sort();
+    const rules = [...new Set(r.sessions.map((e) => e.tie_break_rule))].sort();
+    return h("tr", null,
+      h("td", null, h("a", { href: `#/run/${encodeURIComponent(r.id)}` }, r.id)),
+      h("td", { class: "num" }, rep.length), h("td", { class: "num" }, r.sessions.length - rep.length),
+      h("td", null, models.join(", ")), h("td", null, `N ${ns.join(", ")}`), h("td", null, rules.join(", ")),
+      h("td", { class: "num" }, fmt(mean(rep.map((e) => e.metrics.collusion_index)))),
+      h("td", { class: "num" }, fmt(mean(rep.map((e) => e.metrics.delta_index)))));
+  });
+  document.getElementById("example").replaceChildren(RUNS.length
+    ? h("div", null,
+        h("div", { class: "intro" }, h("h2", null, "All exported runs"),
+          h("p", null, "One row per run in logs/ with at least one complete session. Open a run for its conditions and sessions.")),
+        h("div", { class: "tablewrap" }, h("table", null,
+          h("thead", null, h("tr", null, ...["Run", "Sessions", "Controls", "Models", "Bidders", "Tie rule", "Mean index", "Mean delta"]
+            .map((t, i) => h("th", { class: i === 1 || i === 2 || i >= 6 ? "num" : "" }, t)))),
+          h("tbody", null, ...rows))))
+    : h("p", null, "No runs exported yet. Run ", h("code", null, "uv run python scripts/export_site.py"), " and reload."));
+}
+
+function renderRun() {
+  const run = state.run, root = document.getElementById("example");
+  if (!run) { root.replaceChildren(h("p", null, "Unknown run. ", h("a", { href: "#/runs" }, "Back to all runs"))); return; }
+  const f = state.filter;
+  const pick = (key, get) => {
+    const values = [...new Set(run.sessions.map(get))].map(String).sort();
+    if (values.length < 2) return null;
+    return h("label", null, key, h("select", { onchange: (e) => { f[key] = e.target.value; renderRun(); } },
+      h("option", { value: "" }, "all"), ...values.map((v) => h("option", { value: v, selected: f[key] === v }, v))));
+  };
+  const filters = [pick("model", (e) => e.models.join("+")), pick("bidders", (e) => e.n_bidders), pick("tie rule", (e) => e.tie_break_rule)].filter(Boolean);
+  const keep = (e) => (!f.model || e.models.join("+") === f.model) && (!f.bidders || String(e.n_bidders) === f.bidders) && (!f["tie rule"] || e.tie_break_rule === f["tie rule"]);
+  const sessions = run.sessions.filter(keep);
+  const byCond = new Map();
+  for (const e of sessions) {
+    const key = e.control ? e.condition.replace(/^oneshot__/, "") : e.condition;
+    if (!byCond.has(key)) byCond.set(key, { rep: [], ctl: [] });
+    byCond.get(key)[e.control ? "ctl" : "rep"].push(e);
+  }
+  const blocks = [...byCond.entries()].sort().map(([cond, g]) => {
+    const first = g.rep[0] || g.ctl[0];
+    const lw = first.tie_break_rule === "least_wins";
+    const m = (k) => g.rep.map((e) => e.metrics[k]);
+    const range = (k) => { const v = m(k).filter((x) => x != null); return v.length ? `${fmt(Math.min(...v), 2)} to ${fmt(Math.max(...v), 2)}` : "–"; };
+    const stat = (label, val, tip) => h("span", { class: "chip", title: tip }, label, h("b", null, val));
+    const rowFor = (e) => {
+      const ctl = run.sessions.find((c) => c.id === `oneshot__${e.id}`);
+      const link = (id, w) => `#/s/${encodeURIComponent(run.id)}/${encodeURIComponent(id)}/${w}/1`;
+      return h("div", { class: "sessrow" },
+        h("div", { class: "label" }, h("a", { href: link(e.id, 0) }, `seed ${e.seed}`),
+          h("span", null, `index ${fmt(e.metrics.collusion_index, 2)} · delta ${fmt(e.metrics.delta_index, 2)} · ties ${fmt(e.metrics.tie_rate, "pct")}`)),
+        miniStrip(e),
+        ctl ? h("div", { class: "ctl" }, h("span", { class: "note" }, "one-shot control · ", h("a", { href: link(e.id, 1) }, `index ${fmt(ctl.metrics.collusion_index, 2)}`)), miniStrip(ctl)) : null);
+    };
+    return h("section", { class: "cond" },
+      h("h3", null, cond),
+      h("p", { class: "meta" }, `${first.models.join(" + ")} · ${first.n_bidders} firms · ${first.n_rounds} rounds · tie rule ${first.tie_break_rule} · info ${first.info}`
+        + ` · increment ${first.increment}${first.cost_spread ? ` · cost spread ±${first.cost_spread}` : ""}${first.reveal_costs ? " · costs revealed" : ""} · prompt ${first.prompt_version || "v0"}`),
+      h("div", { class: "chips" },
+        stat(`Sessions`, String(g.rep.length), "Repeated sessions in this condition."),
+        stat("Mean index", fmt(mean(m("collusion_index")), 2), "Collusion index, not clipped; 0 = benchmark. Mean over sessions, descriptive."),
+        stat("Range", range("collusion_index"), "Lowest to highest session index."),
+        stat("Mean delta", fmt(mean(m("delta_index")), 2), "Index minus the matched one-shot control's."),
+        stat("Tie rate", fmt(mean(m("tie_rate")), "pct"), "Mean share of rounds with an exact tie at the lowest bid."),
+        stat("Lowest-cost wins", lw ? "n/a" : fmt(mean(m("lowest_cost_win_share")), 2),
+          lw ? "Not valid under least_wins: the rule forces uniform wins (PLANNING.md 6.4)." : "Mean share of rounds won by the lowest-cost firm.")),
+      ...g.rep.sort((a, b) => a.seed - b.seed).map(rowFor));
+  });
+  root.replaceChildren(h("div", null,
+    h("p", { class: "meta" }, h("a", { href: "#/runs" }, "All runs"), " / ", run.id),
+    h("div", { class: "intro" }, h("h2", null, run.id),
+      h("p", null, `${run.sessions.filter((e) => !e.control).length} repeated sessions and ${run.sessions.filter((e) => e.control).length} one-shot controls. `
+        + "Strips show the winner of each round (striped = tie, dot = lowest-cost firm won). Click a seed to open the session. Means are descriptive: sessions are the unit, and there are few per cell.")),
+    filters.length ? h("div", { class: "toggles" }, ...filters) : null,
+    ...blocks));
+}
+
+function renderSession() {
+  const root = document.getElementById("example");
+  if (state.error || !state.custom) {
+    root.replaceChildren(h("p", { class: "err" }, state.error || "Session not found."), h("a", { href: state.run ? `#/run/${encodeURIComponent(state.run.id)}` : "#/runs" }, "Back"));
+    return;
+  }
+  renderExample();
+  root.prepend(h("p", { class: "meta" }, h("a", { href: "#/runs" }, "All runs"), " / ", h("a", { href: `#/run/${encodeURIComponent(state.run.id)}` }, state.run.id), " / ", state.sid));
+}
+
+function render() {
+  renderModes();
+  renderNav();
+  if (state.mode === "runs") renderRuns();
+  else if (state.mode === "run") renderRun();
+  else if (state.mode === "session") renderSession();
+  else renderExample();
   writeHash();
+}
+
+async function route() {
+  state.custom = null;
+  await readHash();
+  render();
+  window.scrollTo(0, 0);
 }
 
 document.addEventListener("keydown", (e) => {
   if (e.target.matches("input, textarea") || e.metaKey || e.ctrlKey) return;
   const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-  if (!d) return;
+  if (!d || (state.mode !== "examples" && state.mode !== "session")) return;
   const n = current().rounds.length, next = Math.min(Math.max(state.round + d, 1), n);
   if (next !== state.round) { state.round = next; render(); e.preventDefault(); }
 });
@@ -274,5 +451,5 @@ document.getElementById("theme").addEventListener("click", () => {
   render();
 });
 try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (_) { /* storage can be blocked */ }
-readHash();
-render();
+window.addEventListener("hashchange", route);
+route();

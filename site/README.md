@@ -16,29 +16,35 @@ uv run python scripts/export_examples.py      # logs/ + site/examples.yaml -> si
 `data/examples.js` is committed (about 2.5 MB, hidden thinking cut to 2,500 characters per call) because `logs/`
 is not. Direct links: `index.html#/<example id>/<0 = repeated, 1 = control>/<round>`.
 
-## Limit: it does not track runs
+## All runs
 
-Adding a session means editing `examples.yaml` by hand and re-exporting. There is no list of runs, no table of
-conditions, and no way to see every session of a cell. With more models and runs coming, a curated list will not
-scale, and a picked example can be mistaken for a typical one.
+```sh
+uv run python scripts/export_site.py                   # every run in logs/ with a complete session
+uv run python scripts/export_site.py pilot costrange   # chosen runs
+uv run python scripts/export_site.py --no-thinking --no-prompts   # much smaller
+```
 
-## Note: making it general
+It writes `data/runs.js` (the run index: one entry per session with settings, headline metrics and a compact
+winner string) and `data/sessions/<run_id>/<session_id>.js` (one file per session, loaded on demand when its page
+opens). Both are gitignored; only `examples.js` is committed. Pages, linked by URL fragment:
 
-The aim is one place to browse every run, with curated examples as bookmarks into it. Not built. Outline:
+- `#/runs`: one row per run.
+- `#/run/<run_id>`: its conditions, each with mean index, range, mean delta, tie rate and lowest-cost win share
+  (n/a under `least_wins`), then every session's winner strip above its matched control's. Filters by model,
+  bidder count and tie rule appear when the run has more than one.
+- `#/s/<run_id>/<session_id>/<0 = repeated, 1 = control>/<round>`: the full session view used by the examples.
 
-1. **Export per run, not per example.** `export_site.py logs/<run_id>` writes `data/<run_id>/index.json` (run
-   metadata, conditions, one entry per session with its `session_metrics.csv` row and a compact winner string)
-   and `data/<run_id>/sessions/<session_id>.json` (what the page shows for one session today). `data/runs.json`
-   lists the exported runs. Session files load on demand, so the page stays fast as runs are added.
-2. **Three levels, linked by URL fragment.**
-   - Overview `#/`: run picker, then a model x condition table (index, control index, delta, lowest-cost-wins
-     share, tie rate, reserve-bid rate) with a sample-size caption.
-   - Condition `#/c/<condition_id>`: one row per session, its winner strip directly above its control's.
-   - Session `#/s/<session_id>/r/<round>`: the current example view.
-3. **Curated examples become links.** `examples.yaml` keeps the titles and blurbs and points at session routes.
-4. **Compare across runs.** Key cells on model, N, tie rule, bid increment, rounds, thinking mode and prompt
-   version, read from `session.json`, not from `condition_id`, which omits the last four.
-5. **Keep metric validity visible.** Grey the win-pattern columns under `least_wins` (`PLANNING.md` 6.4).
+A control is found by the id `oneshot__<session_id>`. Sessions that are not `complete` are skipped. Means are
+descriptive; the viewer computes no tests or intervals. Not yet built: cross-run comparison, and a CSV download.
+
+## Note: what is left
+
+- **Compare across runs.** Key cells on model, N, tie rule, bid increment, rounds, thinking mode, cost spread and
+  prompt version, read from `session.json`, not from `condition_id`, which omits some of them.
+- **Curated examples as links** into the run pages instead of their own bundle (`examples.js` is still separate).
+- **Size.** With prompts and thinking text a pilot-sized run is about 65 MB (about 25 MB without thinking text);
+  use the export flags above and keep `data/sessions/` out of git except for runs chosen for sharing. GitHub Pages
+  caps a site at 1 GB.
 
 Constraints to keep:
 
