@@ -2,6 +2,7 @@
 
 import json
 import math
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -126,7 +127,19 @@ DIFF_BINS = 50  # bins cover [DIFF_LOW, DIFF_LOW + DIFF_STEP * DIFF_BINS); the t
 INDEX_METRIC_KEYS = [
     "collusion_index", "delta_index", "lowest_cost_win_share", "tie_rate", "reserve_bid_rate", "bid_cost_corr",
     "markup_ratio", "markup_ratio_min_cost", "markup_ratio_other", "bid_slope", "bid_intercept",
+    "bid_gap", "joint_profit_ratio", "switch_gain", "best_reply_share",
 ]  # fmt: skip
+
+# Charts the findings page draws under a finding, by the finding's id; the names are read by site/app.js.
+FINDING_CHARTS = {
+    "F2": ["paired:collusion_index"],
+    "F5": ["scatter", "paired:bid_gap"],
+    "F7": ["blocks"],
+    "F8": ["judge"],
+    "F10": ["paired:joint_profit_ratio"],
+    "F11": ["paired:switch_gain"],
+}
+FINDING_LABELS = {"declared": "Declared", "exploratory": "Exploratory", "descriptive": "Descriptive"}
 
 
 def diff_histogram(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, list[int]]:
@@ -220,3 +233,46 @@ def index_entry(meta: SessionMeta, rows: Sequence[BidRow], metrics: dict[str, An
         "t": "".join(ties),
         "m": "".join(mins),
     }
+
+
+def findings_html(text: str) -> str:
+    """A findings Markdown file as HTML for the viewer's findings page.
+
+    Each `##` section becomes a card. The section whose title contains "Definitions" becomes a closed
+    `<details>`. Each `### F<n>.` finding becomes its own card with id `F<n>`, its label in brackets (declared,
+    exploratory, descriptive) becomes a badge, and the chart slots of `FINDING_CHARTS` are appended to it. Tables are
+    wrapped so they can scroll sideways. The input is a file of this repository, not model output, so the result is
+    inserted as HTML.
+    """
+    import markdown  # export-time only
+
+    html = markdown.markdown(text, extensions=["tables"])
+    html = html.replace("<table>", '<div class="tablewrap"><table>').replace("</table>", "</table></div>")
+
+    def finding(block: str) -> str:
+        head = re.match(r"<h3>(F\d+)\.\s*(.*?)</h3>", block, re.DOTALL)
+        if not head:
+            return block
+        fid, title = head.group(1), head.group(2)
+        label = re.search(r"\s*\(([^()]*)\)\s*$", title)
+        badge = ""
+        if label and (kind := next((k for k in FINDING_LABELS if label.group(1).lower().startswith(k)), None)):
+            title = title[: label.start()]
+            badge = f' <span class="badge {kind}" title="{label.group(1)}">{FINDING_LABELS[kind]}</span>'
+        slots = "".join(f'<div class="chartslot" data-chart="{name}"></div>' for name in FINDING_CHARTS.get(fid, []))
+        body = block[head.end() :]
+        return f'<section class="panel finding" id="{fid}"><h3><span class="fid">{fid}</span> {title}{badge}</h3>{body}{slots}</section>'
+
+    out = []
+    for section in re.split(r"(?=<h2>)", html):
+        title = re.match(r"<h2>(.*?)</h2>", section, re.DOTALL)
+        if not title:
+            out.append(f'<div class="prosehead">{section}</div>' if section.strip() else "")
+        elif "definitions" in title.group(1).lower():
+            out.append(f'<details class="panel glossary"><summary>{title.group(1)}</summary>{section[title.end():]}</details>')
+        elif "<h3>F" in section:
+            parts = re.split(r"(?=<h3>)", section[title.end() :])
+            out.append(f'<h2 class="sect">{title.group(1)}</h2>{parts[0]}' + "".join(finding(part) for part in parts[1:]))
+        else:
+            out.append(f'<section class="panel"><h3>{title.group(1)}</h3>{section[title.end():]}</section>')
+    return "".join(out)

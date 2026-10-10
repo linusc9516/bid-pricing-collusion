@@ -146,3 +146,52 @@ def test_bid_points_list_every_valid_bid_with_win_and_cost_role_flags() -> None:
     assert sorted(p[2] for p in points) == sorted(int(r.is_winner) + 2 * int(r.is_min_cost) for r in valid)
     made = [replace(valid[0], cost=12.344, bid=56.789, is_winner=True, is_min_cost=True), replace(valid[0], bid=None)]
     assert list(bid_points(meta, made).values()) == [[[12.34, 56.79, 3]]]
+
+
+def test_findings_html_makes_cards_badges_and_chart_slots() -> None:
+    from bidrig.viewer import FINDING_CHARTS, findings_html
+
+    text = """# Title
+
+Intro line.
+
+## 1. Definitions
+
+| Term | Meaning |
+|---|---|
+| Cost | What it costs |
+
+## 3. Findings
+
+Lead-in.
+
+### F2. History does not lower prices (declared)
+
+| | A | B |
+|---|---|---|
+| x | 1 | 2 |
+
+### F5. Both models move away (exploratory)
+
+Text.
+
+### F9. A plain number (descriptive)
+
+Text.
+
+## 4. Summary
+
+Closing.
+"""
+    html = findings_html(text)
+    assert html.startswith('<div class="prosehead"><h1>Title</h1>')
+    assert '<details class="panel glossary"><summary>1. Definitions</summary>' in html
+    assert html.count('<section class="panel finding"') == 3 and 'id="F2"' in html and 'id="F9"' in html
+    assert '<span class="fid">F2</span> History does not lower prices <span class="badge declared" title="declared">Declared</span>' in html
+    assert 'class="badge exploratory"' in html and 'class="badge descriptive"' in html and "(declared)" not in html
+    assert html.count('<div class="tablewrap"><table>') == 2 == html.count("</table></div>")
+    slots = [name for fid in ("F2", "F5") for name in FINDING_CHARTS[fid]]
+    assert [s for s in slots if f'data-chart="{s}"' in html] == slots and html.count("chartslot") == len(slots)  # F9 has none
+    assert '<section class="panel"><h3>4. Summary</h3>' in html and '<h2 class="sect">3. Findings</h2>' in html
+    f2 = html[html.index('id="F2"') : html.index('id="F5"')]
+    assert f2.index("</table></div>") < f2.index("chartslot")  # the chart sits under the finding's own table

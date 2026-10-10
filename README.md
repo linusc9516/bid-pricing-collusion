@@ -166,7 +166,7 @@ Raw logs: `logs/<run_id>/<condition_id>/<session_id>/` (gitignored, back them up
 
 ## Example viewer
 
-Open `site/index.html` in a browser. Seven hand-picked sessions, each beside its control: winner strip, bids chart, per-round table, reasoning, exact prompts. `scripts/export_site.py` adds a page per run from local logs, with every bid plotted against its cost and each session plotted against its one-shot control; see [`site/README.md`](site/README.md).
+Open `site/index.html` in a browser; nothing to install. It opens on the findings of the no-channel baseline, with charts drawn from the bundled sessions of that run, each of which can be opened round by round. Also: seven hand-picked sessions, each beside its control: winner strip, bids chart, per-round table, reasoning, exact prompts. `scripts/export_site.py` adds a page per run from local logs, with every bid plotted against its cost and each session plotted against its one-shot control; see [`site/README.md`](site/README.md).
 
 ## Layout
 

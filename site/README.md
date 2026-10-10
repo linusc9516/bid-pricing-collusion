@@ -4,11 +4,33 @@ A static page for stepping through auction sessions round by round: a winner str
 table, each firm's reasoning and hidden thinking, and the exact prompt it was shown, with the matched one-shot
 control beside each session. No server, no build step: open `index.html` in a browser.
 
-## After pulling: build the run pages from your own logs
+## After cloning: open `index.html`
 
-A fresh clone shows only the examples page. The run pages, with the bid-class chart and the histogram, are built
-from raw logs, and neither `logs/` nor the exported `data/runs.js` and `data/sessions/` is in git. Build them from
-the runs on your machine:
+Nothing to install and no server. The page opens on **Findings**: the text of `BASELINE_FINDINGS.md`, with charts
+drawn from the bundled sessions under the findings they support. **All runs** lists the bundled run
+(`baseline_no_channel`), and every session in it can be opened round by round.
+
+This works on a fresh clone because one bundle is committed:
+
+- `data/published.js`: the run index, the findings page as HTML, and the small tables behind two of its charts.
+- `data/published/<run_id>/<session_id>.js`: one file per session, without hidden thinking and without the per-call
+  prompts (the 2 to 3 sentence reasoning of each bid is kept). About 3.4 MB for the baseline.
+
+Rebuild it after the findings file or the run changes, from a machine that has the logs:
+
+```sh
+uv run python scripts/export_site.py --publish baseline_no_channel            # --findings FILE for another Markdown file
+```
+
+Each rebuild adds its size to the repository's history, so publish at milestones. The findings file is the only
+source of the text: edit `BASELINE_FINDINGS.md`, then rebuild. A finding heading `### F5. ... (exploratory)` becomes a
+card with a badge; the charts under a finding are set in `FINDING_CHARTS` in `src/bidrig/viewer.py`.
+
+## Build the run pages from your own logs
+
+A fresh clone shows the findings, the examples and the one bundled run. Every other run is built from raw logs, and
+neither `logs/` nor the exported `data/runs.js` and `data/sessions/` is in git. A local export of a run takes
+precedence over its bundled copy. Build them from the runs on your machine:
 
 ```sh
 uv run python scripts/export_site.py --no-thinking --no-prompts   # every run under logs/

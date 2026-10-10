@@ -1,10 +1,15 @@
 "use strict";
 // Static viewer for exported auction sessions: curated examples (site/data/examples.js, scripts/export_examples.py)
 // and every exported run (site/data/runs.js plus one file per session, scripts/export_site.py).
-// All text from the data goes in through textContent, never innerHTML.
+// The committed bundle (site/data/published.js, export_site.py --publish) adds the findings page and the runs a fresh clone shows.
+// All text from the logs goes in through textContent, never innerHTML. The one exception is the findings page, whose HTML
+// is generated at export time from a Markdown file of this repository, not from model output.
 
 const EXAMPLES = window.EXAMPLES.examples;
-const RUNS = window.RUNS || [];
+const PUBLISHED = window.PUBLISHED || null;
+// A local export of a run takes precedence over its published copy.
+const RUNS = [...(window.RUNS || [])];
+if (PUBLISHED) for (const r of PUBLISHED.runs) if (!RUNS.some((x) => x.id === r.id)) RUNS.push({ ...r, published: true });
 const SVG = "http://www.w3.org/2000/svg";
 const TIE_TEXT = {
   random: "tie resolved by a random draw",
@@ -50,6 +55,7 @@ const current = () => view().sessions[state.s];
 
 function readHash() {
   const [id, a, b2, c, d] = location.hash.replace(/^#\/?/, "").split("/");
+  if (id === "findings" || (!id && PUBLISHED && PUBLISHED.findings_html)) { state.mode = "findings"; return Promise.resolve(); }
   if (id === "runs") { state.mode = "runs"; return Promise.resolve(); }
   if (id === "run") { state.mode = "run"; state.run = RUNS.find((r) => r.id === decodeURIComponent(a || "")) || null; return Promise.resolve(); }
   if (id === "s") {
@@ -66,16 +72,18 @@ function readHash() {
   return Promise.resolve();
 }
 function writeHash() {
-  if (state.mode === "examples") history.replaceState(null, "", `#/${EXAMPLES[state.ex].id}/${state.s}/${state.round}`);
+  if (state.mode === "findings") history.replaceState(null, "", "#/findings");
+  else if (state.mode === "examples") history.replaceState(null, "", `#/${EXAMPLES[state.ex].id}/${state.s}/${state.round}`);
   else if (state.mode === "session") history.replaceState(null, "", `#/s/${encodeURIComponent(state.run.id)}/${encodeURIComponent(state.sid)}/${state.s}/${state.round}`);
 }
 
 function renderModes() {
-  const tab = (mode, label, hash) => h("button", {
-    type: "button", "aria-pressed": String((state.mode === "examples") === (mode === "examples")),
-    onclick: () => { location.hash = hash; },
-  }, label);
-  document.getElementById("modes").replaceChildren(tab("examples", "Examples", `#/${EXAMPLES[state.ex].id}/0/1`), tab("runs", `All runs (${RUNS.length})`, "#/runs"));
+  const group = state.mode === "findings" ? "findings" : state.mode === "examples" ? "examples" : "runs";
+  const tab = (name, label, hash) => h("button", { type: "button", "aria-pressed": String(group === name), onclick: () => { location.hash = hash; } }, label);
+  document.getElementById("modes").replaceChildren(
+    PUBLISHED && PUBLISHED.findings_html ? tab("findings", "Findings", "#/findings") : null,
+    tab("examples", "Examples", `#/${EXAMPLES[state.ex].id}/0/1`), tab("runs", `All runs (${RUNS.length})`, "#/runs"));
+  document.body.dataset.mode = group;
 }
 
 function renderNav() {
@@ -292,7 +300,8 @@ function loadSession(run, sid) {
   if (window.SESSIONS[sid]) return Promise.resolve(window.SESSIONS[sid]);
   return new Promise((resolve, reject) => {
     const el = document.createElement("script");
-    el.src = `data/sessions/${encodeURIComponent(run)}/${encodeURIComponent(sid)}.js`;
+    const dir = (RUNS.find((r) => r.id === run) || {}).published ? "published" : "sessions";
+    el.src = `data/${dir}/${encodeURIComponent(run)}/${encodeURIComponent(sid)}.js`;
     el.onload = () => (window.SESSIONS[sid] ? resolve(window.SESSIONS[sid]) : reject(new Error(`${sid}: file loaded but empty`)));
     el.onerror = () => reject(new Error(`${sid}: not exported (run scripts/export_site.py)`));
     document.head.append(el);
@@ -533,11 +542,15 @@ const PAIR_MEASURES = [
   ["markup_ratio_other", "Markup, other firms", "markup ratio, other firms", () => 1],
   ["bid_slope", "Slope", "slope of bid on cost", (e) => (e.reveal_costs || e.cost_spread ? null : 1 - 1 / e.n_bidders)],
   ["bid_intercept", "Intercept", "intercept of bid on cost", (e) => (e.reveal_costs || e.cost_spread || e.cost_low ? null : e.cost_high / e.n_bidders)],
+  ["bid_gap", "Gap", "mean distance of a bid from the equilibrium bid, in bid units", () => 0],
+  ["joint_profit_ratio", "Joint profit", "the firms' total profit over their profit under equilibrium play", () => 1],
+  ["switch_gain", "Switching gain", "gain if one firm switched alone to the equilibrium bid, the other's bids held fixed", () => 0],
 ];
 
 // One dot per session, each repeated session joined to its one-shot control: the comparison the session-level tests make.
-function pairedCard(run, sessions) {
-  const [key, , name, bench] = PAIR_MEASURES.find(([k]) => k === state.pair) || PAIR_MEASURES[0];
+// `fixed` names one measure and hides the control, for a chart that sits under one finding.
+function pairedCard(run, sessions, fixed = null) {
+  const [key, , name, bench] = PAIR_MEASURES.find(([k]) => k === (fixed || state.pair)) || PAIR_MEASURES[0];
   const ids = new Map(run.sessions.map((e) => [e.id, e]));
   const groups = new Map();
   for (const e of sessions) {
@@ -548,10 +561,12 @@ function pairedCard(run, sessions) {
     groups.get(e.condition).pairs.push({ seed: e.seed, a: ctl.metrics[key], b: e.metrics[key] });
   }
   // Only this card is rebuilt on a press, so the control answers at once however large the scatter above is.
-  const pick = h("div", { class: "seg", role: "group", "aria-label": "Measure" }, ...PAIR_MEASURES.map(([k, short, long]) =>
+  const pick = fixed ? null : h("div", { class: "seg", role: "group", "aria-label": "Measure" }, ...PAIR_MEASURES.map(([k, short, long]) =>
     h("button", { type: "button", "aria-pressed": String(k === key), title: long,
       onclick: (ev) => { state.pair = k; ev.currentTarget.closest("section").replaceWith(pairedCard(run, sessions)); } }, short)));
-  const head = [h("h3", null, "Each session against its one-shot control"),
+  const head = fixed ? [h("h3", null, name.charAt(0).toUpperCase() + name.slice(1)),
+    h("p", { class: "meta" }, "One dot per session. A line joins a session with the history shown (right) to its one-shot control (left) on the same seed. The short bars are the means over sessions. Point at a line to read its pair."),
+    null] : [h("h3", null, "Each session against its one-shot control"),
     h("p", { class: "meta" }, "One dot per session. A line joins a repeated session (right) to its one-shot control (left): same seed, same costs, no history shown. "
       + "A line that falls means the history lowered that measure. The short bars are the means over sessions. This is the comparison the session-level tests make; a round is never an observation. "
       + "Point at a line to read its pair."),
@@ -619,7 +634,7 @@ function pairedCard(run, sessions) {
   root.append(...labels); // means and their labels sit above every pair
   return h("section", { class: "cond histo" }, ...head,
     h("div", { class: "legend" }, h("span", { class: "key" }, h("span", { class: "sw dash" }), "benchmark value"),
-      h("span", { class: "key" }, h("span", { class: "sw line", style: "background:var(--text);height:3px" }), "mean over sessions"), h("span", { class: "key" }, name)),
+      h("span", { class: "key" }, h("span", { class: "sw line", style: "background:var(--text);height:3px" }), "mean over sessions"), fixed ? null : h("span", { class: "key" }, name)),
     h("div", { class: "chartbox" }, root));
 }
 
@@ -752,10 +767,143 @@ function renderSession() {
   root.prepend(h("p", { class: "crumbs" }, h("a", { href: "#/runs" }, "All runs"), " / ", h("a", { href: `#/run/${encodeURIComponent(state.run.id)}` }, state.run.id), " / ", state.sid));
 }
 
+// Mean of (bid - equilibrium bid) by round block, one line per history session, with the one-shot mean for reference.
+function blocksCard(run, table) {
+  const lineups = [...new Set(table.map((r) => r.lineup_id))].sort();
+  const blocks = [...new Set(table.map((r) => r.block))].sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  if (!lineups.length || blocks.length < 2) return null;
+  const narrow = NARROW.matches, cols = narrow ? 1 : Math.min(2, lineups.length);
+  const W = narrow ? 460 : 900, ml = 44, gapX = 64, mr = 46, headH = 34, mb = 46, ph = 250, pw = (W - ml - mr - (cols - 1) * gapX) / cols;
+  const values = table.map((r) => r.mean_bid_minus_benchmark);
+  const span = Math.max(...values) - Math.min(...values) || 1;
+  const tick = [1, 2, 2.5, 5, 10].map((m) => m * 10 ** Math.floor(Math.log10(span / 4))).find((t) => span / t <= 6);
+  const vmin = Math.floor(Math.min(...values, 0) / tick) * tick, vmax = Math.ceil(Math.max(...values, 0) / tick) * tick;
+  const rowH = headH + ph + mb;
+  const root = svg("svg", { class: "chart", viewBox: `0 0 ${W} ${Math.ceil(lineups.length / cols) * rowH}`, role: "img", "aria-label": "Bid minus equilibrium bid by round block, one line per session" });
+  const labels = [];
+  lineups.forEach((lineup, li) => {
+    const x0 = ml + (li % cols) * (pw + gapX), y0 = Math.floor(li / cols) * rowH + headH;
+    const x = (i) => x0 + (i / (blocks.length - 1)) * pw, y = (v) => y0 + (1 - (v - vmin) / (vmax - vmin)) * ph;
+    const color = MODEL_COLORS[li % MODEL_COLORS.length];
+    for (let v = vmin; v <= vmax + tick / 2; v += tick) {
+      root.append(svg("line", { x1: x0, x2: x0 + pw, y1: y(v), y2: y(v), stroke: "var(--grid)", "stroke-width": 1 }));
+      root.append(svg("text", { x: x0 - 6, y: y(v) + 4, "text-anchor": "end" }, (Math.abs(v) < tick / 2 ? 0 : v).toFixed(tick < 1 ? 1 : 0)));
+    }
+    blocks.forEach((b, i) => root.append(svg("text", { x: x(i), y: y0 + ph + 16, "text-anchor": "middle" }, b)));
+    root.append(svg("text", { x: x0 + pw / 2, y: y0 + ph + 34, "text-anchor": "middle" }, "rounds"));
+    root.append(svg("line", { x1: x0, x2: x0 + pw, y1: y(0), y2: y(0), stroke: "var(--text)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+    root.append(svg("text", { class: "strong", x: x0, y: y0 - 14 }, lineup));
+    const rows = table.filter((r) => r.lineup_id === lineup);
+    const path = (pts) => pts.map(([i, v]) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    const control = blocks.map((b, i) => [i, mean(rows.filter((r) => r.is_control && r.block === b).map((r) => r.mean_bid_minus_benchmark))]).filter(([, v]) => v != null);
+    if (control.length > 1) root.append(svg("polyline", { points: path(control), fill: "none", stroke: "var(--muted)", "stroke-width": 2, "stroke-dasharray": "2 4", "stroke-linecap": "round" }));
+    const seeds = [...new Set(rows.filter((r) => !r.is_control).map((r) => r.seed))].sort();
+    const ends = [];
+    for (const seed of seeds) {
+      const pts = blocks.map((b, i) => [i, (rows.find((r) => !r.is_control && r.seed === seed && r.block === b) || {}).mean_bid_minus_benchmark]).filter(([, v]) => v != null);
+      if (pts.length < 2) continue;
+      const entry = run.sessions.find((e) => !e.control && e.seed === seed && e.lineup === lineup);
+      const line = svg("g", { class: "pair" },
+        svg("polyline", { class: "vis", points: path(pts), fill: "none", stroke: color, "stroke-width": 1.5, "stroke-linejoin": "round" }),
+        svg("polyline", { points: path(pts), fill: "none", stroke: "transparent", "stroke-width": 14 }));
+      const on = (ev) => {
+        root.classList.add("focus"); line.classList.add("hot");
+        tipAt(ev, h("div", null, h("b", null, `Seed ${seed}`), ` · ${lineup}`),
+          ...pts.map(([i, v]) => h("div", { class: "row" }, h("b", null, `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}`), h("span", null, `rounds ${blocks[i]}`))),
+          entry ? h("div", { class: "row" }, h("span", null, "Click to open the session")) : null);
+      };
+      line.addEventListener("pointerenter", on); line.addEventListener("pointermove", on); line.addEventListener("pointerdown", on);
+      line.addEventListener("pointerleave", () => { root.classList.remove("focus"); line.classList.remove("hot"); hideTip(); });
+      if (entry) line.addEventListener("click", () => { hideTip(); location.hash = `#/s/${encodeURIComponent(run.id)}/${encodeURIComponent(entry.id)}/0/1`; });
+      root.append(line);
+      ends.push({ seed, v: pts[pts.length - 1][1], xi: pts[pts.length - 1][0] });
+    }
+    // Name the three sessions that end highest, where their lines stop; labels that would touch are moved apart.
+    let last = -Infinity;
+    for (const e of ends.sort((p, q) => q.v - p.v).slice(0, 3)) {
+      const ly = Math.max(y(e.v) + 4, last + 12);
+      last = ly;
+      labels.push(svg("text", { class: "inbar halo", x: x(e.xi) + 6, y: ly, "pointer-events": "none" }, String(e.seed).slice(-3)));
+    }
+  });
+  root.append(...labels);
+  return h("section", { class: "cond histo" },
+    h("h3", null, "Bid minus equilibrium bid, as the session goes on"),
+    h("p", { class: "meta" }, "One line per session with the history shown; the dotted grey line is the mean of the one-shot controls. Above the dashed line a firm bids over the equilibrium bid. "
+      + "The numbers at the right are the last three digits of the seeds that end highest. Point at a line to read it; click to open that session."),
+    h("div", { class: "legend" }, h("span", { class: "key" }, h("span", { class: "sw dash" }), "equilibrium bid"),
+      h("span", { class: "key" }, h("span", { class: "sw line", style: "background:var(--muted)" }), "one-shot controls, mean")),
+    h("div", { class: "chartbox" }, root));
+}
+
+const JUDGE_ROWS = [
+  ["history_inference", "Infers the other firm's pattern from earlier rounds"],
+  ["undercuts_rival_bid", "Sets its bid just below an earlier bid of the other firm"],
+  ["anchors_on_past_price", "Takes a past price as the reference for its bid"],
+  ["copies_rival_bid", "Copies the other firm's bid"],
+  ["considers_coordination", "Considers coordinating"],
+  ["adopts_coordination", "Decides to coordinate"],
+  ["punish_reward", "Decides to punish or reward the other firm"],
+];
+
+// Share of judged calls with each label: one bar per model and arm.
+function judgeCard(table) {
+  if (!table || !table.length) return null;
+  const lineups = [...new Set(table.map((r) => r.lineup_id))].sort();
+  const series = lineups.flatMap((lineup, li) => [[lineup, false, "with history", 1], [lineup, true, "one-shot", 0.4]].map(([l, control, arm, alpha]) =>
+    ({ row: table.find((r) => r.lineup_id === l && r.is_control === control), name: `${l}, ${arm}`, color: MODEL_COLORS[li % MODEL_COLORS.length], alpha }))).filter((s2) => s2.row);
+  const narrow = NARROW.matches, W = narrow ? 460 : 900, x0 = narrow ? 12 : 330, x1 = W - 52, barH = 9, gap = 2, labelH = narrow ? 18 : 0;
+  const groupH = labelH + series.length * (barH + gap) + 14;
+  const H = JUDGE_ROWS.length * groupH + 26;
+  const root = svg("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Share of judged calls with each label, by model and arm" });
+  const px = (v) => x0 + v * (x1 - x0);
+  for (let g = 0; g <= 4; g += 1) {
+    root.append(svg("line", { x1: px(g / 4), x2: px(g / 4), y1: 0, y2: H - 22, stroke: "var(--grid)", "stroke-width": 1 }));
+    root.append(svg("text", { x: px(g / 4), y: H - 6, "text-anchor": "middle" }, `${g * 25}%`));
+  }
+  JUDGE_ROWS.forEach(([key, label], gi) => {
+    const top = gi * groupH + 4;
+    root.append(narrow ? svg("text", { class: "strong", x: x0, y: top + 12 }, label)
+      : svg("text", { x: x0 - 10, y: top + (series.length * (barH + gap)) / 2 + 4, "text-anchor": "end" }, label));
+    series.forEach((s2, si) => {
+      const v = s2.row[key] || 0, yb = top + labelH + si * (barH + gap);
+      const bar = svg("rect", { class: "bar", x: x0, y: yb, width: Math.max(1, px(v) - x0).toFixed(1), height: barH, rx: 2, fill: s2.color, opacity: s2.alpha });
+      const on = (ev) => tipAt(ev, h("div", null, h("b", null, `${(v * 100).toFixed(1)}%`), ` of ${s2.row.n_calls} judged calls`), h("div", { class: "row" }, h("span", null, s2.name)), h("div", { class: "row" }, h("span", null, label)));
+      bar.addEventListener("pointermove", on); bar.addEventListener("pointerdown", on); bar.addEventListener("pointerleave", hideTip);
+      root.append(bar);
+      root.append(svg("text", { x: px(v) + 5, y: yb + barH - 1, "pointer-events": "none" }, `${(v * 100).toFixed(v > 0 && v < 0.1 ? 1 : 0)}%`));
+    });
+  });
+  return h("section", { class: "cond histo" },
+    h("h3", null, "What the reasoning says"),
+    h("p", { class: "meta" }, "Share of judged calls carrying each label. Solid bars are sessions with the history shown; pale bars are the one-shot controls. "
+      + "A label counts only with a word-for-word quote from the reasoning. The labels have not been checked by a person."),
+    h("div", { class: "legend" }, ...series.map((s2) => h("span", { class: "key" }, h("span", { class: "sw box", style: `background:${s2.color};opacity:${s2.alpha}` }), s2.name))),
+    h("div", { class: "chartbox" }, root));
+}
+
+function renderFindings() {
+  const run = PUBLISHED.runs[0]; // the bundled copy, so the charts match the text even if a local export of the run is older
+  const tables = PUBLISHED.tables[run.id] || {};
+  const page = h("div", { class: "findings prose" });
+  page.innerHTML = PUBLISHED.findings_html; // generated from a Markdown file of this repository at export time
+  for (const slot of page.querySelectorAll(".chartslot")) {
+    const [kind, arg] = slot.dataset.chart.split(":");
+    const card = kind === "paired" ? pairedCard(run, run.sessions, arg) : kind === "scatter" ? scatterCard(run.sessions)
+      : kind === "blocks" ? blocksCard(run, tables.round_blocks || []) : kind === "judge" ? judgeCard(tables.judge) : null;
+    if (card) slot.replaceWith(card); else slot.remove();
+  }
+  const first = page.querySelector(".prosehead");
+  if (first) first.append(h("p", { class: "meta" }, "The charts below are drawn from the bundled sessions of ",
+    h("a", { href: `#/run/${encodeURIComponent(run.id)}` }, run.id), ". Open that run to see every session and step through its rounds."));
+  document.getElementById("example").replaceChildren(page);
+}
+
 function render() {
   renderModes();
   renderNav();
-  if (state.mode === "runs") renderRuns();
+  if (state.mode === "findings") renderFindings();
+  else if (state.mode === "runs") renderRuns();
   else if (state.mode === "run") renderRun();
   else if (state.mode === "session") renderSession();
   else renderExample();
@@ -784,6 +932,7 @@ document.getElementById("theme").addEventListener("click", () => {
   render();
 });
 try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (_) { /* storage can be blocked */ }
-NARROW.addEventListener("change", () => { if (state.mode === "run") renderRun(); });
+NARROW.addEventListener("change", () => { if (state.mode === "run") renderRun(); else if (state.mode === "findings") renderFindings(); });
+if (PUBLISHED) document.getElementById("stamp").textContent = `Bundled data: ${PUBLISHED.runs.map((r) => r.id).join(", ")}, exported ${PUBLISHED.generated} at commit ${PUBLISHED.commit}.`;
 window.addEventListener("hashchange", route);
 route();
