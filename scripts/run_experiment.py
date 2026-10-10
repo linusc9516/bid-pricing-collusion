@@ -1,5 +1,5 @@
 """CLI: run the sessions described by a config file.
-Usage: run_experiment.py CONFIG [--run-id NAME] [--dry-run] [--host primary|fallback|backup] [--yes]
+Usage: run_experiment.py CONFIG [--run-id NAME] [--dry-run] [--host primary|fallback|backup|MODEL=TIER[,...]] [--yes]
 
 Configs that call models ask for confirmation before the first call unless --yes is given.
 """
@@ -30,13 +30,18 @@ def main() -> int:
     parser.add_argument("config", type=Path)
     parser.add_argument("--run-id", help="run directory under logs/; defaults to the config's file stem")
     parser.add_argument("--dry-run", action="store_true", help="print sessions, calls and cost; call nothing")
-    parser.add_argument("--host", choices=["primary", "fallback", "backup"], default="primary",
-                        help="pinned host for models that have one; rerun failed sessions with fallback, then backup")
+    parser.add_argument("--host", default="primary",
+                        help="pinned host tier for models that have one: primary, fallback or backup for every model, or per "
+                             "model as deepseek=backup (comma-separated, e.g. fallback,deepseek=backup); rerun failed "
+                             "sessions with fallback, then backup")
     parser.add_argument("--yes", action="store_true", help="skip the confirmation before calling models")
     parser.add_argument("--log-dir", type=Path, help="defaults to output.log_dir in the config")
     args = parser.parse_args()
 
-    config, models, plan = prepare(args.config, args.run_id, args.host)
+    try:
+        config, models, plan = prepare(args.config, args.run_id, args.host)
+    except ValueError as exc:
+        parser.error(str(exc))
     run_id = plan[0].meta.run_id if plan else args.run_id
     log_dir = args.log_dir or ROOT / config.get("output", {}).get("log_dir", "logs")
     est = estimate(plan, config, models, args.host)
