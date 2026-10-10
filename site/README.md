@@ -4,6 +4,24 @@ A static page for stepping through auction sessions round by round: a winner str
 table, each firm's reasoning and hidden thinking, and the exact prompt it was shown, with the matched one-shot
 control beside each session. No server, no build step: open `index.html` in a browser.
 
+## After pulling: build the run pages from your own logs
+
+A fresh clone shows only the examples page. The run pages, with the bid-class chart and the histogram, are built
+from raw logs, and neither `logs/` nor the exported `data/runs.js` and `data/sessions/` is in git. Build them from
+the runs on your machine:
+
+```sh
+uv run python scripts/export_site.py --no-thinking --no-prompts   # every run under logs/
+uv run python scripts/export_site.py <run_id>                     # one run, with prompts and thinking text
+uv run python scripts/export_site.py --logs-root <path>           # logs kept somewhere else
+```
+
+Then open `index.html` and choose "All runs". The export reads `logs/<run_id>/<condition_id>/<session_id>/`, each
+holding `session.json`, `bids.jsonl` and `calls.jsonl` as the runner writes them. It skips sessions that are not
+`complete`, and pairs a session with its control by the id `oneshot__<session_id>`. Logs written by a changed
+harness need the same layout and fields. To see the runs made here (pilot, rotation screen, follow-up runs), ask
+for a copy of that `logs/` directory.
+
 ## What it shows now
 
 Seven hand-picked sessions from the pilot and the rotation screen, listed in `examples.yaml` (run, session id,
