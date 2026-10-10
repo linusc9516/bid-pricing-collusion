@@ -50,4 +50,8 @@ models:
     slug: google/gemini-3.8-flash        # Gemini 3.8 Flash; endpoints: Google AI Studio, Google (Vertex)
     price_in: 0.75                       # only the Google AI Studio endpoints list `temperature`
     price_out: 3.75                      # about 9 times deepseek's output price
+    providers:
+      # The trace judge (scripts/judge_traces.py) calls this host. Flex is half the standard price; on 16 traces
+      # judged on both (2026-10-10) it was as fast (3.3 s against 3.4 s median) and gave the same labels on all 16.
+      primary: {name: Google AI Studio, slug: google-ai-studio/flex, quantization: unknown, price_in: 0.375, price_out: 1.875}
   # claude: TBD. The Anthropic model is not chosen yet; add slug, price_in and price_out here once it is.
