@@ -152,8 +152,21 @@ select { font: inherit; font-size: 13px; margin-left: 6px; background: var(--sur
 /* Charts */
 .chartbox { position: relative; margin: 12px 0 4px; }
 svg.chart { width: 100%; height: auto; display: block; touch-action: pan-y; }
-svg.chart text { fill: var(--muted); font-size: 11px; }
-svg.chart text.strong { fill: var(--text); font-size: 13px; font-weight: 600; }
+/* rem, so chart text grows with the reader's text size. Narrow screens get a narrower drawing (app.js NARROW), not a shrunken one. */
+svg.chart text { fill: var(--muted); font-size: 0.6875rem; }
+svg.chart text.strong { fill: var(--text); font-size: 0.8125rem; font-weight: 600; letter-spacing: -0.005em; }
+svg.chart text.halo { paint-order: stroke; stroke: var(--surface); stroke-width: 3.5px; stroke-linejoin: round; }
+svg.chart .ring { stroke: var(--text); stroke-width: 2; pointer-events: none; }
+svg.chart .hit { cursor: crosshair; }
+svg.chart .pair { cursor: pointer; transition: opacity 120ms ease-out; }
+svg.chart .pair .vis { opacity: .45; }
+svg.chart.focus .pair:not(.hot) { opacity: .18; }
+svg.chart .pair.hot .vis { opacity: 1; stroke-width: 2.5; }
+svg.chart .pair.hot circle { stroke: var(--text); }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 2px; background: var(--surface-2); border-radius: 14px; padding: 3px; margin: 12px 0 0; }
+.seg button { border: 0; background: none; border-radius: 11px; padding: 5px 12px; cursor: pointer; font-size: 13px; color: var(--text-2); }
+.seg button:hover { color: var(--text); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .14); }
 svg.chart text.inbar { fill: var(--text); }
 .toggles { display: flex; gap: 8px 16px; font-size: 13px; color: var(--text-2); margin: 10px 0 0; flex-wrap: wrap; align-items: center; }
 .toggles label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
@@ -211,9 +224,11 @@ dt { font-weight: 600; margin-top: 8px; color: var(--text); } dd { margin: 0; co
   #modes { margin: 16px -14px 0; padding: 10px 14px; }
   .panel, .cond, .round { padding: 16px; border-radius: 14px; }
 }
-@media (prefers-reduced-motion: reduce) { button, .strip, select { transition: none; } button:active { transform: none; } }
+@media (prefers-reduced-motion: reduce) { button, .strip, select, svg.chart .pair { transition: none; } button:active { transform: none; } }
 @media (prefers-reduced-transparency: reduce) { #modes { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 @media (prefers-contrast: more) {
+  .seg { border: 1px solid var(--text-2); }
+  .seg button[aria-pressed="true"] { outline: 2px solid var(--text); }
   .panel, .cond, .round, .notes { border: 1px solid var(--text-2); box-shadow: none; }
   #modes { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; border-bottom: 1px solid var(--text-2); }
 }

@@ -418,6 +418,18 @@ function classCard(sessions) {
 }
 
 const SCATTER_MAX_POINTS = 3000; // per panel; above this every k-th bid is drawn
+const SCATTER_HIT_PX = 22; // the nearest bid within this many screen pixels of the pointer is the one described
+const NARROW = window.matchMedia("(max-width: 700px)"); // charts are redrawn narrower, not scaled down, so their text stays readable
+
+// The tooltip at the pointer, shown at once (a <title> waits about a second and never shows on touch).
+function tipAt(ev, ...kids) {
+  const tip = document.getElementById("tip");
+  tip.replaceChildren(...kids);
+  tip.hidden = false;
+  const w = tip.offsetWidth, hgt = tip.offsetHeight;
+  tip.style.left = Math.max(8, Math.min(ev.clientX + 14, window.innerWidth - w - 8)) + "px";
+  tip.style.top = Math.max(8, Math.min(ev.clientY + 14, window.innerHeight - hgt - 8)) + "px";
+}
 
 // Every valid bid against the firm's own cost, one panel per model and arm, with the equilibrium bid and bid = cost as lines.
 function scatterCard(sessions) {
@@ -426,15 +438,17 @@ function scatterCard(sessions) {
   const models = [...new Set(use.flatMap((e) => Object.keys(e.points)))].sort();
   const arms = [[true, "one-shot"], [false, "repeated"]].filter(([c]) => use.some((e) => e.control === c));
   const lo = Math.min(...use.map((e) => e.cost_low)), hi = Math.max(...use.map((e) => e.cost_high)), top = Math.max(...use.map((e) => e.reserve));
-  const W = 900, pw = 372, ph = 260, ml = 44, gapX = 56, headH = 46, mb = 44;
+  const narrow = NARROW.matches, cols = narrow ? 1 : 2;
+  const W = narrow ? 460 : 900, ml = 44, gapX = 56, headH = 46, mb = 44, pw = narrow ? W - ml - 14 : 372, ph = narrow ? 290 : 260;
   const rowH = headH + ph + mb;
-  const root = svg("svg", { class: "chart", viewBox: `0 0 ${W} ${models.length * rowH}`, role: "img", "aria-label": "Scatter of each bid against the firm's own cost, by model and arm" });
+  const panels = models.flatMap((m, mi) => arms.map(([control, armName]) => ({ m, mi, control, armName })));
+  const root = svg("svg", { class: "chart", viewBox: `0 0 ${W} ${Math.ceil(panels.length / cols) * rowH}`, role: "img", "aria-label": "Scatter of each bid against the firm's own cost, by model and arm" });
   let sampled = false, noLine = false;
-  models.forEach((m, mi) => arms.forEach(([control, armName], ai) => {
+  panels.forEach(({ m, mi, control, armName }, pi) => {
     const group = use.filter((e) => e.control === control && e.points[m]);
     const all = group.flatMap((e) => e.points[m].map((p) => [p[0], p[1], p[2], e.seed]));
     if (!all.length) return;
-    const x0 = ml + ai * (pw + gapX), y0 = mi * rowH + headH;
+    const x0 = ml + (pi % cols) * (pw + gapX), y0 = Math.floor(pi / cols) * rowH + headH;
     const x = (c) => x0 + ((c - lo) / (hi - lo)) * pw, y = (b) => y0 + (1 - b / top) * ph;
     const clip = (a, b) => [[lo, a + b * lo], [hi, a + b * hi]].map(([c, v]) => `${x(c).toFixed(1)},${y(Math.max(0, Math.min(top, v))).toFixed(1)}`).join(" ");
     for (let g = 0; g <= 4; g += 1) {
@@ -450,13 +464,12 @@ function scatterCard(sessions) {
     root.append(svg("polyline", { points: clip(0, 1), fill: "none", stroke: "var(--cls-cost)", "stroke-width": 1.5 }));
     const step = Math.ceil(all.length / SCATTER_MAX_POINTS);
     if (step > 1) sampled = true;
-    const color = MODEL_COLORS[mi % MODEL_COLORS.length];
+    const color = MODEL_COLORS[mi % MODEL_COLORS.length], drawn = [];
     for (const won of [0, 1]) for (let i = 0; i < all.length; i += step) {
       const [c, b, flags, seed] = all[i];
       if ((flags & 1) !== won) continue;
-      const dot = svg("circle", { cx: x(c).toFixed(1), cy: y(b).toFixed(1), r: won ? 2.4 : 2.2, fill: won ? color : "none", stroke: won ? "none" : "var(--muted)", "stroke-width": 1, opacity: won ? 0.75 : 0.6 });
-      dot.append(svg("title", null, `cost ${c.toFixed(2)}, bid ${b.toFixed(2)} · ${won ? "won" : "lost"}${flags & 2 ? " · lowest cost" : ""} · seed ${seed}`));
-      root.append(dot);
+      drawn.push({ px: x(c), py: y(b), c, b, flags, seed });
+      root.append(svg("circle", { cx: x(c).toFixed(1), cy: y(b).toFixed(1), r: won ? 2.4 : 2.2, fill: won ? color : "none", stroke: won ? "none" : "var(--muted)", "stroke-width": 1, opacity: won ? 0.75 : 0.6 }));
     }
     const k = all.length, sx = all.reduce((t, p) => t + p[0], 0) / k, sy = all.reduce((t, p) => t + p[1], 0) / k;
     const sxx = all.reduce((t, p) => t + (p[0] - sx) ** 2, 0), sxy = all.reduce((t, p) => t + (p[0] - sx) * (p[1] - sy), 0);
@@ -468,22 +481,44 @@ function scatterCard(sessions) {
       fit = `fitted ${fmt(a, 1)} + ${fmt(b, 2)} × cost`;
     }
     const ns = new Set(group.map((e) => e.n_bidders));
-    let eq = "no single equilibrium line for these sessions";
+    let eq = "no single equilibrium line for these sessions", eqAt = null;
     if (ns.size === 1 && group.every((e) => !e.reveal_costs && !e.cost_spread && e.cost_high === hi && e.cost_low === lo)) {
       const n = [...ns][0], a = hi / n, b = 1 - 1 / n;
       root.append(svg("polyline", { points: clip(a, b), fill: "none", stroke: "var(--text)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
       eq = `equilibrium ${fmt(a, 1)} + ${fmt(b, 2)} × cost`;
+      eqAt = (c) => a + b * c;
     } else noLine = true;
     root.append(svg("rect", { x: x0, y: y0, width: pw, height: ph, fill: "none", stroke: "var(--axis)", "stroke-width": 1 }));
     root.append(svg("text", { class: "strong", x: x0, y: y0 - 26 }, `${m} · ${armName}`));
     root.append(svg("text", { x: x0 + pw, y: y0 - 26, "text-anchor": "end" }, `${k.toLocaleString()} bids`));
-    root.append(svg("text", { x: x0, y: y0 - 9 }, `${fit}${fit ? " · " : ""}${eq}`));
-  }));
+    root.append(svg("text", { x: x0, y: y0 - 9 }, narrow ? fit : `${fit}${fit ? " · " : ""}${eq}`));
+    // One hit area per panel: the pointer picks the nearest bid, so a 2-pixel dot does not have to be hit exactly.
+    const ring = svg("circle", { class: "ring", r: 6, fill: "none", visibility: "hidden" });
+    const hit = svg("rect", { class: "hit", x: x0, y: y0, width: pw, height: ph, fill: "transparent" });
+    const leave = () => { ring.setAttribute("visibility", "hidden"); hideTip(); };
+    const track = (ev) => {
+      const box = root.getBoundingClientRect(), scale = W / box.width, mx = (ev.clientX - box.left) * scale, my = (ev.clientY - box.top) * scale;
+      let best = null, bestD = (SCATTER_HIT_PX * scale) ** 2;
+      for (const p of drawn) { const d = (p.px - mx) ** 2 + (p.py - my) ** 2; if (d < bestD) { best = p; bestD = d; } }
+      if (!best) { leave(); return; }
+      ring.setAttribute("cx", best.px); ring.setAttribute("cy", best.py); ring.setAttribute("visibility", "visible");
+      const diff = eqAt ? best.b - eqAt(best.c) : null;
+      tipAt(ev, h("div", null, h("b", null, `Bid ${best.b.toFixed(2)}`), ` · ${best.flags & 1 ? "won" : "lost"}`),
+        h("div", { class: "row" }, h("span", null, `own cost ${best.c.toFixed(2)}${best.flags & 2 ? ", the round's lowest" : ""}`)),
+        diff == null ? null : h("div", { class: "row" }, h("span", null, `equilibrium bid ${eqAt(best.c).toFixed(2)} (${diff >= 0 ? "+" : "−"}${Math.abs(diff).toFixed(2)})`)),
+        h("div", { class: "row" }, h("span", null, `${m}, ${armName}, seed ${best.seed}`)));
+    };
+    hit.addEventListener("pointermove", track);
+    hit.addEventListener("pointerdown", track);
+    hit.addEventListener("pointerleave", leave);
+    root.append(ring, hit);
+  });
   const key = (cls, style, name) => h("span", { class: "key" }, h("span", { class: `sw ${cls}`, style }), name);
   return h("section", { class: "cond histo" },
     h("h3", null, "Bid against own cost"),
     h("p", { class: "meta" }, "One point per valid bid. A firm bidding the equilibrium sits on the dashed line; the fitted line is the least-squares line through the panel's bids, "
-      + "so a lower line means lower bids at every cost and a flatter one means bids that react less to cost. Points in the shaded area are bids below the firm's own cost."
+      + "so a lower line means lower bids at every cost and a flatter one means bids that react less to cost. Points in the shaded area are bids below the firm's own cost. "
+      + "Point at a bid to read it."
       + (sampled ? ` Panels with more than ${SCATTER_MAX_POINTS.toLocaleString()} bids draw an even sample; the fitted line uses all of them.` : "")
       + (noLine ? " No equilibrium line is drawn where costs are revealed, share a common part, or the sessions differ in the number of firms." : "")),
     h("div", { class: "legend" }, key("dot", "background:var(--text-2)", "winning bid (in the model's colour)"), key("ring", "", "losing bid"),
@@ -492,18 +527,17 @@ function scatterCard(sessions) {
 }
 
 const PAIR_MEASURES = [
-  ["collusion_index", "collusion index (price level)", () => 0],
-  ["markup_ratio", "markup ratio, all bids", () => 1],
-  ["markup_ratio_min_cost", "markup ratio, lowest-cost firm", () => 1],
-  ["markup_ratio_other", "markup ratio, other firms", () => 1],
-  ["bid_slope", "slope of bid on cost", (e) => (e.reveal_costs || e.cost_spread ? null : 1 - 1 / e.n_bidders)],
-  ["bid_intercept", "intercept of bid on cost", (e) => (e.reveal_costs || e.cost_spread || e.cost_low ? null : e.cost_high / e.n_bidders)],
+  ["collusion_index", "Index", "collusion index (price level)", () => 0],
+  ["markup_ratio", "Markup ratio", "markup ratio, all bids", () => 1],
+  ["markup_ratio_min_cost", "Markup, lowest-cost firm", "markup ratio, lowest-cost firm", () => 1],
+  ["markup_ratio_other", "Markup, other firms", "markup ratio, other firms", () => 1],
+  ["bid_slope", "Slope", "slope of bid on cost", (e) => (e.reveal_costs || e.cost_spread ? null : 1 - 1 / e.n_bidders)],
+  ["bid_intercept", "Intercept", "intercept of bid on cost", (e) => (e.reveal_costs || e.cost_spread || e.cost_low ? null : e.cost_high / e.n_bidders)],
 ];
-const PAIR_GROUPS_PER_ROW = 6;
 
 // One dot per session, each repeated session joined to its one-shot control: the comparison the session-level tests make.
 function pairedCard(run, sessions) {
-  const [key, name, bench] = PAIR_MEASURES.find(([k]) => k === state.pair) || PAIR_MEASURES[0];
+  const [key, , name, bench] = PAIR_MEASURES.find(([k]) => k === state.pair) || PAIR_MEASURES[0];
   const ids = new Map(run.sessions.map((e) => [e.id, e]));
   const groups = new Map();
   for (const e of sessions) {
@@ -513,12 +547,15 @@ function pairedCard(run, sessions) {
     if (!groups.has(e.condition)) groups.set(e.condition, { first: e, pairs: [] });
     groups.get(e.condition).pairs.push({ seed: e.seed, a: ctl.metrics[key], b: e.metrics[key] });
   }
-  const pick = h("label", null, "measure",
-    h("select", { onchange: (ev) => { state.pair = ev.target.value; renderRun(); } }, ...PAIR_MEASURES.map(([k, t]) => h("option", { value: k, selected: k === key }, t))));
+  // Only this card is rebuilt on a press, so the control answers at once however large the scatter above is.
+  const pick = h("div", { class: "seg", role: "group", "aria-label": "Measure" }, ...PAIR_MEASURES.map(([k, short, long]) =>
+    h("button", { type: "button", "aria-pressed": String(k === key), title: long,
+      onclick: (ev) => { state.pair = k; ev.currentTarget.closest("section").replaceWith(pairedCard(run, sessions)); } }, short)));
   const head = [h("h3", null, "Each session against its one-shot control"),
     h("p", { class: "meta" }, "One dot per session. A line joins a repeated session (right) to its one-shot control (left): same seed, same costs, no history shown. "
-      + "A line that falls means the history lowered that measure. The short bars are the means over sessions. This is the comparison the session-level tests make; a round is never an observation."),
-    h("div", { class: "legend" }, pick)];
+      + "A line that falls means the history lowered that measure. The short bars are the means over sessions. This is the comparison the session-level tests make; a round is never an observation. "
+      + "Point at a line to read its pair."),
+    pick];
   if (!groups.size) return h("section", { class: "cond histo" }, ...head, h("p", { class: "meta" }, "No session in this selection has a matched control with this measure."));
   const list = [...groups.entries()].sort();
   const lineups = [...new Set(run.sessions.map((e) => e.models.join("+")))].sort();
@@ -528,46 +565,61 @@ function pairedCard(run, sessions) {
   const span = Math.max(...values) - Math.min(...values) || 1;
   const tick = [1, 2, 2.5, 5, 10].map((m) => m * 10 ** Math.floor(Math.log10(span / 4))).find((t) => span / t <= 5);
   const vmin = Math.floor((Math.min(...values) - span * 0.04) / tick) * tick, vmax = Math.ceil((Math.max(...values) + span * 0.04) / tick) * tick;
-  const W = 900, ml = 52, mr = 8, inset = 34, mt = 14, ph = 250, mb = 58; // inset keeps the outer mean labels off the axis labels and the edge
-  const colW = (W - ml - mr - 2 * inset) / Math.min(PAIR_GROUPS_PER_ROW, Math.max(list.length, 3)), half = Math.min(34, colW / 4);
+  const narrow = NARROW.matches, perRowMax = narrow ? 2 : 6;
+  const W = narrow ? 460 : 900, ml = 52, mr = 8, inset = narrow ? 26 : 34, mt = 14, ph = 250, mb = 58; // inset keeps the outer mean labels off the axis labels and the edge
+  const colW = (W - ml - mr - 2 * inset) / Math.min(perRowMax, Math.max(list.length, narrow ? 2 : 3)), half = Math.min(34, colW * 0.2); // narrow enough that the mean labels of neighbouring groups cannot meet
   const y = (v, r) => r * (mt + ph + mb) + mt + (1 - (v - vmin) / (vmax - vmin)) * ph;
-  const rows = Math.ceil(list.length / PAIR_GROUPS_PER_ROW);
+  const rows = Math.ceil(list.length / perRowMax);
   const root = svg("svg", { class: "chart", viewBox: `0 0 ${W} ${rows * (mt + ph + mb)}`, role: "img", "aria-label": `${name}: each repeated session joined to its one-shot control` });
   const digits = tick >= 1 ? 0 : tick >= 0.1 ? 1 : 2;
-  const perRow = Math.min(PAIR_GROUPS_PER_ROW, list.length), left = ml + (W - ml - mr - perRow * colW) / 2;
+  const perRow = Math.min(perRowMax, list.length), left = ml + (W - ml - mr - perRow * colW) / 2;
   for (let r = 0; r < rows; r += 1) for (let v = vmin; v <= vmax + tick / 2; v += tick) {
     root.append(svg("line", { x1: ml, x2: W - mr, y1: y(v, r), y2: y(v, r), stroke: "var(--grid)", "stroke-width": 1 }));
     root.append(svg("text", { x: ml - 6, y: y(v, r) + 4, "text-anchor": "end" }, (Math.abs(v) < tick / 2 ? 0 : v).toFixed(digits)));
   }
+  const labels = [];
   list.forEach(([, g], i) => {
-    const r = Math.floor(i / PAIR_GROUPS_PER_ROW), cx = left + ((i % PAIR_GROUPS_PER_ROW) + 0.5) * colW, xa = cx - half, xb = cx + half;
+    const r = Math.floor(i / perRowMax), cx = left + ((i % perRowMax) + 0.5) * colW, xa = cx - half, xb = cx + half;
     const color = MODEL_COLORS[lineups.indexOf(g.first.models.join("+")) % MODEL_COLORS.length];
     if (benches[i] != null) {
       root.append(svg("line", { x1: cx - colW / 2 + 6, x2: cx + colW / 2 - 6, y1: y(benches[i], r), y2: y(benches[i], r), stroke: "var(--text)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
     }
     for (const p of g.pairs) {
-      const line = svg("line", { x1: xa, x2: xb, y1: y(p.a, r), y2: y(p.b, r), stroke: color, "stroke-width": 1.5, opacity: 0.45 });
-      line.append(svg("title", null, `seed ${p.seed}: one-shot ${p.a.toFixed(3)}, repeated ${p.b.toFixed(3)} (change ${(p.b - p.a >= 0 ? "+" : "") + (p.b - p.a).toFixed(3)})`));
-      root.append(line);
-    }
-    for (const p of g.pairs) for (const [px, v, arm] of [[xa, p.a, "one-shot"], [xb, p.b, "repeated"]]) {
-      const dot = svg("circle", { cx: px, cy: y(v, r), r: 4, fill: color, stroke: "var(--surface)", "stroke-width": 1.5 });
-      dot.append(svg("title", null, `seed ${p.seed}, ${arm}: ${v.toFixed(3)}`));
-      root.append(dot);
+      const change = p.b - p.a;
+      const pair = svg("g", { class: "pair" },
+        svg("line", { class: "vis", x1: xa, x2: xb, y1: y(p.a, r), y2: y(p.b, r), stroke: color, "stroke-width": 1.5 }),
+        svg("line", { x1: xa - 8, x2: xb + 8, y1: y(p.a, r), y2: y(p.b, r), stroke: "transparent", "stroke-width": 16, "stroke-linecap": "round" }),
+        svg("circle", { cx: xa, cy: y(p.a, r), r: 4, fill: color, stroke: "var(--surface)", "stroke-width": 1.5 }),
+        svg("circle", { cx: xb, cy: y(p.b, r), r: 4, fill: color, stroke: "var(--surface)", "stroke-width": 1.5 }));
+      const on = (ev) => {
+        root.classList.add("focus"); pair.classList.add("hot");
+        tipAt(ev, h("div", null, h("b", null, `Seed ${p.seed}`), ` · ${g.first.lineup}`),
+          h("div", { class: "row" }, h("b", null, p.a.toFixed(3)), h("span", null, "one-shot control")),
+          h("div", { class: "row" }, h("b", null, p.b.toFixed(3)), h("span", null, "repeated session")),
+          h("div", { class: "row" }, h("b", null, `${change >= 0 ? "+" : "−"}${Math.abs(change).toFixed(3)}`), h("span", null, "change with history")));
+      };
+      pair.addEventListener("pointerenter", on);
+      pair.addEventListener("pointermove", on);
+      pair.addEventListener("pointerdown", on);
+      pair.addEventListener("pointerleave", () => { root.classList.remove("focus"); pair.classList.remove("hot"); hideTip(); });
+      root.append(pair);
     }
     const ma = mean(g.pairs.map((p) => p.a)), mb2 = mean(g.pairs.map((p) => p.b)), base = r * (mt + ph + mb) + mt + ph;
     for (const [px, v, side] of [[xa, ma, -1], [xb, mb2, 1]]) {
-      root.append(svg("line", { x1: px - 9, x2: px + 9, y1: y(v, r), y2: y(v, r), stroke: "var(--text)", "stroke-width": 3, "stroke-linecap": "round" }));
-      root.append(svg("text", { class: "inbar", x: px + side * 12, y: y(v, r) + 4, "text-anchor": side < 0 ? "end" : "start" }, v.toFixed(Math.max(2, digits))));
+      labels.push(svg("line", { x1: px - 9, x2: px + 9, y1: y(v, r), y2: y(v, r), stroke: "var(--text)", "stroke-width": 3, "stroke-linecap": "round", "pointer-events": "none" }));
+      // A mean close to the benchmark would put its label on the dashed line: move it to the mean's own side of that line.
+      const gap = benches[i] == null ? 99 : y(v, r) - y(benches[i], r), nudge = Math.abs(gap) < 9 ? (gap >= 0 ? 9 : -9) - gap : 0;
+      labels.push(svg("text", { class: "inbar halo", x: px + side * 12, y: y(v, r) + 4 + nudge, "text-anchor": side < 0 ? "end" : "start", "pointer-events": "none" }, (Math.abs(v) < 0.005 ? 0 : v).toFixed(Math.max(2, digits))));
     }
     root.append(svg("text", { x: xa, y: base + 16, "text-anchor": "middle" }, "one-shot"));
     root.append(svg("text", { x: xb, y: base + 16, "text-anchor": "middle" }, "repeated"));
     root.append(svg("text", { class: "strong", x: cx, y: base + 36, "text-anchor": "middle" }, g.first.lineup));
     root.append(svg("text", { x: cx, y: base + 51, "text-anchor": "middle" }, `${manyRules ? `${g.first.tie_break_rule} · ` : ""}${manyN ? `${g.first.n_bidders} firms · ` : ""}${g.pairs.length} pairs`));
   });
-  return h("section", { class: "cond histo" }, ...head.slice(0, 2),
+  root.append(...labels); // means and their labels sit above every pair
+  return h("section", { class: "cond histo" }, ...head,
     h("div", { class: "legend" }, h("span", { class: "key" }, h("span", { class: "sw dash" }), "benchmark value"),
-      h("span", { class: "key" }, h("span", { class: "sw line", style: "background:var(--text);height:3px" }), "mean over sessions"), pick),
+      h("span", { class: "key" }, h("span", { class: "sw line", style: "background:var(--text);height:3px" }), "mean over sessions"), h("span", { class: "key" }, name)),
     h("div", { class: "chartbox" }, root));
 }
 
@@ -732,5 +784,6 @@ document.getElementById("theme").addEventListener("click", () => {
   render();
 });
 try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (_) { /* storage can be blocked */ }
+NARROW.addEventListener("change", () => { if (state.mode === "run") renderRun(); });
 window.addEventListener("hashchange", route);
 route();
