@@ -12,12 +12,13 @@ from decimal import ROUND_HALF_UP, Decimal
 import numpy as np
 
 from bidrig.bidders import Bidder, BidRequest
-from bidrig.bne import BneBenchmark
+from bidrig.bne import Benchmark, make_benchmark
 from bidrig.schema import BidRow, SessionMeta, TieResolution
 
 # Separate streams, so the number of tie-break draws a condition uses can never shift the costs.
 _COST_STREAM = 0
 _TIE_STREAM = 1
+_COMMON_COST_STREAM = 3  # 2 is the runner's slot stream
 
 
 def to_ticks(value: float, increment: float) -> int:
@@ -39,14 +40,26 @@ def draw_costs(
     cost_low: float,
     cost_high: float,
     increment: float,
+    cost_spread: float = 0.0,
 ) -> np.ndarray:
-    """Private costs ~ U[cost_low, cost_high] rounded to `increment`; shape (n_rounds, n_bidders).
+    """Private costs rounded to `increment`; shape (n_rounds, n_bidders).
 
-    A function of (seed, n_bidders) only: no condition enters, and a shorter session is a
-    prefix of a longer one on the same seed.
+    `cost_spread` 0: i.i.d. U[cost_low, cost_high]. `cost_spread` s > 0: a round-wide base
+    ~ U[cost_low + s, cost_high - s], and each firm's cost is the base + U[-s, s], so costs
+    stay in range and a round's costs are within 2s of each other (common-cost design; the
+    closed-form BNE does not apply). A function of (seed, n_bidders, cost_spread) only: no
+    condition enters, and a shorter session is a prefix of a longer one on the same seed.
     """
     rng = np.random.default_rng([seed, n_bidders, _COST_STREAM])
-    raw = rng.uniform(cost_low, cost_high, size=(n_rounds, n_bidders))
+    if cost_spread == 0:
+        raw = rng.uniform(cost_low, cost_high, size=(n_rounds, n_bidders))
+    else:
+        if not 0 < 2 * cost_spread < cost_high - cost_low:
+            raise ValueError(f"need 0 <= cost_spread < (cost_high - cost_low) / 2, got {cost_spread}")
+        # Own stream: the i.i.d. draw above is untouched, so existing seeds reproduce.
+        rng = np.random.default_rng([seed, n_bidders, _COMMON_COST_STREAM])
+        base = rng.uniform(cost_low + cost_spread, cost_high - cost_spread, size=(n_rounds, 1))
+        raw = base + rng.uniform(-cost_spread, cost_spread, size=(n_rounds, n_bidders))
     return np.array([[from_ticks(to_ticks(c, increment), increment) for c in row] for row in raw])
 
 
@@ -118,7 +131,7 @@ def _round_requests(meta: SessionMeta, round_number: int, costs: Sequence[float]
 async def _run_round(
     meta: SessionMeta,
     bidders: Sequence[Bidder],
-    bne: BneBenchmark,
+    bne: Benchmark,
     round_number: int,
     costs: Sequence[float],
     wins: Sequence[int],
@@ -133,7 +146,7 @@ async def _run_round(
 async def _settle_round(
     meta: SessionMeta,
     bidders: Sequence[Bidder],
-    bne: BneBenchmark,
+    bne: Benchmark,
     round_number: int,
     costs: Sequence[float],
     requests: Sequence[BidRequest],
@@ -208,8 +221,8 @@ async def run_session(
     """
     if not len(bidders) == len(meta.lineup) == meta.n_bidders:
         raise ValueError("bidders, meta.lineup and meta.n_bidders must agree")
-    bne = BneBenchmark(meta.n_bidders, meta.cost_low, meta.cost_high)
-    costs = draw_costs(meta.seed, meta.n_bidders, meta.n_rounds, meta.cost_low, meta.cost_high, meta.bid_increment)
+    bne = make_benchmark(meta.n_bidders, meta.cost_low, meta.cost_high, meta.cost_spread)
+    costs = draw_costs(meta.seed, meta.n_bidders, meta.n_rounds, meta.cost_low, meta.cost_high, meta.bid_increment, meta.cost_spread)
     rng = np.random.default_rng([meta.seed, meta.n_bidders, _TIE_STREAM])
     wins = [0] * meta.n_bidders
     rows: list[BidRow] = [] if log is None else log

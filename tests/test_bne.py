@@ -5,7 +5,7 @@ import math
 import numpy as np
 import pytest
 
-from bidrig.bne import BneBenchmark, chance_tie_rate, collusion_index
+from bidrig.bne import BneBenchmark, CommonCostBenchmark, chance_tie_rate, collusion_index, make_benchmark
 
 EXPECTED_WINNING_BID = {2: 200 / 3, 3: 50.0, 5: 100 / 3}
 
@@ -86,3 +86,55 @@ def test_chance_tie_rate_is_reproducible_and_grows_with_the_grid_and_a_narrow_ra
     assert chance_tie_rate(3, 0, 100, 1.0) == chance_tie_rate(3, 0, 100, 1.0)
     assert chance_tie_rate(3, 0, 100, 0.01) < chance_tie_rate(3, 0, 100, 1.0) < chance_tie_rate(3, 0, 100, 5.0)
     assert chance_tie_rate(3, 25, 75, 1.0) > chance_tie_rate(3, 0, 100, 1.0)  # same grid, narrower costs: more ties
+
+
+SPREAD_CASES = [(2, 5.0), (3, 5.0), (3, 15.0), (5, 10.0)]
+
+
+def test_zero_spread_factory_is_closed_form() -> None:
+    assert make_benchmark(3, 0, 100) == BneBenchmark(3, 0, 100)
+    assert isinstance(make_benchmark(3, 0, 100, 5), CommonCostBenchmark)
+
+
+@pytest.mark.parametrize(("n", "spread"), SPREAD_CASES)
+def test_common_cost_bid_is_above_cost_and_below_ceiling(n: int, spread: float) -> None:
+    bne = CommonCostBenchmark(n, 0, 100, spread)
+    for cost in np.linspace(0, 100, 41):
+        assert cost - 1e-6 <= bne.bid(cost) <= 100 + 1e-6
+    costs = np.linspace(0.5, 99.5, 200)
+    assert np.all(np.diff(bne.bids(costs)) > 0)
+
+
+@pytest.mark.parametrize(("n", "spread"), SPREAD_CASES)
+@pytest.mark.parametrize("cost", [10.0, 35.0, 50.0, 80.0])
+def test_common_cost_bid_is_best_response(n: int, spread: float, cost: float) -> None:
+    """Monte Carlo: against n - 1 rivals playing the numeric equilibrium, no deviation gains more than noise."""
+    bne = CommonCostBenchmark(n, 0, 100, spread)
+    rng = np.random.default_rng(3)
+    lo, hi = max(cost - spread, spread), min(cost + spread, 100 - spread)
+    base = rng.uniform(lo, hi, size=(400_000, 1))
+    rivals = bne.bids(base + rng.uniform(-spread, spread, size=(400_000, n - 1)))
+    lowest_rival = rivals.min(axis=1)
+
+    def expected_profit(bid: float) -> float:
+        return float((bid - cost) * (lowest_rival > bid).mean())
+
+    eq = bne.bid(cost)
+    best = max(expected_profit(eq + d) for d in np.linspace(-6, 6, 121))
+    assert expected_profit(eq) >= best - 0.02 * max(best, 1.0)
+
+
+def test_common_cost_markup_is_thin() -> None:
+    """Costs within 10 of each other make bidding near-Bertrand: the winning markup is far below the i.i.d. 25."""
+    bne = CommonCostBenchmark(3, 0, 100, 5)
+    rng = np.random.default_rng(1)
+    base = rng.uniform(5, 95, size=(100_000, 1))
+    lowest = (base + rng.uniform(-5, 5, size=(100_000, 3))).min(axis=1)
+    assert 0 < bne.expected_winning_bid - lowest.mean() < 8
+
+
+def test_common_cost_rejects_bad_spread() -> None:
+    with pytest.raises(ValueError):
+        CommonCostBenchmark(3, 0, 100, 0)
+    with pytest.raises(ValueError):
+        CommonCostBenchmark(3, 0, 100, 50)

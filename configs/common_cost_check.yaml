@@ -1,0 +1,37 @@
+# Check of the common-cost draw (cost_spread) with real calls: N = 2, DeepSeek, short sessions.
+# Purpose: read the prompts and logs by hand (check_logs.py) and see the benchmark and index behave;
+# not a result. Own seeds and run id (common_cost_check). The prompt template states the common-cost
+# structure to the firms; the benchmark is the numeric equilibrium (bne.py), not the closed form.
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 12
+  cost_spread: 5
+
+session:
+  n_sessions: 3
+  base_seed: 981000       # disjoint from the pilot, the screen and pilot_tiny
+
+prompt:
+  template: prompts/bidder_system_common.md
+  version: v1-common
+
+llm:
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    deepseek: {effort: low}
+
+budget:
+  max_cost_usd: 0.5
+  estimate_output_tokens: 4000
+
+cells:
+  - id: cc-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+
+sweep:
+  history_window: [null, 0]

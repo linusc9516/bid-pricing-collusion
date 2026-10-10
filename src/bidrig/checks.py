@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from bidrig.auction import draw_costs, from_ticks, to_ticks
-from bidrig.bne import BneBenchmark
+from bidrig.bne import make_benchmark
 from bidrig.llm import ERROR_LOG_LIMIT
 from bidrig.prompts import (
     ANNOUNCEMENTS,
@@ -148,7 +148,7 @@ def check_structure(log: SessionLog, report: CheckReport, include_incomplete: bo
 def check_costs(log: SessionLog, report: CheckReport) -> None:
     """Every logged cost equals the cost matrix regenerated from (seed, n_bidders) alone."""
     meta, sid = log.meta, log.meta.session_id
-    matrix = draw_costs(meta.seed, meta.n_bidders, meta.n_rounds, meta.cost_low, meta.cost_high, meta.bid_increment)
+    matrix = draw_costs(meta.seed, meta.n_bidders, meta.n_rounds, meta.cost_low, meta.cost_high, meta.bid_increment, meta.cost_spread)
     slots = {entry.firm_id: slot for slot, entry in enumerate(meta.lineup)}
     for row in log.rows:
         report.items["costs"] += 1
@@ -162,7 +162,7 @@ def check_auction(log: SessionLog, report: CheckReport) -> None:
     """Winner, price, tie fields, profit and benchmark bid of every round obey the session's tie-break rule."""
     meta, sid, inc = log.meta, log.meta.session_id, log.meta.bid_increment
     rule = meta.tie_break_rule
-    bne = BneBenchmark(meta.n_bidders, meta.cost_low, meta.cost_high)
+    bne = make_benchmark(meta.n_bidders, meta.cost_low, meta.cost_high, meta.cost_spread)
     wins: dict[str, int] = defaultdict(int)
     for number, group in _by_round(log.rows):
         report.items["auction"] += 1

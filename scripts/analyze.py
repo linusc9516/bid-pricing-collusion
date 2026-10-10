@@ -62,8 +62,15 @@ def main() -> int:
     calls.to_csv(out / "call_summary.csv", index=False)
     noncompetitive = non_competitive_bids(table)
     noncompetitive.to_csv(out / "non_competitive_bids.csv", index=False)
+    spreads = {(m.n_bidders, float(m.bid_increment)): set() for m, _, _ in loaded}
+    for m, _, _ in loaded:
+        spreads[(m.n_bidders, float(m.bid_increment))].add(m.cost_spread)
+    if any(len(v) > 1 for v in spreads.values()):
+        raise SystemExit("one run mixes cost_spread values at the same bidder count and increment; the tie benchmark is keyed on those")
     chance = {
-        (m.n_bidders, float(m.bid_increment)): chance_tie_rate(m.n_bidders, m.cost_low, m.cost_high, m.bid_increment)
+        (m.n_bidders, float(m.bid_increment)): chance_tie_rate(
+            m.n_bidders, m.cost_low, m.cost_high, m.bid_increment, cost_spread=m.cost_spread
+        )
         for m, _, _ in loaded
     }
     ties = tie_check(table, chance)

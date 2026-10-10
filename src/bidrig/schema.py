@@ -48,6 +48,7 @@ class SessionMeta:
     reserve_price: float
     bid_increment: float
     n_rounds: int
+    cost_spread: float = 0.0  # 0 = i.i.d. costs; s > 0 = common base + U[-s, s] per firm
     history_window: int | None = None  # None = whole session; 0 = one-shot control
     temperature: float | None = None
     prompt_version: str | None = None

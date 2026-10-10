@@ -17,7 +17,7 @@ import yaml
 
 from bidrig.auction import run_session
 from bidrig.bidders import Bidder, LLMBidder, make_scripted_bidder
-from bidrig.bne import BneBenchmark
+from bidrig.bne import make_benchmark
 from bidrig.llm import (
     BudgetExceeded,
     LLMSettings,
@@ -43,7 +43,7 @@ from bidrig.schema import (
     write_session,
 )
 
-AUCTION_KEYS = {"cost_low", "cost_high", "reserve_price", "bid_increment", "tie_break_rule", "n_rounds", "n_bidders"}
+AUCTION_KEYS = {"cost_low", "cost_high", "cost_spread", "reserve_price", "bid_increment", "tie_break_rule", "n_rounds", "n_bidders"}
 SESSION_KEYS = {"n_sessions", "base_seed", "info_condition", "history_window", "disclose_horizon"}
 SCRIPTED_PARAMS = {"markup", "shade", "undercut", "price"}
 # Slot assignment uses its own stream, so it never shifts costs or tie-breaks.
@@ -189,6 +189,7 @@ def plan_sessions(
                     ],
                     cost_low=auction["cost_low"],
                     cost_high=auction["cost_high"],
+                    cost_spread=auction.get("cost_spread", 0.0),
                     reserve_price=auction["reserve_price"],
                     bid_increment=auction["bid_increment"],
                     n_rounds=auction["n_rounds"],
@@ -284,7 +285,7 @@ async def _run_one(
     bidders: list[Bidder]
     if planned.scripted:
         params = {k: v for k, v in planned.scripted.items() if k != "bidder"}
-        bne = BneBenchmark(meta.n_bidders, meta.cost_low, meta.cost_high)
+        bne = make_benchmark(meta.n_bidders, meta.cost_low, meta.cost_high, meta.cost_spread)
         bidders = [make_scripted_bidder(planned.scripted["bidder"], bne, meta.reserve_price, **params) for _ in meta.lineup]
     else:
         if client is None:
