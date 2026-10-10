@@ -277,4 +277,11 @@ result is pricing above the competitive level through anchoring on displayed bid
 | One row per session | `results/baseline_no_channel/session_metrics.csv` |
 | Judge labels (F8) | `results/baseline_no_channel/trace_judge.csv`, `trace_judge_sessions.csv` |
 | The declaration | `configs/analysis.yaml`, section `baseline_no_channel` |
-| F4, F5 (gap), F7, F10, F11 | Computed by scratch scripts on 10 and 11 October; not yet in the repo |
+| F4 (round 1 by thinking) | `results/baseline_no_channel/baseline_descriptives.csv`, measure `round1_bid_minus_benchmark` |
+| F5 (gap) | `session_metrics.csv`, column `bid_gap` |
+| F7 (round blocks; correlation across seeds) | `results/baseline_no_channel/baseline_round_blocks.csv`; printed by `scripts/analyze.py` |
+| F10, F11 | `results/baseline_no_channel/baseline_profit_checks.csv` (code: `src/bidrig/analysis/profit.py`) |
+| F7, the cost features of the high seeds | Read by hand from the logs; no script in the repo |
+
+All of these are on `main` from commit `649fcbb`; `uv run python scripts/analyze.py logs/baseline_no_channel`
+regenerates them from the logs.

@@ -172,7 +172,8 @@ by the luck of the start, with deviation still paying.
 **Limits of these results.** The switching test holds the other firm's bids fixed, and a real opponent would react;
 fear of that reaction is what a collusive outcome rests on, and the judge finds no such reasoning. The "forgone"
 figures are biased upward, because the best reply is found and scored on the same sample: DeepSeek's one-shot arm,
-which bids the equilibrium, shows 6% to 13% by this method, so that is the noise floor. Scripts: not yet in the repo.
+which bids the equilibrium, shows 6% to 13% by this method, so that is the noise floor. Code: `src/bidrig/analysis/profit.py` on `main`; table:
+`results/baseline_no_channel/baseline_profit_checks.csv`.
 
 ### 2.2 Observations and current explanations (state on 10 October)
 
