@@ -17,6 +17,7 @@ from bidrig.runner import (
     check_llm_settings,
     estimate,
     is_complete,
+    load_config,
     prepare,
     run_plan,
     tbd_settings,
@@ -30,26 +31,27 @@ def main() -> int:
     parser.add_argument("config", type=Path)
     parser.add_argument("--run-id", help="run directory under logs/; defaults to the config's file stem")
     parser.add_argument("--dry-run", action="store_true", help="print sessions, calls and cost; call nothing")
-    parser.add_argument("--host", default="primary",
+    parser.add_argument("--host",
                         help="pinned host tier for models that have one: primary, fallback or backup for every model, or per "
                              "model as deepseek=backup (comma-separated, e.g. fallback,deepseek=backup); rerun failed "
-                             "sessions with fallback, then backup")
+                             "sessions with fallback, then backup. Defaults to llm.host in the config, else primary")
     parser.add_argument("--yes", action="store_true", help="skip the confirmation before calling models")
     parser.add_argument("--log-dir", type=Path, help="defaults to output.log_dir in the config")
     args = parser.parse_args()
 
     try:
-        config, models, plan = prepare(args.config, args.run_id, args.host)
+        host = args.host or load_config(args.config).get("llm", {}).get("host", "primary")
+        config, models, plan = prepare(args.config, args.run_id, host)
     except ValueError as exc:
         parser.error(str(exc))
     run_id = plan[0].meta.run_id if plan else args.run_id
     log_dir = args.log_dir or ROOT / config.get("output", {}).get("log_dir", "logs")
-    est = estimate(plan, config, models, args.host)
+    est = estimate(plan, config, models, host)
     cap = config.get("budget", {}).get("max_cost_usd", 0.0)
     pending = [p for p in plan if not is_complete(log_dir, p.meta)]
     pending_calls = sum(p.n_llm_calls for p in pending)
 
-    print(f"config {args.config}  run {run_id}  host {args.host}  git {plan[0].meta.git_sha if plan else '-'}")
+    print(f"config {args.config}  run {run_id}  host {host}  git {plan[0].meta.git_sha if plan else '-'}")
     print(f"{est.n_conditions} conditions, {est.n_sessions} sessions ({len(pending)} not yet complete)")
     print(f"{est.n_llm_calls} model calls before rebids and retries ({pending_calls} pending)")
     if est.n_llm_calls:
@@ -84,7 +86,7 @@ def main() -> int:
         timeout = LLMSettings.from_config(config.get("llm", {})).request_timeout_s
         client_factory = lambda: make_openai_client(key, base_url, timeout=timeout)
 
-    result = asyncio.run(run_plan(pending, config, models, log_dir, client_factory, args.host, progress=lambda line: print(line, flush=True)))
+    result = asyncio.run(run_plan(pending, config, models, log_dir, client_factory, host, progress=lambda line: print(line, flush=True)))
     print(f"completed {len(result.completed)}, already complete {len(plan) - len(pending)}, failed {len(result.failed)}")
     for session_id, error in result.failed.items():
         print(f"  failed {session_id}: {error}")

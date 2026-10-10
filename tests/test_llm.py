@@ -417,3 +417,13 @@ def test_a_reply_cut_off_at_the_cap_is_marked_and_retried() -> None:
     fake = FakeOpenAI([completion(None, finish="length", tokens=(500, 4000), reasoning_tokens=4000), completion({"reasoning": "r", "bid": 60})])
     bid, rows, _ = ask(fake)
     assert bid == 60 and [r.finish_reason for r in rows] == ["length", "tool_calls"] and rows[0].reasoning_tokens == 4000
+
+
+def test_gpt_luna_is_pinned_without_a_quantization_filter_and_is_sent_no_temperature() -> None:
+    specs = load_models(MODELS)
+    client = OpenRouterClient(FakeOpenAI([]), LLMSettings(temperature=1.0, max_output_tokens=4000), SpendTracker(1.0))
+    luna = client.request_kwargs(specs["gpt-luna"], specs["gpt-luna"].host("primary"), [{"role": "user", "content": "u"}], 1, 100)
+    assert "temperature" not in luna
+    assert luna["extra_body"]["provider"] == {"only": ["openai"], "allow_fallbacks": False, "require_parameters": True}
+    deepseek = client.request_kwargs(specs["deepseek"], specs["deepseek"].host("backup"), [{"role": "user", "content": "u"}], 1, 100)
+    assert deepseek["temperature"] == 1.0 and deepseek["extra_body"]["provider"]["quantizations"] == ["fp8"]

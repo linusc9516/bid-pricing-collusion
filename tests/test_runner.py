@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd
 import pytest
+import yaml
 from test_llm import FakeOpenAI, completion, error_body
 
 from bidrig.analysis.metrics import call_summary, condition_means, session_metrics_table
@@ -418,3 +419,21 @@ def test_condition_id_separates_cost_spreads() -> None:
     assert condition_id("cell", "random", "full", 2, None, 0.0) == base
     assert condition_id("cell", "random", "full", 2, None, 5.0) == base + "__spread5"
     assert condition_id("cell", "random", "full", 2, 0, 2.5) == "oneshot__" + base + "__spread2.5"
+
+
+def test_baseline_no_channel_plan_matches_the_declared_design() -> None:
+    config = load_config(CONFIGS / "baseline_no_channel.yaml")
+    _, _, plan = prepare(CONFIGS / "baseline_no_channel.yaml", host_role=config["llm"]["host"])
+    declared = yaml.safe_load((CONFIGS / "analysis.yaml").read_text())["baseline_no_channel"]["design"]
+    assert len(plan) == 48 and sum(p.n_llm_calls for p in plan) == 4800
+    assert {p.meta.run_id for p in plan} == {"baseline_no_channel"}
+    low, high = (int(x) for x in declared["seeds"].split("-"))
+    for model in ("deepseek", "gpt-luna"):
+        cell = [p.meta for p in plan if p.models[0] == model]
+        assert sorted(m.seed for m in cell if m.is_control) == sorted(m.seed for m in cell if not m.is_control) == list(range(low, high + 1))
+        assert {m.providers[model]["name"] for m in cell} == {declared["cells"][model]["host"]}
+        assert {(m.n_bidders, m.n_rounds, m.tie_break_rule, m.info_condition, m.prompt_version) for m in cell} == {(2, 50, "random", "full", "v1")}
+        assert config["llm"]["reasoning_overrides"][model] == declared["cells"][model]["reasoning"]
+    assert {p.meta.temperature for p in plan if p.models[0] == "deepseek"} == {1.0}
+    assert {p.meta.temperature for p in plan if p.models[0] == "gpt-luna"} == {None}  # not sent (models.yaml send_temperature)
+    assert config["llm"]["max_output_tokens"] == declared["max_output_tokens"] == 4000

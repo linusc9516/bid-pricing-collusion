@@ -1,0 +1,47 @@
+# No-channel baseline for the channel study: two firms, private costs, no way to reach each other. The analysis is
+# declared in configs/analysis.yaml, section baseline_no_channel (H1: history lowers the price level; H2: one-shot
+# pricing is at the competitive level), and was committed before this run. Do not change a setting here without
+# changing that section first, in its own commit, and never after the first session has run.
+# Two same-model cells, DeepSeek V4.1 Flash and GPT-6 Luna, on the same 12 seeds: 12 sessions of 50 rounds with the
+# whole history shown, and 12 matched one-shot controls (history_window 0: same seed, same costs, no history).
+# 48 sessions, 4,800 calls. The same settings as supporting_n2_replicate.yaml (the exploratory batch, DeepSeek only,
+# seeds 993000+), with new seeds and the Luna cell added.
+# Hosts: deepseek on DeepInfra (its backup tier), the host of n2_replicate. DeepInfra stops hidden thinking at about
+# 2,400 tokens; on seven faster hosts 19% to 44% of replies ran into the 4,000-token cap with no bid (2026-10-10).
+# gpt-luna on OpenAI. llm.host below sets this, so a plain run uses the declared hosts.
+# Thinking: deepseek at low effort (about 1,300 hidden tokens a call). gpt-luna at high: at low it never thought in 16
+# test calls and at high it skipped thinking on 2 of 8 one-shot calls; its replies stayed under 1,500 tokens.
+# Run id: baseline_no_channel. Check the logs with   check_logs.py logs/baseline_no_channel --expect-cap 4000
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 50
+
+session:
+  n_sessions: 12
+  base_seed: 996000       # disjoint from every earlier run (the last block used is 995000, costs_revealed)
+
+llm:
+  host: deepseek=backup   # default for --host: deepseek on DeepInfra, every other model on its primary host
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  control_round_concurrency: 4   # a one-shot control asks for 4 rounds at once (no history, so same results)
+  reasoning_overrides:
+    deepseek: {effort: low}
+    gpt-luna: {effort: high}
+
+budget:
+  max_cost_usd: 9.12      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap); about $3 expected
+  estimate_output_tokens: 4000
+
+cells:
+  - id: base-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: base-luna
+    lineup: {type: homogeneous, model: gpt-luna}
+
+sweep:
+  history_window: [null, 0]

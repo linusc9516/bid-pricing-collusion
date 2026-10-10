@@ -4,7 +4,7 @@
 #
 # Status, 10 October 2026: the tie-break experiment these sections were written for is shelved (README.md,
 # "Earlier focus"). They are kept unchanged as the record of what was declared, and scripts/analyze.py still reads
-# manipulation_check. The current plan is the section `baseline_n2` at the end of this file.
+# manipulation_check. The current plan is the section `baseline_no_channel` at the end of this file.
 
 unit: session                 # all inference is on one value per session, never per round
 
@@ -94,7 +94,8 @@ supporting_metrics:
   - reserve_bid_rate       # non-competitive unilateral bids (preliminary observation, PLANNING.md 2.6)
   - below_cost_bid_rate
 
-# --- Added 10 October 2026, BEFORE the run `baseline_n2` exists ------------------------------------------
+# (Section and run renamed from baseline_n2 on 10 October 2026, before any session existed.)
+# --- Added 10 October 2026, BEFORE the run `baseline_no_channel` exists ------------------------------------------
 # The study now asks, first, how two cheap models bid with no channel between the firms, and later whether a
 # channel changes that. This section declares the analysis of the no-channel baseline. It replaces nothing
 # above; the keys above (`inference`, `confirmatory`) do not apply to this run.
@@ -105,9 +106,9 @@ supporting_metrics:
 # labelled exploratory. The H2 margin was chosen with the same exploratory numbers in view, which is allowed
 # because the confirmatory sessions use new seeds.
 
-baseline_n2:
-  run_id: baseline_n2
-  config: configs/baseline_n2.yaml       # to be written with exactly the settings below, before the run
+baseline_no_channel:
+  run_id: baseline_no_channel
+  config: configs/baseline_no_channel.yaml       # to be written with exactly the settings below, before the run
 
   design:
     n_bidders: 2
@@ -120,14 +121,18 @@ baseline_n2:
     reserve_price: 100
     prompt: prompts/bidder_system.md     # version v1; not v2-repeat, which adds a line about the other firms' strategies
     max_output_tokens: 4000              # stated in the prompt
-    temperature: 1.0                     # sent to both models; no gpt-luna endpoint lists it as supported, so it is
-                                         # probably not applied there. Reported as a difference between the models
+    temperature:                         # the two models are NOT sampled alike, and this is reported with every result
+      deepseek: 1.0                      # sent and applied
+      gpt-luna: not sent                 # no gpt-luna endpoint accepts the parameter (a pinned request carrying it is
+                                         # rejected), so the model samples at its provider default, which is not
+                                         # documented and cannot be set. Any difference between the models may
+                                         # come partly from this. Declared 10 October 2026, before the run
     arms:
       history: history_window null       # the whole session so far is shown
       one_shot: history_window 0         # the matched control: same seed, same costs, no history shown
     cells:                               # same-model lineups; a pair is one seed's history session and its control
       deepseek: {reasoning: {effort: low}, host: DeepInfra}    # --host deepseek=backup, the host of n2_replicate
-      gpt-luna: {reasoning: {effort: high}, host: OpenAI}      # standard endpoint, not flex
+      gpt-luna: {reasoning: {effort: high}, host: OpenAI}      # standard endpoint, not flex; pinned, no quantization filter
     seeds: 996000-996011                 # 12 per cell, the same 12 for both models; disjoint from every earlier run
     n_pairs_per_model: 12                # fixed. No session is added after any result has been seen
 

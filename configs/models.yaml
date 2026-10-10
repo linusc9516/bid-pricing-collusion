@@ -44,8 +44,16 @@ models:
   # not chosen (the config default applies). Prices are the headline listing.
   gpt-luna:
     slug: openai/gpt-6-luna              # GPT-6 Luna; endpoints: OpenAI, Azure, Amazon Bedrock
-    price_in: 0.10                       # no endpoint lists `temperature` as supported, and requests are sent with
-    price_out: 0.50                      # temperature and require_parameters, so check the smoke test before any run
+    price_in: 0.10
+    price_out: 0.50
+    # No endpoint lists `temperature` as supported, and a pinned request that carries it is rejected (404, 2026-10-10),
+    # so it is not sent: gpt-luna samples at its own default, whatever llm.temperature says. The run costs_revealed
+    # was unpinned and did send it; it was most likely dropped there without notice.
+    send_temperature: false
+    providers:
+      # Pinned on 2026-10-10 so a session cannot move between OpenAI, Azure and Bedrock. The standard endpoint, not
+      # openai/flex. quantization null sends no quantization filter: this endpoint matches none, not even `unknown`.
+      primary: {name: OpenAI, quantization: null, price_in: 0.10, price_out: 0.50}
   gemini:
     slug: google/gemini-3.8-flash        # Gemini 3.8 Flash; endpoints: Google AI Studio, Google (Vertex)
     price_in: 0.75                       # only the Google AI Studio endpoints list `temperature`

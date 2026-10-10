@@ -35,7 +35,7 @@ def test_pre_existing_plan_is_unchanged() -> None:
 
 
 def test_baseline_plan_declares_two_confirmatory_claims_on_twelve_fresh_seeds() -> None:
-    plan = CONFIG["baseline_n2"]
+    plan = CONFIG["baseline_no_channel"]
     assert [c["id"] for c in plan["confirmatory"]] == ["H1_history_lowers_price", "H2_one_shot_at_equilibrium"]
     assert [c["outcome"].split()[0] for c in plan["confirmatory"]] == ["delta_index", "collusion_index"]
     low, high = (int(x) for x in plan["design"]["seeds"].split("-"))

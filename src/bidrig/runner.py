@@ -180,7 +180,7 @@ def plan_sessions(
                 for alias in sorted({a for a in aliases if a}):
                     host = models[alias].host(host_role_for(host_role, alias))
                     if host is not None:
-                        providers[alias] = {"name": host.name, "quantization": host.quantization, "role": host.role}
+                        providers[alias] = {"name": host.name, "quantization": host.quantization or "not filtered", "role": host.role}
                 meta = SessionMeta(
                     run_id=run_id,
                     condition_id=cid,
@@ -202,7 +202,8 @@ def plan_sessions(
                     bid_increment=auction["bid_increment"],
                     n_rounds=auction["n_rounds"],
                     history_window=session["history_window"],
-                    temperature=None if scripted else llm.get("temperature"),
+                    # None when no model of the lineup is sent a temperature (ModelSpec.send_temperature)
+                    temperature=llm.get("temperature") if any(a and models[a].send_temperature for a in aliases) else None,
                     prompt_version=None if scripted else config.get("prompt", {}).get("version"),
                     providers=providers,
                     git_sha=sha,

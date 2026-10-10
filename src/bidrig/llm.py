@@ -36,7 +36,7 @@ class Host:
     """One OpenRouter provider endpoint; prices in USD per million tokens."""
 
     name: str
-    quantization: str
+    quantization: str | None  # None sends no quantization filter: OpenAI's gpt-luna endpoint matches none, not even `unknown`
     price_in: float
     price_out: float
     role: str = "primary"  # one of HOST_TIERS
@@ -58,6 +58,7 @@ class ModelSpec:
     price_out: float
     hosts: dict[str, Host] = field(default_factory=dict)
     reasoning: dict[str, Any] | None = None  # OpenRouter `reasoning` object; None = use the config default
+    send_temperature: bool = True  # False leaves `temperature` out of the request: the model samples at its own default
 
     def host(self, role: str) -> Host | None:
         """The pinned host for `role`; a model with fewer tiers uses its last tier below `role`, None if none is pinned."""
@@ -104,7 +105,7 @@ def load_models(path: Path) -> dict[str, ModelSpec]:
     specs = {}
     for alias, entry in raw.items():
         hosts = {role: Host(role=role, **host) for role, host in (entry.get("providers") or {}).items()}
-        specs[alias] = ModelSpec(alias, entry["slug"], entry["price_in"], entry["price_out"], hosts, entry.get("reasoning"))
+        specs[alias] = ModelSpec(alias, entry["slug"], entry["price_in"], entry["price_out"], hosts, entry.get("reasoning"), entry.get("send_temperature", True))
     return specs
 
 
@@ -332,22 +333,21 @@ class OpenRouterClient:
             extra["reasoning"] = reasoning
         if host is not None:
             # Never fall back to another host mid-session (PLANNING.md 5.5).
-            extra["provider"] = {
-                "only": [host.routing_slug],
-                "quantizations": [host.quantization],
-                "allow_fallbacks": False,
-                "require_parameters": True,
-            }
-        return {
+            extra["provider"] = {"only": [host.routing_slug], "allow_fallbacks": False, "require_parameters": True}
+            if host.quantization is not None:
+                extra["provider"]["quantizations"] = [host.quantization]
+        kwargs = {
             "model": spec.slug,
             "messages": list(messages),
             "tools": [bid_tool(reserve_price)],
             "tool_choice": tool_choice_value(self.settings.tool_choice),
-            "temperature": self.settings.temperature,
             "max_tokens": self.settings.max_output_tokens,
             "seed": seed,
             "extra_body": extra,
         }
+        if spec.send_temperature:
+            kwargs["temperature"] = self.settings.temperature
+        return kwargs
 
     async def request_bid(
         self,
