@@ -1,7 +1,7 @@
 # Findings from the no-channel baseline (state on 11 October 2026)
 
-This file holds findings only: what the run `baseline_no_channel` showed and how far each result can be trusted. It has
-no plan and no comparison with other papers; those are in `PLANNING_NEW.md` and `DIFFERENCE.md`.
+Findings only: what the run `baseline_no_channel` showed, and how far each result can be trusted. The plan for what
+comes next and the comparison with other papers are separate documents, `PLANNING_NEW.md` and `DIFFERENCE.md`.
 
 Every finding carries one of three labels:
 
