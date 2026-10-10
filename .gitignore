@@ -43,3 +43,6 @@ ROTATION_ELICITATION_PLAN.md
 # per-run viewer exports (scripts/export_site.py); data/examples.js is committed
 site/data/sessions/
 site/data/runs.js
+
+# draft design note, not yet agreed
+COMMUNICATION_ARM_PLAN.md
