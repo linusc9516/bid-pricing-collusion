@@ -32,3 +32,13 @@ def test_labelling_rule_requires_the_index_above_the_benchmark() -> None:
 def test_pre_existing_plan_is_unchanged() -> None:
     assert CONFIG["primary_outcome"] == "delta_index" and CONFIG["unit"] == "session"
     assert [c["id"] for c in CONFIG["confirmatory"]] == ["least_wins_vs_random", "bafo_vs_random"]
+
+
+def test_baseline_plan_declares_two_confirmatory_claims_on_twelve_fresh_seeds() -> None:
+    plan = CONFIG["baseline_n2"]
+    assert [c["id"] for c in plan["confirmatory"]] == ["H1_history_lowers_price", "H2_one_shot_at_equilibrium"]
+    assert [c["outcome"].split()[0] for c in plan["confirmatory"]] == ["delta_index", "collusion_index"]
+    low, high = (int(x) for x in plan["design"]["seeds"].split("-"))
+    assert high - low + 1 == plan["design"]["n_pairs_per_model"] == 12
+    assert set(plan["design"]["cells"]) == {"deepseek", "gpt-luna"}
+    assert plan["confirmatory"][1]["margin"] == 0.05

@@ -1,6 +1,10 @@
 # Pre-declared analysis plan. Commit this before collecting data; the git SHA logged
 # in each session.json then shows the plan pre-dates the results.
 # See PLANNING.md sections 2.6 and 6.
+#
+# Status, 10 October 2026: the tie-break experiment these sections were written for is shelved (README.md,
+# "Earlier focus"). They are kept unchanged as the record of what was declared, and scripts/analyze.py still reads
+# manipulation_check. The current plan is the section `baseline_n2` at the end of this file.
 
 unit: session                 # all inference is on one value per session, never per round
 
@@ -89,3 +93,116 @@ supporting_metrics:
   - own_lag_coef           # (firm fixed effects); the one-shot control is the placebo, so read repeated against it
   - reserve_bid_rate       # non-competitive unilateral bids (preliminary observation, PLANNING.md 2.6)
   - below_cost_bid_rate
+
+# --- Added 10 October 2026, BEFORE the run `baseline_n2` exists ------------------------------------------
+# The study now asks, first, how two cheap models bid with no channel between the firms, and later whether a
+# channel changes that. This section declares the analysis of the no-channel baseline. It replaces nothing
+# above; the keys above (`inference`, `confirmatory`) do not apply to this run.
+#
+# Where the hypotheses came from: H1 was suggested by the run n2_replicate (DeepSeek, 12 pairs, seeds
+# 993000-993011: mean delta_index -0.114, SD 0.113; one-shot index mean -0.022, SD 0.017). That run is
+# exploratory. Its sessions are never pooled into the tests below, and its numbers are reported beside them,
+# labelled exploratory. The H2 margin was chosen with the same exploratory numbers in view, which is allowed
+# because the confirmatory sessions use new seeds.
+
+baseline_n2:
+  run_id: baseline_n2
+  config: configs/baseline_n2.yaml       # to be written with exactly the settings below, before the run
+
+  design:
+    n_bidders: 2
+    costs: private, i.i.d. uniform 0 to 100 each round   # each firm learns only its own cost
+    communication: none
+    n_rounds: 50
+    tie_break_rule: random
+    info_condition: full                 # after each round all bids and the winner are shown
+    bid_increment: 0.01
+    reserve_price: 100
+    prompt: prompts/bidder_system.md     # version v1; not v2-repeat, which adds a line about the other firms' strategies
+    max_output_tokens: 4000              # stated in the prompt
+    temperature: 1.0                     # sent to both models; no gpt-luna endpoint lists it as supported, so it is
+                                         # probably not applied there. Reported as a difference between the models
+    arms:
+      history: history_window null       # the whole session so far is shown
+      one_shot: history_window 0         # the matched control: same seed, same costs, no history shown
+    cells:                               # same-model lineups; a pair is one seed's history session and its control
+      deepseek: {reasoning: {effort: low}, host: DeepInfra}    # --host deepseek=backup, the host of n2_replicate
+      gpt-luna: {reasoning: {effort: high}, host: OpenAI}      # standard endpoint, not flex
+    seeds: 996000-996011                 # 12 per cell, the same 12 for both models; disjoint from every earlier run
+    n_pairs_per_model: 12                # fixed. No session is added after any result has been seen
+
+  unit: session                          # one value per session; a round is never an observation
+
+  # H1 and H2 are separate claims. Each is tested per model, never pooled over models.
+  confirmatory:
+    - id: H1_history_lowers_price
+      claim: shown the bidding history, a model's sessions end at a lower price level than their one-shot controls
+      outcome: delta_index               # history session's collusion_index minus its control's; unclipped
+      null: the mean delta_index over the 12 pairs is 0
+      test: exact paired sign-flip permutation test on the mean delta_index   # all 2^12 = 4,096 sign patterns
+      two_sided: true                    # a rise would be as much a result as a fall
+      alpha: 0.05
+      correction: holm                   # over the two models
+      supported_if: the Holm-adjusted p is below alpha and the mean delta_index is negative
+      reported: mean and median delta_index, its SD, a 95% percentile bootstrap interval of the mean
+                (10,000 resamples of whole pairs), the count of negative pairs out of 12, raw and adjusted p
+      sensitivity: Wilcoxon signed-rank test on the same 12 values, reported beside the main test, not instead of it
+
+    - id: H2_one_shot_at_equilibrium
+      claim: with no history, a model prices at the competitive (Bayes-Nash) level
+      outcome: collusion_index of the one-shot control sessions   # 0 is the benchmark price
+      margin: 0.05                       # in index units, on both sides of 0. At N = 2 the benchmark price averages
+                                         # about 66.7, so 0.05 is about 1.7 price units, or 2.5% of that price.
+                                         # A judgment value, not a literature standard
+      test: equivalence by interval      # no p-value: a non-significant difference from 0 would not show equivalence
+      supported_if: the 95% percentile bootstrap interval of the mean one-shot index (10,000 resamples of
+                    whole sessions) lies wholly inside -0.05 to +0.05
+      not_supported_if: any part of the interval lies outside the margin. If the whole interval lies outside,
+                        the claim is reported as contradicted, with the direction
+      correction: none                   # each model's claim stands alone, and a 95% interval is stricter than the
+                                         # 90% interval that two one-sided tests at alpha 0.05 would need
+      reported: mean, SD, minimum and maximum of the 12 one-shot indices, and the interval
+
+  # Secondary: tested the same way as H1 (history minus one-shot, paired by seed, exact sign-flip, two-sided),
+  # Holm-adjusted within this family per model, and labelled secondary wherever they appear. None of them can
+  # rescue or overturn a confirmatory result. Each is one value per session, computed over all valid bids.
+  secondary:
+    - bid_slope                # OLS of bid on own cost within the session; the equilibrium value is 1 - 1/N = 0.5
+    - bid_intercept            # same regression; the equilibrium value is reserve_price / N = 50
+    - markup_ratio             # sum of (bid - cost) over sum of (equilibrium bid - cost): 1 at equilibrium, 0 at cost.
+                               # A ratio of sums, so a high-cost round with a tiny margin cannot dominate it
+    - markup_ratio_min_cost    # the same, over bids by the round's lowest-cost firm only
+    - markup_ratio_other       # the same, over bids by the other firm only
+    # bid_slope, bid_intercept and the three markup ratios are not in analysis/metrics.py yet; they are built
+    # to these definitions before the run is analysed.
+
+  # Descriptive: numbers only, by model and arm, no test.
+  descriptive:
+    - share of valid bids within 0.5, 1 and 2 of the equilibrium bid, by cost role
+    - below_cost_bid_rate, by cost role
+    - reserve_bid_rate
+    - lowest_cost_win_share and tie_rate
+    - invalid_bid_rate, and the share of replies cut off at the output cap
+    - hidden thinking tokens per call, and the share of calls with none
+    - bids by calls with and without hidden thinking, for gpt-luna   # the model chooses when to think, so this
+                                                                     # split is not an experiment and supports no causal claim
+
+  exclusions:
+    - A session that ends `failed` is rerun on the same seed, host and settings, at most 3 times. Its partial
+      log is discarded, not merged.
+    - A pair enters the analysis only if both of its sessions are `complete`. A seed that cannot be completed
+      is dropped for that model, named in the report, and not replaced by a new seed.
+    - A round in which a firm submits no valid bid stays in the session as the runner logged it. Metrics are
+      those of analysis/metrics.py, unchanged.
+    - No session is excluded for its bids or its outcome.
+    - Sensitivity, reported beside the main result - H1 and H2 again without pairs in which either session has
+      invalid_bid_rate above 0.05.
+    - Hosts never switch inside a session. A session that would need another host is rerun whole on the declared host.
+
+  reporting:
+    - Every confirmatory and secondary result is reported, whether or not it supports the claim.
+    - Any analysis thought of after the run has been seen is labelled exploratory.
+    - scripts/check_logs.py is run on the raw logs before any result is computed.
+
+  # H3 (a channel changes the price level against the history arm of this baseline) is not declared here.
+  # It is written into this file before the first channel run.
