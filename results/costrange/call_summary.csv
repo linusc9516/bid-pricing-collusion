@@ -1,0 +1,3 @@
+condition_id,n_sessions,n_calls,n_rebid_calls,provider_retries,attempt_error_rate,sit_out_rate,below_cost_rate,mean_prompt_tokens,mean_completion_tokens,p95_completion_tokens,max_completion_tokens,cutoff_rate,mean_reasoning_tokens,p95_reasoning_tokens,free_text_rate
+oneshot__tie-random__info-full__lineup-costrange-deepseek__n2,5,264,0,0,0.05303030303030303,0.0,0.004,748.5378787878788,2481.5757575757575,4000.0,4000.0,0.05303030303030303,2257.340909090909,2400.0,0.14393939393939395
+tie-random__info-full__lineup-costrange-deepseek__n2,5,263,0,0,0.049429657794676805,0.0,0.012,1270.9619771863117,2352.619771863118,3189.299999999987,4000.0,0.049429657794676805,2134.041825095057,2400.0,0.13307984790874525

@@ -1,0 +1,5 @@
+condition_id,n_sessions,n_calls,n_rebid_calls,provider_retries,attempt_error_rate,sit_out_rate,below_cost_rate,mean_prompt_tokens,mean_completion_tokens,p95_completion_tokens,max_completion_tokens,cutoff_rate,mean_reasoning_tokens,p95_reasoning_tokens,free_text_rate
+oneshot__tie-random__info-full__lineup-open-deepseek__n2__costs-public,4,402,0,0,0.004975124378109453,0.0,0.0,745.1442786069651,1278.1268656716418,2540.95,4000.0,0.004975124378109453,1140.176616915423,2400.0,0.01990049751243781
+oneshot__tie-random__info-full__lineup-open-luna__n2__costs-public,4,400,0,0,0.0,0.0,0.145,474.0,83.48,100.0,122.0,0.0,0.0,0.0,0.0
+tie-random__info-full__lineup-open-deepseek__n2__costs-public,4,408,0,0,0.0196078431372549,0.0,0.0825,2073.5857843137255,2148.0367647058824,2669.85,4000.0,0.0196078431372549,1954.328431372549,2400.0,0.11764705882352941
+tie-random__info-full__lineup-open-luna__n2__costs-public,4,400,0,0,0.0,0.0,0.0975,1809.25,136.92,564.9499999999991,883.0,0.0,45.36,486.2999999999997,0.0

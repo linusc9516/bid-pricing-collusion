@@ -1,0 +1,5 @@
+condition_id,n_sessions,reserve_bid_rate,below_cost_bid_rate
+oneshot__tie-random__info-full__lineup-open-deepseek__n2__costs-public,4,0.1575,0.0
+oneshot__tie-random__info-full__lineup-open-luna__n2__costs-public,4,0.14500000000000002,0.14500000000000002
+tie-random__info-full__lineup-open-deepseek__n2__costs-public,4,0.1575,0.0825
+tie-random__info-full__lineup-open-luna__n2__costs-public,4,0.225,0.0975

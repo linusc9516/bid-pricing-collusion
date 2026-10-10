@@ -1,0 +1,3 @@
+condition_id,n_sessions,reserve_bid_rate,below_cost_bid_rate
+oneshot__tie-random__info-full__lineup-n2rep-deepseek__n2,12,0.0025,0.005
+tie-random__info-full__lineup-n2rep-deepseek__n2,12,0.02666666666666667,0.0008333333333333334
