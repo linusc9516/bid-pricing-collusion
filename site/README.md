@@ -29,7 +29,11 @@ winner string) and `data/sessions/<run_id>/<session_id>.js` (one file per sessio
 opens). Both are gitignored; only `examples.js` is committed. Pages, linked by URL fragment:
 
 - `#/runs`: one row per run.
-- `#/run/<run_id>`: its conditions, each with mean index, range, mean delta, tie rate and lowest-cost win share
+- `#/run/<run_id>`: two charts over the run's bids, then its conditions. "Where bids sit, by cost role" classifies
+  each valid bid as below own cost, below, at (within 1 bid unit, or one increment on a coarser grid) or above the
+  equilibrium bid, one bar per model, cost role (the round's lowest-cost firm or not) and arm, with the share of
+  those bids that won. "Bid minus equilibrium bid" is the histogram of distances, which the classes do not show.
+  Each condition has mean index, range, mean delta, tie rate and lowest-cost win share
   (n/a under `least_wins`), then every session's winner strip above its matched control's. Filters by model,
   bidder count and tie rule appear when the run has more than one.
 - `#/s/<run_id>/<session_id>/<0 = repeated, 1 = control>/<round>`: the full session view used by the examples.

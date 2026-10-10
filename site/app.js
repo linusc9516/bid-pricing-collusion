@@ -273,13 +273,12 @@ function renderExample() {
   const toggle = (key, text) => h("label", null, h("input", { type: "checkbox", checked: state[key], onchange: (e) => { state[key] = e.target.checked; render(); } }), text);
   document.getElementById("example").replaceChildren(...[
     h("div", { class: "intro" }, h("h2", null, ex.title), h("p", null, ex.blurb), ex.look_for ? h("p", { class: "look" }, h("b", null, "Look for: "), ex.look_for) : null),
-    firmsLegend(s),
-    renderStrips(ex),
-    chips(s),
-    metaLine(s),
-    h("div", { class: "chartbox" }, chartFor(s)),
-    h("div", { class: "toggles" }, "Filled dot = bid, ringed = winner.", toggle("showCost", "Show costs (hollow circle)"), toggle("showBne", "Show equilibrium bids (diamond)")),
-    systemPrompt(s),
+    h("section", { class: "panel" }, h("h3", null, "Who won each round"), firmsLegend(s), renderStrips(ex)),
+    h("section", { class: "panel" }, h("h3", null, "Session measures"), chips(s), metaLine(s)),
+    h("section", { class: "panel" }, h("h3", null, "Bids by round"),
+      h("div", { class: "chartbox" }, chartFor(s)),
+      h("div", { class: "toggles" }, "Filled dot = bid, ringed = winner.", toggle("showCost", "Show costs (hollow circle)"), toggle("showBne", "Show equilibrium bids (diamond)"))),
+    s.system && Object.keys(s.system).length ? h("section", { class: "panel" }, systemPrompt(s)) : null,
     roundPanel(s)].filter(Boolean));
 }
 
@@ -345,14 +344,78 @@ function renderRuns() {
     ? h("div", null,
         h("div", { class: "intro" }, h("h2", null, "All exported runs"),
           h("p", null, "One row per run in logs/ with at least one complete session. Open a run for its conditions and sessions.")),
-        h("div", { class: "tablewrap" }, h("table", null,
+        h("section", { class: "panel" }, h("div", { class: "tablewrap" }, h("table", null,
           h("thead", null, h("tr", null, ...["Run", "Sessions", "Controls", "Models", "Bidders", "Tie rule", "Mean index", "Mean delta"]
             .map((t, i) => h("th", { class: i === 1 || i === 2 || i >= 6 ? "num" : "" }, t)))),
-          h("tbody", null, ...rows))))
+          h("tbody", null, ...rows)))))
     : h("p", null, "No runs exported yet. Run ", h("code", null, "uv run python scripts/export_site.py"), " and reload."));
 }
 
 const MODEL_COLORS = ["var(--firm-a)", "var(--firm-b)", "var(--firm-c)", "var(--accent)", "var(--warn)"];
+
+const BID_CLASS_KEYS = [
+  ["below own cost", "var(--cls-cost)"],
+  ["below equilibrium, at or above cost", "var(--cls-below)"],
+  ["at equilibrium", "var(--cls-at)"],
+  ["above equilibrium", "var(--cls-above)"],
+];
+
+// Each valid bid classified against the equilibrium bid and the firm's own cost: one stacked bar per model, cost role and arm.
+function classCard(sessions) {
+  const use = sessions.filter((e) => e.bid_classes);
+  if (!use.length) return null;
+  const models = [...new Set(use.flatMap((e) => Object.keys(e.bid_classes)))].sort();
+  const two = use.every((e) => e.n_bidders === 2);
+  const roles = [["min", two ? "lower-cost firm" : "lowest-cost firm"], ["other", two ? "higher-cost firm" : "other firms"]];
+  const arms = [[true, "one-shot"], [false, "repeated"]];
+  const groups = [];
+  for (const m of models) {
+    const bars = [];
+    for (const [role, roleName] of roles) for (const [control, armName] of arms) {
+      const c = [0, 0, 0, 0, 0];
+      for (const e of use) if (e.control === control && e.bid_classes[m]) e.bid_classes[m][role].forEach((v, i) => { c[i] += v; });
+      const n = c[0] + c[1] + c[2] + c[3];
+      if (n) bars.push({ label: `${roleName}, ${armName}`, c, n, gap: armName === "one-shot" && bars.length > 0 });
+    }
+    if (bars.length) groups.push({ m, bars });
+  }
+  if (!groups.length) return null;
+  const W = 900, x0 = 210, x1 = W - 96, rowH = 24, barH = 16, headH = 26, gapH = 8, mb = 30;
+  const H = groups.reduce((a, g) => a + headH + g.bars.length * rowH + g.bars.filter((b) => b.gap).length * gapH + 8, 4) + mb;
+  const root = svg("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Share of bids below own cost, below, at and above the equilibrium bid, by model, cost role and arm" });
+  const px = (share) => x0 + share * (x1 - x0);
+  for (let g = 0; g <= 4; g += 1) root.append(svg("text", { x: px(g / 4), y: H - 10, "text-anchor": "middle" }, `${g * 25}%`));
+  let y = 4;
+  for (const g of groups) {
+    root.append(svg("text", { class: "strong", x: 0, y: y + 17 }, g.m));
+    y += headH;
+    for (const b of g.bars) {
+      if (b.gap) y += gapH;
+      root.append(svg("text", { x: x0 - 8, y: y + barH - 4, "text-anchor": "end" }, b.label));
+      let left = 0;
+      b.c.slice(0, 4).forEach((count, i) => {
+        const share = count / b.n;
+        if (!count) return;
+        const w = Math.max(1, px(left + share) - px(left) - 2);
+        const seg = svg("rect", { x: px(left).toFixed(1), y, width: w.toFixed(1), height: barH, rx: 2, fill: BID_CLASS_KEYS[i][1] });
+        seg.append(svg("title", null, `${g.m}, ${b.label}: ${(share * 100).toFixed(1)}% ${BID_CLASS_KEYS[i][0]} (${count} of ${b.n} bids)`));
+        root.append(seg);
+        if (share >= 0.07) root.append(svg("text", { class: "inbar", x: (px(left) + w / 2).toFixed(1), y: y + barH - 4, "text-anchor": "middle", "pointer-events": "none" }, `${(share * 100).toFixed(0)}%`));
+        left += share;
+      });
+      root.append(svg("text", { x: x1 + 8, y: y + barH - 4 }, `won ${((b.c[4] / b.n) * 100).toFixed(0)}% · ${b.n.toLocaleString()}`));
+      y += rowH;
+    }
+    y += 8;
+  }
+  return h("section", { class: "cond histo" },
+    h("h3", null, "Where bids sit, by cost role"),
+    h("p", { class: "meta" }, `Share of valid bids in each class, split by whether the firm had the round's lowest cost. "At equilibrium" is within 1 bid unit of the equilibrium bid `
+      + "(one bid increment on a coarser grid). A bid under the firm's own cost counts as below cost whatever its distance from the equilibrium bid. "
+      + "Right of each bar: share of those bids that won, and the number of bids."),
+    h("div", { class: "legend" }, ...BID_CLASS_KEYS.map(([name, color]) => h("span", { class: "key" }, h("span", { class: "sw box", style: `background:${color}` }), name))),
+    h("div", { class: "chartbox" }, root));
+}
 
 // Share of each model's valid bids by (bid - equilibrium bid), one bar per model in each bin.
 function histogramCard(run, sessions) {
@@ -457,12 +520,17 @@ function renderRun() {
       ...g.rep.sort((a, b) => a.seed - b.seed).map(rowFor));
   });
   root.replaceChildren(h("div", null,
-    h("p", { class: "meta" }, h("a", { href: "#/runs" }, "All runs"), " / ", run.id),
+    h("p", { class: "crumbs" }, h("a", { href: "#/runs" }, "All runs"), " / ", run.id),
     h("div", { class: "intro" }, h("h2", null, run.id),
       h("p", null, `${run.sessions.filter((e) => !e.control).length} repeated sessions and ${run.sessions.filter((e) => e.control).length} one-shot controls. `
         + "Strips show the winner of each round (striped = tie, dot = lowest-cost firm won). Click a seed to open the session. Means are descriptive: sessions are the unit, and there are few per cell.")),
-    filters.length ? h("div", { class: "toggles" }, ...filters) : null,
+    filters.length ? h("div", { class: "toggles filters" }, ...filters) : null,
+    h("h2", { class: "sect" }, "Bids across the run"),
+    h("p", { class: "sectnote" }, "Every valid bid in the sessions selected above, against the equilibrium bid."),
+    classCard(sessions),
     histogramCard(run, sessions),
+    h("h2", { class: "sect" }, "Conditions and sessions"),
+    h("p", { class: "sectnote" }, "One card per condition: its measures, then each repeated session above its matched one-shot control."),
     ...blocks));
 }
 
@@ -473,7 +541,7 @@ function renderSession() {
     return;
   }
   renderExample();
-  root.prepend(h("p", { class: "meta" }, h("a", { href: "#/runs" }, "All runs"), " / ", h("a", { href: `#/run/${encodeURIComponent(state.run.id)}` }, state.run.id), " / ", state.sid));
+  root.prepend(h("p", { class: "crumbs" }, h("a", { href: "#/runs" }, "All runs"), " / ", h("a", { href: `#/run/${encodeURIComponent(state.run.id)}` }, state.run.id), " / ", state.sid));
 }
 
 function render() {

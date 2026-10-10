@@ -141,6 +141,36 @@ def diff_histogram(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, list[
     return out
 
 
+BID_CLASSES = ("below_cost", "below_benchmark", "at_benchmark", "above_benchmark")
+CLASS_TOLERANCE = 1.0  # a bid this close to the benchmark bid counts as at it, in bid units; a coarser bid grid widens it to one increment
+
+
+def bid_classes(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, dict[str, list[int]]]:
+    """Counts of valid bids per model and cost role: `min` is the round's lowest-cost firm, `other` the rest.
+
+    Each list holds one count per class in BID_CLASSES order, then the number of those bids that won. A bid under
+    the firm's own cost is `below_cost` whatever its distance from the benchmark bid.
+    """
+    models = {entry.firm_id: entry.model or entry.bidder_type for entry in meta.lineup}
+    tolerance = max(CLASS_TOLERANCE, meta.bid_increment)
+    out: dict[str, dict[str, list[int]]] = {}
+    for row in rows:
+        if row.bid is None:
+            continue
+        diff = row.bid - row.bne_bid
+        if row.bid < row.cost - 1e-9:
+            slot = 0
+        elif abs(diff) <= tolerance + 1e-9:
+            slot = 2
+        else:
+            slot = 1 if diff < 0 else 3
+        roles = out.setdefault(models[row.firm_id], {"min": [0] * 5, "other": [0] * 5})
+        counts = roles["min" if row.is_min_cost else "other"]
+        counts[slot] += 1
+        counts[4] += int(row.is_winner)
+    return out
+
+
 def index_entry(meta: SessionMeta, rows: Sequence[BidRow], metrics: dict[str, Any]) -> dict[str, Any]:
     """One session's row in the run list: settings, headline metrics and per-round strings `w` (winner or '-'),
     `t` (1 = tie) and `m` (1 = the lowest-cost firm won), all of length n_rounds."""
@@ -169,6 +199,7 @@ def index_entry(meta: SessionMeta, rows: Sequence[BidRow], metrics: dict[str, An
         "status": meta.status,
         "metrics": {k: _clean(metrics.get(k)) for k in INDEX_METRIC_KEYS},
         "diff_hist": diff_histogram(meta, rows),
+        "bid_classes": bid_classes(meta, rows),
         "w": "".join(winners),
         "t": "".join(ties),
         "m": "".join(mins),

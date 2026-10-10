@@ -103,6 +103,24 @@ def test_index_entry_round_strings_match_rounds() -> None:
     assert entry["control"] is False and entry["n_bidders"] == meta.n_bidders
 
 
+def test_bid_classes_split_by_cost_role_and_below_cost_takes_precedence() -> None:
+    from bidrig.viewer import bid_classes
+
+    meta, rows, _ = two_round_session()
+    valid = [r for r in rows if r.bid is not None]
+    counted = [c for roles in bid_classes(meta, rows).values() for c in roles.values()]
+    assert sum(sum(c[:4]) for c in counted) == len(valid)
+    assert sum(c[4] for c in counted) == sum(r.is_winner for r in valid)
+
+    def bid(value: float, benchmark: float, lowest: bool):
+        return replace(valid[0], bid=value, cost=50.0, bne_bid=benchmark, is_min_cost=lowest, is_winner=True)
+
+    # 40 is under cost 50 although it equals its benchmark; 60, 70.5 and 90 are below, at and above a benchmark of 70.
+    made = [bid(40.0, 40.0, False), bid(60.0, 70.0, True), bid(70.5, 70.0, True), bid(90.0, 70.0, True)]
+    roles = next(iter(bid_classes(meta, made).values()))
+    assert roles["other"] == [1, 0, 0, 0, 1] and roles["min"] == [0, 1, 1, 1, 3]
+
+
 def test_diff_histogram_counts_valid_bids_per_model_and_clamps_tails() -> None:
     from dataclasses import replace
 
