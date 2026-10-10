@@ -3,7 +3,7 @@
 One directory per run id, written by `scripts/analyze.py` from `logs/<run_id>/` (raw logs are gitignored). Each
 holds the generated CSVs and a hand-written findings file. Column definitions: `PLANNING.md` section 3.
 
-**Cells have 3 to 12 sessions (5 in the pilot and the screen). All numbers are descriptive: no tests, no intervals.**
+**Cells have 3 to 12 sessions (5 in the pilot and the screen). All numbers are descriptive, with no tests and no intervals, except for `baseline_no_channel`, whose tests were declared in `configs/analysis.yaml` before the run.**
 
 | Run | Date | What | Sessions | Spend | Findings |
 |---|---|---|---|---|---|
@@ -13,6 +13,7 @@ holds the generated CSVs and a hand-written findings file. Column definitions: `
 | `common_cost_check` | 2026-10-09 | Harness check of the common-cost draw (spread 5): N = 2, DeepSeek, 12 rounds | 6 | $0.16 | tables only |
 | `costrange` | 2026-10-09 | Common costs (a round's costs within 10 of each other): N = 2, DeepSeek, 25 rounds | 10 | $0.55 | tables only; `PLANNING.md` 7.4 |
 | `costs_revealed` | 2026-10-09 | Complete information (every firm sees every cost): N = 2, 50 rounds, DeepSeek and GPT-6 Luna | 16 | $0.76 | tables only; `PLANNING.md` 7.4 |
+| `baseline_no_channel` | 2026-10-10 | Declared no-channel baseline: N = 2, private costs, 50 rounds, DeepSeek and GPT-6 Luna, 12 matched pairs each on the same seeds | 48 | $3.34 | `baseline_tests.csv`, `baseline_descriptives.csv`, judge output; summary in the top-level `README.md` |
 
 ## In brief
 
