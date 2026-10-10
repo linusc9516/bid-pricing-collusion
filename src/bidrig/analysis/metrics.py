@@ -56,6 +56,11 @@ SESSION_METRIC_COLUMNS = [
     "tie_price_index",
     "mean_rebid_delta",
     "bafo_overshoot_rate",
+    "bid_slope",
+    "bid_intercept",
+    "markup_ratio",
+    "markup_ratio_min_cost",
+    "markup_ratio_other",
 ]
 
 
@@ -127,6 +132,28 @@ def _lagged_rival_coefs(valid_bids: pd.DataFrame) -> tuple[float, float]:
     return float(coefficients[2]), float(coefficients[1])
 
 
+def _bid_line(valid_bids: pd.DataFrame) -> tuple[float, float]:
+    """(slope, intercept) of the least-squares line of bid on own cost over a session's valid bids, firms pooled.
+
+    At the benchmark the slope is 1 - 1/n and the intercept cost_high / n (0.5 and 50 at n = 2 with costs on 0 to 100).
+    NaN with fewer than 3 bids or when every cost is the same.
+    """
+    if len(valid_bids) < 3 or valid_bids["cost"].nunique() == 1:
+        return float("nan"), float("nan")
+    slope, intercept = np.polyfit(valid_bids["cost"].to_numpy(float), valid_bids["bid"].to_numpy(float), 1)
+    return float(slope), float(intercept)
+
+
+def _markup_ratio(valid_bids: pd.DataFrame) -> float:
+    """Sum of (bid - cost) over sum of (benchmark bid - cost): 1 at the benchmark, 0 at cost, negative below cost; unclipped.
+
+    A ratio of sums, not a mean of per-bid ratios: a high-cost bid has a benchmark margin near 0, and its own ratio
+    would swamp the mean. NaN when there is no bid or no benchmark margin.
+    """
+    room = float((valid_bids["bne_bid"] - valid_bids["cost"]).sum())
+    return float((valid_bids["bid"] - valid_bids["cost"]).sum()) / room if room > 0 else float("nan")
+
+
 def _bid_cost_corr(valid_bids: pd.DataFrame) -> float:
     """Mean over firms of the correlation, across rounds, between a firm's own bid and its own cost; NaN if no firm has 3 bids.
 
@@ -178,6 +205,7 @@ def session_metrics(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, obje
     reserve_ticks = to_ticks(meta.reserve_price, meta.bid_increment)
 
     lag_coefs = _lagged_rival_coefs(valid_bids)
+    bid_slope, bid_intercept = _bid_line(valid_bids)
     win_counts = [int((won["firm_id"] == entry.firm_id).sum()) for entry in meta.lineup]
     return {
         "condition_id": meta.condition_id,
@@ -211,6 +239,11 @@ def session_metrics(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, obje
         "tie_price_index": collusion_index(_mean(won.loc[tied, "bid"]), _mean(bne_price[tied]), meta.reserve_price),
         "mean_rebid_delta": mean_rebid_delta,
         "bafo_overshoot_rate": bafo_overshoot_rate,
+        "bid_slope": bid_slope,
+        "bid_intercept": bid_intercept,
+        "markup_ratio": _markup_ratio(valid_bids),
+        "markup_ratio_min_cost": _markup_ratio(valid_bids[valid_bids["is_min_cost"]]),
+        "markup_ratio_other": _markup_ratio(valid_bids[~valid_bids["is_min_cost"]]),
     }
 
 

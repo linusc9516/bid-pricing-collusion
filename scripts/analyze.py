@@ -5,7 +5,8 @@ Writes session_metrics.csv, condition_summary.csv (means only; intervals wait fo
 step 3b), non_competitive_bids.csv (bids at the reserve and below cost, kept apart from the
 collusion, tie and rotation measures), tie_check.csv (the pre-declared tie manipulation check and its
 verdict; thresholds from configs/analysis.yaml) and call_summary.csv to results/<run_id>/.
-confirmatory_tests.csv is not written until the tests exist (step 3b).
+With --plan, or when the run id is the one a plan in configs/analysis.yaml names, also writes baseline_tests.csv:
+the declared tests (analysis/stats.py), marked confirmatory only for the run the plan names, else exploratory.
 """
 
 import argparse
@@ -22,6 +23,7 @@ from bidrig.analysis.metrics import (
     session_metrics_table,
     tie_check,
 )
+from bidrig.analysis.stats import baseline_tests
 from bidrig.bne import chance_tie_rate
 from bidrig.schema import SESSION_FILE, read_calls, read_session
 
@@ -37,6 +39,7 @@ def main() -> int:
     parser.add_argument("log_dir", type=Path, help="logs/<run_id>")
     parser.add_argument("--results-dir", type=Path, default=ROOT / "results")
     parser.add_argument("--include-incomplete", action="store_true", help="also read running or failed sessions")
+    parser.add_argument("--plan", help="section of configs/analysis.yaml whose tests to run on this run (exploratory unless it names this run)")
     args = parser.parse_args()
 
     loaded, skipped = [], []
@@ -56,6 +59,16 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
     table = session_metrics_table((meta, rows) for meta, rows, _ in loaded)
     table.to_csv(out / "session_metrics.csv", index=False)
+    analysis = yaml.safe_load((ROOT / "configs" / "analysis.yaml").read_text())
+    declared = next((k for k, v in analysis.items() if isinstance(v, dict) and v.get("run_id") == args.log_dir.name), None)
+    plan_name = args.plan or declared
+    if plan_name:
+        status = "confirmatory" if plan_name == declared else "exploratory"
+        tests = baseline_tests(table, analysis[plan_name], status)
+        tests.to_csv(out / "baseline_tests.csv", index=False)
+        print(f"{status} tests of plan {plan_name} ({out}/baseline_tests.csv):")
+        print(tests.drop(columns=["status"]).to_string(index=False, float_format=lambda v: f"{v:.4f}"))
+        print()
     summary = condition_means(table)
     summary.to_csv(out / "condition_summary.csv", index=False)
     calls = call_summary(loaded)

@@ -555,3 +555,30 @@ def test_controls_match_within_cost_spread() -> None:
     table = session_metrics_table(sessions).set_index("session_id")
     assert table.loc["s-0-None", "control_index"] == pytest.approx(table.loc["s-0-0", "collusion_index"])
     assert table.loc["s-5-None", "control_index"] == pytest.approx(table.loc["s-5-0", "collusion_index"])
+
+
+def test_bid_line_and_markup_ratio_by_hand() -> None:
+    """Every bid is cost + 10: slope 1, intercept 10. The benchmark margin (100 - cost) / 2 sums to 240 over the six bids."""
+    rows = hand_rows(2, [[(10, 20, True), (30, 40, False)], [(20, 30, True), (20, 30, False)], [(30, 40, False), (10, 20, True)]])
+    m = session_metrics(make_meta(["llm"] * 2, n_rounds=3), rows)
+    assert (m["bid_slope"], m["bid_intercept"]) == pytest.approx((1.0, 10.0))
+    assert m["markup_ratio"] == pytest.approx(60 / 240)
+    assert m["markup_ratio_min_cost"] == pytest.approx(40 / 170)  # costs 10, 20, 20, 10: the tied round counts both firms
+    assert m["markup_ratio_other"] == pytest.approx(20 / 70)  # the two cost-30 bids
+
+
+def test_markup_ratio_is_a_ratio_of_sums_and_is_not_clipped() -> None:
+    """A cost-99 bid at 99.9 has a per-bid ratio of 1.8; in the ratio of sums it adds 0.9 to 45.9 and 0.5 to 45.5."""
+    rows = hand_rows(2, [[(10, 55, True), (99, 99.9, False)], [(10, 5, True), (99, 99.5, False)], [(50, 75, True), (60, 80, False)]])
+    m = session_metrics(make_meta(["llm"] * 2, n_rounds=3), rows)
+    assert m["markup_ratio"] == pytest.approx((45 + 0.9 - 5 + 0.5 + 25 + 20) / (45 + 0.5 + 45 + 0.5 + 25 + 20))
+    below_cost = hand_rows(2, [[(40, 30, True), (60, 50, False)]])
+    assert session_metrics(make_meta(["llm"] * 2, n_rounds=1), below_cost)["markup_ratio"] == pytest.approx(-20 / 50)
+    assert math.isnan(session_metrics(make_meta(["llm"] * 2, n_rounds=1), below_cost)["bid_slope"])  # under 3 bids
+
+
+@pytest.mark.parametrize("n", [2, 3])
+def test_bid_line_and_markup_ratio_read_the_benchmark_for_bne_bidders(n: int) -> None:
+    m = session_metrics(*scripted_session("bne", n=n, n_rounds=LONG))
+    assert (m["bid_slope"], m["bid_intercept"]) == pytest.approx((1 - 1 / n, 100 / n), abs=0.01)
+    assert (m["markup_ratio"], m["markup_ratio_min_cost"], m["markup_ratio_other"]) == pytest.approx((1, 1, 1), abs=0.001)
