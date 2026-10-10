@@ -146,7 +146,7 @@ async def _run_round(
 async def _settle_round(
     meta: SessionMeta,
     bidders: Sequence[Bidder],
-    bne: BneBenchmark,
+    bne: Benchmark,
     round_number: int,
     costs: Sequence[float],
     requests: Sequence[BidRequest],
