@@ -61,6 +61,7 @@ SESSION_METRIC_COLUMNS = [
     "markup_ratio",
     "markup_ratio_min_cost",
     "markup_ratio_other",
+    "bid_gap",
 ]
 
 
@@ -244,6 +245,8 @@ def session_metrics(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, obje
         "markup_ratio": _markup_ratio(valid_bids),
         "markup_ratio_min_cost": _markup_ratio(valid_bids[valid_bids["is_min_cost"]]),
         "markup_ratio_other": _markup_ratio(valid_bids[~valid_bids["is_min_cost"]]),
+        # Mean distance of a bid from its benchmark bid, in bid units, direction ignored: how far bidding strays either way.
+        "bid_gap": _mean((valid_bids["bid"] - valid_bids["bne_bid"]).abs()),
     }
 
 
@@ -387,6 +390,8 @@ def _session_descriptives(rows: Sequence[BidRow], calls: Sequence[CallRow]) -> d
             out[("share_of_bids", group)] = (len(frame) / len(valid) if len(valid) else float("nan"), len(valid))
             out[("share_within_1", group)] = (_mean(diff.abs() <= 1 + 1e-9), len(frame))
             out[("median_bid_minus_benchmark", group)] = (float(diff.median()), len(frame))
+            first = diff[frame["round"] == 1]  # round 1 shows no history in either arm: the bid before any feedback
+            out[("round1_bid_minus_benchmark", group)] = (_mean(first), len(first))
         bid_calls = [c for c in calls if c.phase == "bid"]
         tokens = pd.Series([c.reasoning_tokens or 0 for c in bid_calls], dtype=float)
         out[("thinking_tokens_per_call", "all")] = (_mean(tokens), len(bid_calls))

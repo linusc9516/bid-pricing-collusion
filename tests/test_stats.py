@@ -16,6 +16,7 @@ from bidrig.analysis.stats import (
     equivalence_label,
     holm,
     matched_pairs,
+    seed_rank_correlation,
     sign_flip_p,
 )
 
@@ -114,3 +115,12 @@ def test_baseline_table_keeps_only_complete_pairs_and_adds_the_invalid_bid_sensi
     assert h1.loc["confirmatory", "n"] == 3 and h1.loc["sensitivity", "n"] == 2  # then the pair with 20% invalid bids goes
     assert h1.loc["confirmatory", "mean"] == pytest.approx(np.mean([-0.1, -0.29, -0.1]))
     assert h1.loc["sensitivity", "mean"] == pytest.approx(np.mean([-0.1, -0.29]))
+
+
+def test_seed_rank_correlation_across_models() -> None:
+    rising = [0.1 * k for k in range(6)]
+    out = seed_rank_correlation(table({"a": (rising, [0.0] * 6), "b": ([2 * x for x in rising], [0.0] * 6), "c": (rising[::-1], [0.0] * 6)}), "collusion_index")
+    by_pair = {(r.model_a, r.model_b): r.rho for r in out.itertuples()}
+    assert set(out["n_seeds"]) == {6} and len(out) == 3
+    # The controls sit at 0 on every seed, so the mean per seed keeps each model's order over seeds.
+    assert by_pair[("a", "b")] == pytest.approx(1.0) and by_pair[("a", "c")] == pytest.approx(-1.0)

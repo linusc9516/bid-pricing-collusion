@@ -7,7 +7,9 @@ collusion, tie and rotation measures), tie_check.csv (the pre-declared tie manip
 verdict; thresholds from configs/analysis.yaml) and call_summary.csv to results/<run_id>/.
 With --plan, or when the run id is the one a plan in configs/analysis.yaml names, also writes baseline_tests.csv:
 the declared tests (analysis/stats.py), marked confirmatory only for the run the plan names, else exploratory,
-and baseline_descriptives.csv: the declared descriptive measures per model and arm, no tests.
+baseline_descriptives.csv: the declared descriptive measures per model and arm, no tests; and two exploratory tables,
+baseline_profit_checks.csv (joint profit, best reply, switching alone; analysis/profit.py) and
+baseline_round_blocks.csv (bid minus benchmark bid by round block and seed).
 """
 
 import argparse
@@ -25,7 +27,8 @@ from bidrig.analysis.metrics import (
     session_metrics_table,
     tie_check,
 )
-from bidrig.analysis.stats import baseline_tests
+from bidrig.analysis.profit import profit_checks_table, round_block_gaps
+from bidrig.analysis.stats import baseline_tests, seed_rank_correlation
 from bidrig.bne import chance_tie_rate
 from bidrig.schema import SESSION_FILE, read_calls, read_session
 
@@ -75,6 +78,18 @@ def main() -> int:
         print(f"\ndescriptive measures, no tests ({out}/baseline_descriptives.csv): mean over sessions")
         wide = descriptives.assign(key=descriptives["measure"] + " [" + descriptives["group"] + "]").pivot(index="key", columns=["model", "arm"], values="mean")
         print(wide.loc[list(dict.fromkeys(descriptives["measure"] + " [" + descriptives["group"] + "]"))].to_string(float_format=lambda v: f"{v:.3f}"))
+        print()
+        pairs = [(meta, rows) for meta, rows, _ in loaded]
+        checks = profit_checks_table(pairs)
+        checks.to_csv(out / "baseline_profit_checks.csv", index=False)
+        round_block_gaps(pairs).to_csv(out / "baseline_round_blocks.csv", index=False)
+        print(f"exploratory profit checks ({out}/baseline_profit_checks.csv): mean over sessions; forgone values are biased upward")
+        shown = ["joint_profit_ratio", "switch_gain", "best_reply_share", "forgone_vs_earlier", "forgone_vs_session", "bid_gap"]
+        print(checks.merge(table[["session_id", "bid_gap"]], on="session_id").groupby(["lineup_id", "is_control"])[shown].mean().to_string(float_format=lambda v: f"{v:.3f}"))
+        across = seed_rank_correlation(table[~table["is_control"]], "delta_index")
+        if not across.empty:
+            print("\nexploratory: rank correlation of delta_index across seeds between models")
+            print(across.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
         print()
     summary = condition_means(table)
     summary.to_csv(out / "condition_summary.csv", index=False)

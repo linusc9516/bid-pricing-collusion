@@ -139,3 +139,20 @@ def baseline_tests(table: pd.DataFrame, plan: Mapping[str, Any], status: str) ->
         out.loc[mask, "supported"] = (out.loc[mask, "p_holm"] < alpha) & (out.loc[mask, "mean"] < 0)
     out.insert(0, "status", status)
     return out[BASELINE_TEST_COLUMNS]
+
+
+def seed_rank_correlation(table: pd.DataFrame, metric: str = "delta_index") -> pd.DataFrame:
+    """Spearman correlation of `metric` across seeds for every pair of models (`lineup_id`), history sessions only for a delta.
+
+    One row per pair: model_a, model_b, n_seeds, rho, p. A high value means the cost sequence, which the models share
+    per seed, moves the metric for both. Exploratory: no correction, and seeds are few.
+    """
+    wide = table.dropna(subset=[metric]).pivot_table(index="seed", columns="lineup_id", values=metric, aggfunc="mean")
+    rows = []
+    for i, a in enumerate(wide.columns):
+        for b in wide.columns[i + 1 :]:
+            both = wide[[a, b]].dropna()
+            if len(both) >= 3:
+                result = scipy_stats.spearmanr(both[a], both[b])
+                rows.append({"model_a": a, "model_b": b, "n_seeds": len(both), "rho": float(result.statistic), "p": float(result.pvalue)})
+    return pd.DataFrame(rows, columns=["model_a", "model_b", "n_seeds", "rho", "p"])

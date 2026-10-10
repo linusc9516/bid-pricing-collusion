@@ -618,3 +618,10 @@ def test_baseline_descriptives_by_hand() -> None:
     both = baseline_descriptives([(meta, rows, calls), (control, rows, [])])
     assert set(both["arm"]) == {"history", "one_shot"}
     assert not ((both["arm"] == "one_shot") & (both["measure"] == "thinking_tokens_per_call")).any()  # no calls logged, no row
+
+
+def test_bid_gap_by_hand() -> None:
+    """Benchmark bids are 55, 65 | 60, 60 | 70, 55; the six bids are 0, 0.8, 1.5, 30, 5 and 0 away from them."""
+    rows = hand_rows(2, [[(10, 55, True), (30, 65.8, False)], [(20, 58.5, False), (20, 30, True)], [(40, 75, False), (10, 55, True)]])
+    assert session_metrics(make_meta(["llm"] * 2, n_rounds=3), rows)["bid_gap"] == pytest.approx((0 + 0.8 + 1.5 + 30 + 5 + 0) / 6)
+    assert session_metrics(*scripted_session("bne", n=2, n_rounds=20))["bid_gap"] == pytest.approx(0.0, abs=0.006)  # rounding to the 0.01 grid

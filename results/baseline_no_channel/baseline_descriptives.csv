@@ -14,6 +14,7 @@ base-deepseek,one_shot,below_cost_bid_rate,other,12,600,0.0033333333333333335,0.
 base-deepseek,one_shot,share_of_bids,calls_with_thinking,12,1200,1.0,1.0,1.0
 base-deepseek,one_shot,share_within_1,calls_with_thinking,12,1200,0.9741666666666666,0.95,0.99
 base-deepseek,one_shot,median_bid_minus_benchmark,calls_with_thinking,12,1200,0.0018750000000039198,0.0,0.0049999999999954525
+base-deepseek,one_shot,round1_bid_minus_benchmark,calls_with_thinking,12,24,0.002500000000001279,0.0,0.004999999999999005
 base-deepseek,one_shot,share_of_bids,calls_without_thinking,12,1200,0.0,0.0,0.0
 base-deepseek,one_shot,thinking_tokens_per_call,all,12,1208,1591.3542986798682,1444.43,1721.2574257425742
 base-deepseek,one_shot,calls_without_thinking_share,all,12,1208,0.0,0.0,0.0
@@ -37,9 +38,11 @@ base-luna,one_shot,below_cost_bid_rate,other,12,600,0.0033333333333333335,0.0,0.
 base-luna,one_shot,share_of_bids,calls_with_thinking,12,1200,0.735,0.67,0.79
 base-luna,one_shot,share_within_1,calls_with_thinking,12,882,0.9909680098514407,0.9594594594594594,1.0
 base-luna,one_shot,median_bid_minus_benchmark,calls_with_thinking,12,882,0.002499999999999799,0.0,0.0049999999999954525
+base-luna,one_shot,round1_bid_minus_benchmark,calls_with_thinking,12,16,0.0033333333333341506,0.0,0.005000000000009663
 base-luna,one_shot,share_of_bids,calls_without_thinking,12,1200,0.265,0.21,0.33
 base-luna,one_shot,share_within_1,calls_without_thinking,12,318,0.06931212909473779,0.0,0.15384615384615385
 base-luna,one_shot,median_bid_minus_benchmark,calls_without_thinking,12,318,-12.673749999999998,-14.859999999999992,-9.247499999999999
+base-luna,one_shot,round1_bid_minus_benchmark,calls_without_thinking,8,8,-14.576249999999998,-24.845,0.0
 base-luna,one_shot,thinking_tokens_per_call,all,12,1200,335.2008333333333,289.9,434.79
 base-luna,one_shot,calls_without_thinking_share,all,12,1200,0.265,0.21,0.33
 base-luna,one_shot,cut_off_at_cap_share,all,12,1200,0.0,0.0,0.0
@@ -62,6 +65,7 @@ base-deepseek,history,below_cost_bid_rate,other,12,600,0.0,0.0,0.0
 base-deepseek,history,share_of_bids,calls_with_thinking,12,1200,1.0,1.0,1.0
 base-deepseek,history,share_within_1,calls_with_thinking,12,1200,0.25,0.15,0.43
 base-deepseek,history,median_bid_minus_benchmark,calls_with_thinking,12,1200,-1.4300000000000017,-6.987500000000004,1.7100000000000044
+base-deepseek,history,round1_bid_minus_benchmark,calls_with_thinking,12,24,0.002500000000001279,0.0,0.004999999999999005
 base-deepseek,history,share_of_bids,calls_without_thinking,12,1200,0.0,0.0,0.0
 base-deepseek,history,thinking_tokens_per_call,all,12,1227,1778.0334038258195,1544.6078431372548,1999.5686274509803
 base-deepseek,history,calls_without_thinking_share,all,12,1227,0.0,0.0,0.0
@@ -85,9 +89,11 @@ base-luna,history,below_cost_bid_rate,other,12,600,0.0,0.0,0.0
 base-luna,history,share_of_bids,calls_with_thinking,12,1200,0.985,0.96,1.0
 base-luna,history,share_within_1,calls_with_thinking,12,1182,0.1265966738799029,0.010416666666666666,0.2222222222222222
 base-luna,history,median_bid_minus_benchmark,calls_with_thinking,12,1182,4.431458333333332,-4.140000000000001,20.327499999999993
+base-luna,history,round1_bid_minus_benchmark,calls_with_thinking,9,12,0.0025000000000016736,0.0,0.005000000000002558
 base-luna,history,share_of_bids,calls_without_thinking,12,1200,0.015,0.0,0.04
 base-luna,history,share_within_1,calls_without_thinking,10,18,0.15,0.0,0.5
 base-luna,history,median_bid_minus_benchmark,calls_without_thinking,10,18,-15.322,-47.605000000000004,1.7749999999999986
+base-luna,history,round1_bid_minus_benchmark,calls_without_thinking,9,12,-19.735833333333332,-47.605000000000004,-8.474999999999994
 base-luna,history,thinking_tokens_per_call,all,12,1202,825.091105610561,613.35,1204.8316831683169
 base-luna,history,calls_without_thinking_share,all,12,1202,0.01499174917491749,0.0,0.04
 base-luna,history,cut_off_at_cap_share,all,12,1202,0.0,0.0,0.0
