@@ -4,19 +4,21 @@ Do LLM bidders drift into taking turns winning at high prices, without communica
 
 **Setup.** Repeated first-price sealed-bid procurement auction: the lowest bid wins and is paid its bid. Private costs are drawn fresh each round. Bidders are told only to maximise cumulative profit. There is no communication channel. The auctioneer is deterministic code, never an LLM. Three tie-break rules are compared: random, least-wins-first, and a best-and-final-offer (BAFO) rebid.
 
-**Status (6 October 2026).** Harness built and tested. Phase A pilot and a rotation screen run: 190 sessions, three cheap models, about $6 of OpenRouter credits. The full experiment (Phase B) has not started. Next: repeat with OpenAI and Claude models.
+**Status (10 October 2026).** Harness built and tested. Run so far: the Phase A pilot, a rotation screen and four follow-up runs, 246 sessions, about $9.50 of OpenRouter credits for the sessions. The full experiment (Phase B) has not started, because no setting tried shows the baseline rotation it needs.
 
 Built for the Apart Research AI Collusion Sprint (23–25 October 2026), Track 1, Markets and Collusion.
 
 ## Results so far
 
-Every cell has 5 sessions. Descriptive only: no tests, no intervals.
+Cells have 3 to 12 sessions. Descriptive only: no tests, no intervals.
 
 - **No tacit rotation.** No cell prices above the competitive benchmark on average. Repeated play does not raise prices over the one-shot control.
 - **DeepSeek with thinking on bids the equilibrium price.** gpt-oss and Qwen bid well below it.
 - **Bids at the reserve rise under repeated play.** The stated reason is avoiding a loss, not coordination.
 - **Ties do happen** (3.07% of rounds against 0.03% by chance), so the tie rule has something to act on. With no baseline rotation it has nothing to move.
-- **One lead.** In one DeepSeek session with two bidders, both firms hold bids at 94 to 96 from round 10 on, whatever their cost. Four sibling sessions do not.
+- **One high session, not replicated.** In one DeepSeek session with two bidders, both firms hold bids at 94 to 96 from round 10 on, whatever their cost. Four sibling sessions do not, and neither do 12 new sessions of the same setting.
+- **Common costs and revealed costs do not raise prices either.** Mean prices stay at or below the competitive benchmark in both.
+- **A judge over the reasoning traces finds coordination considered, never adopted**, in the runs judged so far. Its labels are not hand-checked yet.
 
 ![Pilot: collusion index and delta by model and tie rule](results/pilot/pilot_chart.png)
 
