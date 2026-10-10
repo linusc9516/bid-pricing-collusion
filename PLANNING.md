@@ -422,10 +422,12 @@ Chosen on 3 October 2026 from OpenRouter's live endpoint lists. Listings change,
 
 | Model | Slug | Primary | Fallback | Backup |
 |---|---|---|---|---|
-| `deepseek` | `deepseek/deepseek-v4.1-flash` | **DeepInfra**: fp8, $0.14 in and $0.42 out per M | **NextBit**: fp8, $0.21 and $0.84 | **CoreWeave**: fp8, $0.20 and $0.65 |
+| `deepseek` | `deepseek/deepseek-v4.1-flash` | **InferenceNet** (routing slug `inference-net`): fp8, $0.07 in and $0.60 out per M | **CoreWeave**: fp8, $0.20 and $0.65 | **DeepInfra**: fp8, $0.14 and $0.42 |
 | `gpt-oss` | `openai/gpt-oss-120b` | **Crusoe**: bf16, $0.05 and $0.25 | **AkashML**: bf16, $0.037 and $0.187 | **DekaLLM**: bf16, $0.03 and $0.18 |
 | `qwen` | `qwen/qwen3.7-flash` | **Alibaba**, its only provider, so not pinned (quantisation not listed): $0.03 and $0.13 | none | none |
 | `glm` | `z-ai/glm-5.3-flash` | not chosen (34 endpoints; Z.AI's own is fp8 at $0.15 and $0.50) | | |
+
+**DeepSeek hosts reordered on 10 October 2026, for speed.** Until then the order was DeepInfra, NextBit, CoreWeave, and every run to that date (pilot, rotation screen, the supporting runs) used DeepInfra. Eight concurrent round-1 calls per host at the sweep's settings (thinking at low effort, 4,000-token cap) gave a median of about 200 output tokens per second on InferenceNet and CoreWeave against 70 on DeepInfra, at about 1.3 times DeepInfra's charge per output token on InferenceNet; InferenceNet returned 8 of 8 valid bids, CoreWeave 7 of 8 (one reply cut off at the cap). NextBit is no longer listed. The longest hidden thinking differed by host in that sample (2,400 tokens on DeepInfra, 2,449 on InferenceNet, 4,000 on CoreWeave), so a run compared against the earlier data must stay on DeepInfra: `--host deepseek=backup`, which moves deepseek alone and leaves the other models on their primary hosts.
 
 **Why these hosts.** Each lists tool calling, `tool_choice`, `seed` (reproducibility) and reasoning controls, allows well over the output cap, and runs fp8 or bf16 weights. Uptime was 99.3% to 100% when checked, except CoreWeave at 98.9% over a day. All pilot and screen sessions ran on the primary hosts.
 

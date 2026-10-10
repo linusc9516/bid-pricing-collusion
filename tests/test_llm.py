@@ -190,8 +190,9 @@ def test_call_seed_is_deterministic_and_distinct() -> None:
 def test_models_yaml_loads() -> None:
     specs = load_models(MODELS)
     assert set(specs) == {"deepseek", "gpt-oss", "glm", "qwen", "gpt-luna", "gemini"}
-    assert specs["deepseek"].host("primary") == Host("DeepInfra", "fp8", 0.14, 0.42, "primary")
-    assert specs["deepseek"].host("fallback").name == "NextBit" and specs["deepseek"].host("backup") == Host("CoreWeave", "fp8", 0.20, 0.65, "backup")
+    assert specs["deepseek"].host("primary") == Host("InferenceNet", "fp8", 0.07, 0.60, "primary", "inference-net")
+    assert specs["deepseek"].host("primary").routing_slug == "inference-net" and specs["deepseek"].host("backup").routing_slug == "deepinfra"
+    assert specs["deepseek"].host("fallback").name == "CoreWeave" and specs["deepseek"].host("backup") == Host("DeepInfra", "fp8", 0.14, 0.42, "backup")
     assert specs["gpt-oss"].host("backup") == Host("DekaLLM", "bf16", 0.03, 0.18, "backup")
     # A model with fewer tiers uses its last tier below the one asked for, and reports that tier's own role.
     two_tier = ModelSpec("m", "x/y", 1, 1, {"primary": HOST, "fallback": Host("Other", "fp8", 1, 1, "fallback")})

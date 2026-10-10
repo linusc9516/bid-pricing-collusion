@@ -40,6 +40,12 @@ class Host:
     price_in: float
     price_out: float
     role: str = "primary"  # one of HOST_TIERS
+    slug: str | None = None  # OpenRouter routing name where it is not `name` lower-cased (InferenceNet is inference-net)
+
+    @property
+    def routing_slug(self) -> str:
+        """The name `provider.only` takes; responses report `name`."""
+        return self.slug or self.name.lower()
 
 
 @dataclass(frozen=True)
@@ -63,6 +69,33 @@ class ModelSpec:
             if tier in self.hosts:
                 return self.hosts[tier]
         raise ValueError(f"model {self.alias!r} has no host at or below {role}")
+
+
+def host_role_for(host_spec: str, alias: str) -> str:
+    """The tier `alias` uses under a host spec: comma-separated, a bare tier for every model and `alias=tier` for one.
+
+    `backup` puts every model on its backup host; `deepseek=backup` moves deepseek alone; `fallback,deepseek=backup`
+    does both. A model the spec does not name uses the bare tier, `primary` if there is none.
+    """
+    general, own = "primary", None
+    for part in (p.strip() for p in host_spec.split(",")):
+        name, sep, tier = part.rpartition("=")
+        if tier not in HOST_TIERS:
+            raise ValueError(f"host role must be one of {HOST_TIERS}, got {tier!r} in {host_spec!r}")
+        if not sep:
+            general = tier
+        elif name.strip() == alias:
+            own = tier
+    return own or general
+
+
+def check_host_spec(host_spec: str, models: dict[str, ModelSpec]) -> None:
+    """Raise ValueError for a host spec with an unknown tier, or naming a model that is unknown or has no pinned host."""
+    host_role_for(host_spec, "")
+    for part in host_spec.split(","):
+        name, sep, _ = part.strip().rpartition("=")
+        if sep and (name.strip() not in models or not models[name.strip()].hosts):
+            raise ValueError(f"--host names {name.strip()!r}, which is not a model with pinned hosts in configs/models.yaml")
 
 
 def load_models(path: Path) -> dict[str, ModelSpec]:
@@ -300,7 +333,7 @@ class OpenRouterClient:
         if host is not None:
             # Never fall back to another host mid-session (PLANNING.md 5.5).
             extra["provider"] = {
-                "only": [host.name.lower()],
+                "only": [host.routing_slug],
                 "quantizations": [host.quantization],
                 "allow_fallbacks": False,
                 "require_parameters": True,

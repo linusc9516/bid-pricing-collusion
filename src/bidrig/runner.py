@@ -26,6 +26,8 @@ from bidrig.llm import (
     ProviderError,
     ProviderStats,
     SpendTracker,
+    check_host_spec,
+    host_role_for,
     load_models,
 )
 from bidrig.schema import (
@@ -139,7 +141,11 @@ def plan_sessions(
     host_role: str = "primary",
     sha: str | None = None,
 ) -> list[PlannedSession]:
-    """Every session of a config: cells x sweep combinations x n_sessions, seeds base_seed + k."""
+    """Every session of a config: cells x sweep combinations x n_sessions, seeds base_seed + k.
+
+    `host_role` is a host spec (`llm.host_role_for`): one tier for every model, or per model as `deepseek=backup`.
+    """
+    check_host_spec(host_role, models)
     sweep = config.get("sweep") or {}
     unknown = set(sweep) - AUCTION_KEYS - SESSION_KEYS
     if unknown:
@@ -165,7 +171,7 @@ def plan_sessions(
                         raise ValueError(f"model {alias!r} is not in configs/models.yaml")
                 providers = {}
                 for alias in sorted({a for a in aliases if a}):
-                    host = models[alias].host(host_role)
+                    host = models[alias].host(host_role_for(host_role, alias))
                     if host is not None:
                         providers[alias] = {"name": host.name, "quantization": host.quantization, "role": host.role}
                 meta = SessionMeta(
@@ -227,7 +233,7 @@ def estimate(plan: list[PlannedSession], config: dict[str, Any], models: dict[st
         tokens_in = base_in + per_row * meta.n_bidders * shown_rounds
         for alias in p.models:
             spec = models[alias]
-            host = spec.host(host_role)
+            host = spec.host(host_role_for(host_role, alias))
             price_in, price_out = (host.price_in, host.price_out) if host else (spec.price_in, spec.price_out)
             cost = meta.n_rounds * (tokens_in * price_in + out * price_out) / 1e6
             by_model[alias] = by_model.get(alias, 0.0) + cost
@@ -288,7 +294,7 @@ async def _run_one(
         bidders = [
             LLMBidder(
                 models[alias],
-                models[alias].host(host_role),
+                models[alias].host(host_role_for(host_role, alias)),
                 client,
                 meta,
                 log,

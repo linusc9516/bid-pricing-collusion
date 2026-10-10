@@ -34,7 +34,8 @@ llm:
   tool_choice: auto       # auto | required | forced. Morph, Crusoe and AkashML reject required and forced (smoke test, 2026-10-03)
   reasoning_mode: per_model # thinking is set per model in models.yaml; a config can override it per model with llm.reasoning_overrides (the pilot does). Phase B configs set TBD and the runner
                           # refuses to call models until it is chosen (PLANNING.md 5.6)
-  max_concurrency: 8
+  max_concurrency: 24     # sessions at once; requests in flight are this times n_bidders (48 at N=2, 72 at N=3). Raised from 8 on
+                          # 2026-10-10: 64 simultaneous deepseek requests to InferenceNet and 24 to OpenAI (gpt-luna) drew no 429s
 
 prompt:
   template: prompts/bidder_system.md

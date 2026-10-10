@@ -62,7 +62,7 @@ def test_pilot_plan() -> None:
     assert len(controls) == 45 and all(p.meta.condition_id.startswith("oneshot__") for p in controls)
     meta = plan[0].meta
     assert meta.run_id == "pilot" and meta.n_rounds == 25 and meta.temperature == 1.0 and meta.prompt_version
-    assert meta.providers == {"deepseek": {"name": "DeepInfra", "quantization": "fp8", "role": "primary"}}
+    assert meta.providers == {"deepseek": {"name": "InferenceNet", "quantization": "fp8", "role": "primary"}}
     assert meta.condition_id == "tie-random__info-full__lineup-pilot-deepseek__n3"
     assert [e.model for e in meta.lineup] == ["deepseek"] * 3
     assert len({p.meta.session_id for p in plan}) == 90
@@ -135,7 +135,7 @@ def test_unknown_model_or_sweep_key_is_rejected() -> None:
 
 def test_pilot_estimate_matches_planning() -> None:
     config, models, plan = prepare(CONFIGS / "pilot.yaml")
-    est = estimate(plan, config, models, "primary")
+    est = estimate(plan, config, models, "deepseek=backup")  # the pilot ran deepseek on DeepInfra, primary until 2026-10-10
     assert est.output_tokens_per_call == 4000  # stress case: every call uses the whole cap
     assert est.cost_usd == pytest.approx(7.41, abs=0.01)
     assert est.cost_by_model["deepseek"] == pytest.approx(3.92, abs=0.01)
@@ -146,12 +146,25 @@ def test_pilot_estimate_matches_planning() -> None:
 
 def test_fallback_hosts_change_the_estimate_and_providers() -> None:
     config, models, plan = prepare(CONFIGS / "pilot.yaml", host_role="fallback")
-    assert plan[0].meta.providers["deepseek"] == {"name": "NextBit", "quantization": "fp8", "role": "fallback"}
-    assert estimate(plan, config, models, "fallback").cost_usd > estimate(plan, config, models, "primary").cost_usd
+    assert plan[0].meta.providers["deepseek"] == {"name": "CoreWeave", "quantization": "fp8", "role": "fallback"}
+    assert estimate(plan, config, models, "deepseek=fallback").cost_usd > estimate(plan, config, models, "primary").cost_usd
     _, _, backup_plan = prepare(CONFIGS / "pilot.yaml", host_role="backup")
     by_model = {p.models[0]: p.meta.providers for p in backup_plan}
-    assert by_model["deepseek"]["deepseek"]["name"] == "CoreWeave" and by_model["gpt-oss"]["gpt-oss"] == {"name": "DekaLLM", "quantization": "bf16", "role": "backup"}
+    assert by_model["deepseek"]["deepseek"]["name"] == "DeepInfra" and by_model["gpt-oss"]["gpt-oss"] == {"name": "DekaLLM", "quantization": "bf16", "role": "backup"}
     assert by_model["qwen"] == {}
+
+
+def test_host_spec_moves_one_model() -> None:
+    _, _, plan = prepare(CONFIGS / "pilot.yaml", host_role="deepseek=backup")
+    by_model = {p.models[0]: p.meta.providers for p in plan}
+    assert by_model["deepseek"]["deepseek"] == {"name": "DeepInfra", "quantization": "fp8", "role": "backup"}
+    assert by_model["gpt-oss"]["gpt-oss"] == {"name": "Crusoe", "quantization": "bf16", "role": "primary"}
+    _, _, mixed = prepare(CONFIGS / "pilot.yaml", host_role="fallback, deepseek=backup")
+    by_model = {p.models[0]: p.meta.providers for p in mixed}
+    assert by_model["deepseek"]["deepseek"]["name"] == "DeepInfra" and by_model["gpt-oss"]["gpt-oss"]["name"] == "AkashML"
+    for bad in ["spare", "deepseek=spare", "nomodel=backup", "qwen=backup"]:
+        with pytest.raises(ValueError, match="host"):
+            prepare(CONFIGS / "pilot.yaml", host_role=bad)
 
 
 # --- running ---
@@ -188,7 +201,7 @@ def test_llm_config_runs_end_to_end_with_a_fake_client(tmp_path: Path) -> None:
     assert len(result.completed) == 18 and not result.failed
     assert len(fake.requests) == 18 * 4 * 3
     # qwen has one provider and no pinned host, so its requests carry no provider block.
-    assert {r["extra_body"].get("provider", {"only": [None]})["only"][0] for r in fake.requests} == {"deepinfra", "crusoe", None}
+    assert {r["extra_body"].get("provider", {"only": [None]})["only"][0] for r in fake.requests} == {"inference-net", "crusoe", None}
     assert result.spent_usd > 0
     loaded = []
     for p in plan:
@@ -229,8 +242,8 @@ def test_host_failure_fails_only_that_session_and_reruns_on_fallback(tmp_path: P
     config, models, plan = small("pilot.yaml", n_rounds=2)
 
     def flaky(kwargs: dict[str, Any]) -> Any:
-        if kwargs["extra_body"].get("provider", {}).get("only") == ["deepinfra"]:
-            return RuntimeError("503 from DeepInfra")
+        if kwargs["extra_body"].get("provider", {}).get("only") == ["inference-net"]:
+            return RuntimeError("503 from InferenceNet")
         return bid_from_prompt(kwargs)
 
     first = asyncio.run(run_plan(plan, config, models, tmp_path, lambda: FakeOpenAI(fn=flaky)))
@@ -242,7 +255,7 @@ def test_host_failure_fails_only_that_session_and_reruns_on_fallback(tmp_path: P
     fake = FakeOpenAI(fn=flaky)
     second = asyncio.run(run_plan(pending, config, models, tmp_path, lambda: fake, "fallback"))
     assert set(second.completed) == deepseek
-    assert {r["extra_body"]["provider"]["only"][0] for r in fake.requests} == {"nextbit"}
+    assert {r["extra_body"]["provider"]["only"][0] for r in fake.requests} == {"coreweave"}
     meta = read_meta(session_dir(tmp_path, pending[0].meta))
     assert meta.providers["deepseek"]["role"] == "fallback" and meta.status == "complete"
 
@@ -267,7 +280,7 @@ def test_pilot_tiny_is_small_and_on_its_own_seeds() -> None:
     assert len(cells) == 18  # every model x rule has one repeated session and its one-shot control
     other_seeds = {p.meta.seed for name in ["pilot.yaml", "main_tiebreak.yaml"] for p in prepare(CONFIGS / name, "x")[2]}
     assert not {p.meta.seed for p in plan} & other_seeds
-    assert estimate(plan, config, models, "primary").cost_usd < config["budget"]["max_cost_usd"] / 2
+    assert estimate(plan, config, models, "deepseek=backup").cost_usd < config["budget"]["max_cost_usd"] / 2  # as run, on DeepInfra
 
 
 def test_llm_caps_by_config() -> None:

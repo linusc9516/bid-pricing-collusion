@@ -67,7 +67,7 @@ uv run python scripts/check_logs.py logs/pilot
 
 - Runs resume: completed sessions are skipped.
 - A config that calls models asks for confirmation unless `--yes` is given.
-- If a pinned host fails, rerun with `--host fallback`, then `--host backup`. Hosts never switch inside a session.
+- If a pinned host fails, rerun with `--host fallback`, then `--host backup`. Hosts never switch inside a session. `--host` also takes a tier per model: `--host deepseek=backup` puts deepseek alone on DeepInfra, the host of every run before 2026-10-10.
 - Rotation screen: one config per arm, `configs/rotation_screen_*.yaml`, all with `--run-id rotation_screen`.
 - Phase B (`main_tiebreak.yaml`, then `supporting_*.yaml`, under one `--run-id`) is not runnable yet: thinking mode and output cap are unset and the runner refuses to call models.
 
