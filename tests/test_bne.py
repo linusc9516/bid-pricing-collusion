@@ -5,7 +5,13 @@ import math
 import numpy as np
 import pytest
 
-from bidrig.bne import BneBenchmark, CommonCostBenchmark, chance_tie_rate, collusion_index, make_benchmark
+from bidrig.bne import (
+    BneBenchmark,
+    CommonCostBenchmark,
+    chance_tie_rate,
+    collusion_index,
+    make_benchmark,
+)
 
 EXPECTED_WINNING_BID = {2: 200 / 3, 3: 50.0, 5: 100 / 3}
 
@@ -138,3 +144,17 @@ def test_common_cost_rejects_bad_spread() -> None:
         CommonCostBenchmark(3, 0, 100, 0)
     with pytest.raises(ValueError):
         CommonCostBenchmark(3, 0, 100, 50)
+
+
+def test_complete_info_benchmark_prices_at_second_lowest_cost() -> None:
+    from bidrig.bne import CompleteInfoBenchmark
+
+    bne = CompleteInfoBenchmark(3, 0, 100)
+    assert bne.round_bids([20.0, 50.0, 80.0]) == [50.0, 50.0, 80.0]
+    assert bne.round_bids([50.0, 20.0, 80.0]) == [50.0, 50.0, 80.0]
+    with pytest.raises(NotImplementedError):
+        bne.bid(10.0)
+    rng = np.random.default_rng(0)
+    costs = rng.uniform(0, 100, size=(100_000, 3))
+    price = np.array([min(bne.round_bids(list(row))) for row in costs[:20_000]])
+    assert price.mean() == pytest.approx(BneBenchmark(3, 0, 100).expected_winning_bid, abs=0.5)  # revenue equivalence

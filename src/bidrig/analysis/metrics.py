@@ -20,7 +20,7 @@ from bidrig.schema import SESSION_FILE, BidRow, CallRow, SessionMeta, read_sessi
 
 # A repeated session and its one-shot control share these (PLANNING.md section 3, `lineup_id`).
 # `info_condition` is left out: the information levels share the baseline's control (5.2).
-CONTROL_MATCH_KEYS = ["lineup_id", "n_bidders", "tie_break_rule", "seed"]
+CONTROL_MATCH_KEYS = ["lineup_id", "n_bidders", "tie_break_rule", "seed", "cost_spread", "reveal_costs"]
 
 SESSION_METRIC_COLUMNS = [
     "condition_id",
@@ -29,6 +29,8 @@ SESSION_METRIC_COLUMNS = [
     "lineup_id",
     "n_bidders",
     "bid_increment",
+    "cost_spread",
+    "reveal_costs",
     "info_condition",
     "tie_break_rule",
     "is_control",
@@ -184,6 +186,8 @@ def session_metrics(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, obje
         "lineup_id": meta.lineup_id,
         "n_bidders": meta.n_bidders,
         "bid_increment": meta.bid_increment,
+        "cost_spread": meta.cost_spread,
+        "reveal_costs": meta.reveal_costs,
         "info_condition": meta.info_condition,
         "tie_break_rule": meta.tie_break_rule,
         "is_control": meta.is_control,
@@ -353,12 +357,12 @@ def _clopper_pearson(tied: int, rounds: int) -> tuple[float, float]:
     return low, high
 
 
-def tie_check(table: pd.DataFrame, chance: dict[tuple[int, float], float]) -> pd.DataFrame:
+def tie_check(table: pd.DataFrame, chance: dict[tuple[int, float, float], float]) -> pd.DataFrame:
     """The pilot's tie manipulation check (PLANNING.md 7.1): ties per model and rule, with the chance benchmark.
 
     One row per (lineup, rule) over repeated sessions, plus pooled rows over all lineups per rule and one
     row, `pooled`, for the `random` and `least_wins` arms together, which is what the decision rule reads.
-    `chance` maps (bidder count, bid increment) to `bne.chance_tie_rate`, so one run can mix grids and N.
+    `chance` maps (bidder count, bid increment, cost spread) to `bne.chance_tie_rate`, so one run can mix grids and N.
     Shares are in [0, 1].
     """
     repeated = table[~table["is_control"]]
@@ -372,7 +376,12 @@ def tie_check(table: pd.DataFrame, chance: dict[tuple[int, float], float]) -> pd
         tied = round((sessions["tie_rate"] * sessions["n_valid_rounds"]).sum())
         low, high = _clopper_pearson(tied, rounds)
         benchmark = float(
-            np.mean([chance[(int(n), float(inc))] for n, inc in zip(sessions["n_bidders"], sessions["bid_increment"], strict=True)])
+            np.mean(
+                [
+                    chance[(int(n), float(inc), float(sp))]
+                    for n, inc, sp in zip(sessions["n_bidders"], sessions["bid_increment"], sessions["cost_spread"], strict=True)
+                ]
+            )
         )
         rate = tied / rounds if rounds else float("nan")
         records.append(

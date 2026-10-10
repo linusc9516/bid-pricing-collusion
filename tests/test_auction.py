@@ -294,12 +294,18 @@ def test_bafo_rebid_goes_to_tied_firms_only_with_the_notice() -> None:
 
 
 def test_bid_request_carries_only_the_firms_own_cost() -> None:
-    """Guard: a new field here needs a decision on whether it can leak another firm's cost."""
-    assert [f.name for f in fields(BidRequest)] == ["firm_id", "slot", "round", "cost", "phase", "tied_price", "n_tied"]
+    """Guard: a new field here needs a decision on whether it can leak another firm's cost.
+
+    `rival_costs` is the one deliberate exception (reveal_costs arm) and stays empty unless the session sets it.
+    """
+    assert [f.name for f in fields(BidRequest)] == [
+        "firm_id", "slot", "round", "cost", "phase", "tied_price", "n_tied", "rival_costs",
+    ]  # fmt: skip
     a = fixed(50, 40)
     _, rows = custom_session([a, fixed(50, 45), fixed(60)], rule="bafo", n_rounds=6)
     own = {r.round: r.cost for r in rows if r.firm_id == "A"}
     assert all(req.cost == own[req.round] for req in a.requests)
+    assert all(req.rival_costs == () for req in a.requests)
 
 
 def test_bafo_rebid_may_exceed_an_outside_bid() -> None:
@@ -415,3 +421,80 @@ def test_zero_spread_reproduces_iid_draw() -> None:
 def test_common_cost_spread_too_wide_raises() -> None:
     with pytest.raises(ValueError):
         draw_costs(1, 2, 5, 0, 100, 0.01, cost_spread=50)
+
+
+def test_reveal_costs_hands_each_firm_the_others_costs_and_the_bertrand_benchmark() -> None:
+    from dataclasses import replace as dc_replace
+
+    from bidrig.auction import run_session_sync
+    from bidrig.bne import make_benchmark
+
+    bidders = [fixed(50), fixed(60), fixed(70)]
+    meta = make_meta([b.bidder_type for b in bidders], "random", 1, 3)
+    rows = run_session_sync(dc_replace(meta, reveal_costs=True), bidders)
+    cost = {(r.round, r.firm_id): r.cost for r in rows}
+    for bidder, own in zip(bidders, "ABC", strict=True):
+        for req in bidder.requests:
+            assert dict(req.rival_costs) == {f: cost[(req.round, f)] for f in "ABC" if f != own}
+    for n in (1, 2, 3):
+        group = [r for r in rows if r.round == n]
+        costs = sorted(r.cost for r in group)
+        for r in group:
+            rival_low = min(c for f, c in [(x.firm_id, x.cost) for x in group] if f != r.firm_id)
+            assert r.bne_bid == max(r.cost, rival_low)
+        assert min(r.bne_bid for r in group) == costs[1]
+    assert make_benchmark(2, 0, 100, reveal_costs=True).round_bids([30.0, 70.0]) == [70.0, 70.0]
+
+
+def _tie_prone(request: BidRequest) -> float:
+    """Costs rounded to the nearest 20, so rounds tie often; rebids differ by firm so bafo has something to resolve."""
+    base = round(request.cost / 20) * 20.0
+    return base + (1.0 if request.phase == "rebid" and request.slot == 0 else 0.0)
+
+
+@pytest.mark.parametrize("rule", ["random", "least_wins", "bafo"])
+def test_parallel_control_rounds_match_the_sequential_run(rule: str) -> None:
+    from dataclasses import replace as dc_replace
+
+    def run(concurrency: int):
+        bidders = [FnBidder(_tie_prone), FnBidder(_tie_prone), FnBidder(_tie_prone)]
+        meta = dc_replace(make_meta([b.bidder_type for b in bidders], rule, 7, 30), history_window=0)
+        return asyncio.run(run_session(meta, bidders, round_concurrency=concurrency)), bidders
+
+    sequential, _ = run(1)
+    parallel, bidders = run(8)
+    assert any(r.tied for r in sequential)  # the comparison must include ties
+    assert parallel == sequential
+    assert sorted({req.round for b in bidders for req in b.requests}) == list(range(1, 31))
+
+
+def test_history_runs_ignore_round_concurrency() -> None:
+    bidders = [FnBidder(_tie_prone), FnBidder(_tie_prone)]
+    meta = make_meta([b.bidder_type for b in bidders], "random", 3, 6)  # history_window None
+    seen: list[int] = []
+
+    async def spy(request: BidRequest):
+        seen.append(request.round)
+        await asyncio.sleep(0)
+        return BidResponse(_tie_prone(request))
+
+    for b in bidders:
+        b.bid = spy  # type: ignore[method-assign]
+    asyncio.run(run_session(meta, bidders, round_concurrency=8))
+    assert seen == sorted(seen)  # rounds were asked in order, never overlapping
+
+
+def test_parallel_failure_surfaces_the_bidders_own_error() -> None:
+    from dataclasses import replace as dc_replace
+
+    from bidrig.llm import ProviderError
+
+    def boom(request: BidRequest) -> float:
+        if request.round == 4:
+            raise ProviderError("host failed")
+        return 50.0
+
+    bidders = [FnBidder(boom), FnBidder(boom)]
+    meta = dc_replace(make_meta([b.bidder_type for b in bidders], "random", 1, 10), history_window=0)
+    with pytest.raises(ProviderError):
+        asyncio.run(run_session(meta, bidders, round_concurrency=5))

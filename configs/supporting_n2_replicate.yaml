@@ -1,0 +1,32 @@
+# Replication of the one DeepSeek N = 2 session above the benchmark (rotation screen, seed 991003): same
+# settings as rotation_screen_n2.yaml, i.i.d. costs, but 50 rounds (the high phase began at round 10 of 25)
+# and 12 new sessions. history_window 0 is the matched one-shot control. Descriptive: the question is
+# whether sessions like seed 991003 recur, not a test. Run id: n2_replicate.
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 50
+
+session:
+  n_sessions: 12
+  base_seed: 993000       # disjoint from the pilot, the screen (991000), costrange (992000)
+
+llm:
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    deepseek: {effort: low}
+
+budget:
+  max_cost_usd: 6         # tripwire; the dry run is the estimate
+  estimate_output_tokens: 4000
+
+cells:
+  - id: n2rep-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+
+sweep:
+  history_window: [null, 0]

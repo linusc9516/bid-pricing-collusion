@@ -1,0 +1,41 @@
+# Dose-response on the common-cost draw: cost = market level + U[-s, s] per firm, s swept over 2, 5, 15, 30
+# (s = 0 is supporting_n2_replicate.yaml, i.i.d. costs; the prompt differs, see below). N = 2, DeepSeek, 50
+# rounds, same settings as the replicate. Each spread is its own condition (`__spread<s>` in the ids) with
+# its own numeric benchmark and its own matched controls; seeds repeat across spreads. The common-cost
+# template states the structure to the firms. Run id: costrange_sweep. Check the logs with
+#   check_logs.py logs/costrange_sweep --template prompts/bidder_system_common.md
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 50
+
+session:
+  n_sessions: 6
+  base_seed: 994000       # disjoint from the pilot, the screen, costrange and the replicate
+
+prompt:
+  template: prompts/bidder_system_common.md
+  version: v1-common
+
+llm:
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  max_concurrency: 24   # 48 sessions in 2 waves of 24 instead of 6 waves of 8; wall time is waves x one session (~45 min for DeepSeek); watch provider rate limits
+  control_round_concurrency: 4   # a one-shot control asks for 4 rounds at once (no history, so same results); peak requests stay near 100-150
+  reasoning_overrides:
+    deepseek: {effort: low}
+
+budget:
+  max_cost_usd: 9         # tripwire; the dry run is the estimate
+  estimate_output_tokens: 4000
+
+cells:
+  - id: sweep-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+
+sweep:
+  cost_spread: [2, 5, 15, 30]
+  history_window: [null, 0]

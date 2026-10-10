@@ -409,3 +409,12 @@ def test_progress_marks_failures(tmp_path: Path) -> None:
     lines: list[str] = []
     asyncio.run(run_plan(plan, config, models, tmp_path, lambda: FakeOpenAI(fn=flaky_then_fine(10**6)), progress=lines.append))
     assert len(lines) == 1 and lines[0].startswith("[1/1] FAILED")
+
+
+def test_condition_id_separates_cost_spreads() -> None:
+    from bidrig.runner import condition_id
+
+    base = condition_id("cell", "random", "full", 2, None)
+    assert condition_id("cell", "random", "full", 2, None, 0.0) == base
+    assert condition_id("cell", "random", "full", 2, None, 5.0) == base + "__spread5"
+    assert condition_id("cell", "random", "full", 2, 0, 2.5) == "oneshot__" + base + "__spread2.5"

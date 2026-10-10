@@ -162,7 +162,7 @@ def check_auction(log: SessionLog, report: CheckReport) -> None:
     """Winner, price, tie fields, profit and benchmark bid of every round obey the session's tie-break rule."""
     meta, sid, inc = log.meta, log.meta.session_id, log.meta.bid_increment
     rule = meta.tie_break_rule
-    bne = make_benchmark(meta.n_bidders, meta.cost_low, meta.cost_high, meta.cost_spread)
+    bne = make_benchmark(meta.n_bidders, meta.cost_low, meta.cost_high, meta.cost_spread, meta.reveal_costs)
     wins: dict[str, int] = defaultdict(int)
     for number, group in _by_round(log.rows):
         report.items["auction"] += 1
@@ -171,13 +171,16 @@ def check_auction(log: SessionLog, report: CheckReport) -> None:
             report.fail("auction", sid, f"round {number}: {detail}")
 
         min_cost = min(to_ticks(r.cost, inc) for r in group)
+        by_firm = {r.firm_id: r.cost for r in group}
+        costs_in_slots = [by_firm[e.firm_id] for e in meta.lineup]
+        expected_bne = dict(zip((e.firm_id for e in meta.lineup), bne.round_bids(costs_in_slots), strict=True))
         for r in group:
             if r.valid != (r.bid is not None):
                 fail(f"firm {r.firm_id}: valid={r.valid} but bid={r.bid}")
             if r.bid is not None and not 0 <= r.bid <= meta.reserve_price:
                 fail(f"firm {r.firm_id}: bid {r.bid} outside [0, {meta.reserve_price}]")
-            if abs(r.bne_bid - bne.bid(r.cost)) > 1e-9:
-                fail(f"firm {r.firm_id}: bne_bid {r.bne_bid} is not the closed form")
+            if abs(r.bne_bid - expected_bne[r.firm_id]) > 1e-9:
+                fail(f"firm {r.firm_id}: bne_bid {r.bne_bid} is not the benchmark bid {expected_bne[r.firm_id]:.4f}")
             if r.is_min_cost != (to_ticks(r.cost, inc) == min_cost):
                 fail(f"firm {r.firm_id}: is_min_cost is wrong")
             if rule != "bafo" and r.rebid is not None:
@@ -342,6 +345,11 @@ def check_calls(log: SessionLog, report: CheckReport, template: Path = DEFAULT_T
             phase=call.phase,
             tied_price=from_ticks(low, inc) if call.phase == "rebid" and low is not None else None,
             n_tied=row.n_tied if call.phase == "rebid" else None,
+            rival_costs=(
+                tuple((r.firm_id, r.cost) for (n, _), r in rows.items() if n == call.round and r.firm_id != call.firm_id)
+                if meta.reveal_costs
+                else ()
+            ),
         )
         expected_user = user_prompt(meta, log.rows, request)
         if user != expected_user:
@@ -365,7 +373,9 @@ def check_calls(log: SessionLog, report: CheckReport, template: Path = DEFAULT_T
         report.items["leak"] += 1
         public = {f"{v:.2f}" for r in log.rows for v in (r.bid, r.rebid, r.winning_bid) if v is not None}
         mine = {f"{v:.2f}" for r in log.rows if r.firm_id == call.firm_id for v in (r.cost, r.profit)}
-        private = {f"{v:.2f}" for r in log.rows if r.firm_id != call.firm_id for v in (r.cost, r.profit)}
+        private = {
+            f"{v:.2f}" for r in log.rows if r.firm_id != call.firm_id for v in ((r.profit,) if meta.reveal_costs else (r.cost, r.profit))
+        }
         leaked = (set(NUMBER.findall(user)) & private) - public - mine
         if leaked:
             report.fail("leak", sid, f"{label}: shows another firm's private figures {sorted(leaked)}")

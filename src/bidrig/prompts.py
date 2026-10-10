@@ -40,11 +40,13 @@ def visible_rows(
     current_round: int,
     info_condition: InfoCondition,
     history_window: int | None,
+    reveal_costs: bool = False,
 ) -> list[VisibleRow]:
     """Rows of rounds before `current_round` that `firm_id` may see, each holding only its visible keys.
 
     A missing key means hidden; a None value means the firm made no valid bid (or no rebid).
-    `history_window` None shows every earlier round, 0 none, k the last k rounds.
+    `history_window` None shows every earlier round, 0 none, k the last k rounds. `reveal_costs` adds
+    the other firms' costs of those rounds (never their profits).
     """
     if history_window == 0:
         return []
@@ -59,6 +61,8 @@ def visible_rows(
             view.update(cost=row.cost, profit=row.profit, bid=row.bid, rebid=row.rebid)
         elif info_condition == "full":
             view.update(bid=row.bid, rebid=row.rebid)
+        if reveal_costs and not own:
+            view["cost"] = row.cost
         if info_condition in ("full", "winner_price") or (own and row.is_winner):
             view["winning_bid"] = row.winning_bid
         visible.append(view)
@@ -99,6 +103,9 @@ def _format_round(rows: Sequence[VisibleRow], firm_id: str) -> str:
         price = winner.get("winning_bid", own.get("winning_bid"))
         parts.append(f"{who} won at {_money(price)}." if price is not None else f"{who} won.")
     parts.append(f"Your cost was {_money(own['cost'])} and your profit {_money(own['profit'])}.")
+    rivals = [r for r in rows if r is not own and "cost" in r]
+    if rivals:
+        parts.append("Other firms' costs were " + ", ".join(f"{r['firm_id']} {_money(r['cost'])}" for r in rivals) + ".")
     return " ".join(parts)
 
 
@@ -166,13 +173,18 @@ def system_prompt(
 
 def user_prompt(meta: SessionMeta, log: Sequence[BidRow], request: BidRequest) -> str:
     """Per-call message: visible history, this round's own cost, and the rebid notice in a rebid."""
-    rows = visible_rows(log, request.firm_id, request.round, meta.info_condition, meta.history_window)
+    rows = visible_rows(log, request.firm_id, request.round, meta.info_condition, meta.history_window, meta.reveal_costs)
     history = FORMATTERS[meta.info_condition](rows, request.firm_id)
     lines = [
         "Earlier rounds, oldest first:" if history else "No earlier rounds are shown.",
         *([history] if history else []),
         "",
         f"Your cost for this round is {_money(request.cost)}.",
+        *(
+            ["The other firms' costs for this round are: " + ", ".join(f"{f} {_money(c)}" for f, c in request.rival_costs) + "."]
+            if request.rival_costs
+            else []
+        ),
         "Submit your bid with the submit_bid tool.",
     ]
     if request.phase == "rebid":

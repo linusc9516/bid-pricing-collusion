@@ -5,6 +5,7 @@ equilibrium for the common-cost draw (`cost_spread` > 0). Derivation and the col
 them are in PLANNING.md section 2.4.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache
 
@@ -28,6 +29,10 @@ class BneBenchmark:
     def bid(self, cost: float) -> float:
         """Equilibrium bid at `cost` in [cost_low, cost_high], unrounded; lies in [cost, cost_high]."""
         return cost + (self.cost_high - cost) / self.n_bidders
+
+    def round_bids(self, costs: Sequence[float]) -> list[float]:
+        """Equilibrium bid of every firm in one round, in slot order."""
+        return [self.bid(c) for c in costs]
 
     @property
     def expected_winning_bid(self) -> float:
@@ -111,6 +116,10 @@ class CommonCostBenchmark:
         """Equilibrium bid at `cost` in [cost_low, cost_high], unrounded; lies in [cost, cost_high]."""
         return float(self.bids(np.asarray(cost)))
 
+    def round_bids(self, costs: Sequence[float]) -> list[float]:
+        """Equilibrium bid of every firm in one round, in slot order."""
+        return [self.bid(c) for c in costs]
+
     def bids(self, costs: np.ndarray) -> np.ndarray:
         """Vectorised `bid`."""
         grid, markup = _solve_common_cost(self.n_bidders, self.cost_low, self.cost_high, self.cost_spread, self.grid_points)
@@ -125,11 +134,42 @@ class CommonCostBenchmark:
         return float(self.bids(costs.min(axis=1)).mean())
 
 
-Benchmark = BneBenchmark | CommonCostBenchmark
+@dataclass(frozen=True)
+class CompleteInfoBenchmark:
+    """Bertrand outcome when every firm sees every firm's cost: no bidder gains by bidding below the rivals' lowest cost.
+
+    Firm i bids max(its cost, the lowest rival cost), so the lowest-cost firm bids the second-lowest cost
+    and wins there, and every other firm bids its own cost. The benchmark price is the second-lowest cost,
+    an upper edge: the winner would in practice undercut it by one bid increment. It does not depend on
+    the cost distribution, so the same function serves i.i.d. and common-cost draws.
+    """
+
+    n_bidders: int
+    cost_low: float
+    cost_high: float
+
+    def __post_init__(self) -> None:
+        if self.n_bidders < 2:
+            raise ValueError(f"benchmark needs at least 2 bidders, got {self.n_bidders}")
+
+    def bid(self, cost: float) -> float:
+        raise NotImplementedError("the complete-information benchmark needs every firm's cost; use `round_bids`")
+
+    def round_bids(self, costs: Sequence[float]) -> list[float]:
+        """Equilibrium bid of every firm in one round, in slot order."""
+        others = list(costs)
+        return [max(c, min(others[:i] + others[i + 1 :])) for i, c in enumerate(others)]
 
 
-def make_benchmark(n_bidders: int, cost_low: float, cost_high: float, cost_spread: float = 0.0) -> Benchmark:
-    """The closed form for `cost_spread` 0, the numeric common-cost equilibrium otherwise."""
+Benchmark = BneBenchmark | CommonCostBenchmark | CompleteInfoBenchmark
+
+
+def make_benchmark(
+    n_bidders: int, cost_low: float, cost_high: float, cost_spread: float = 0.0, reveal_costs: bool = False
+) -> Benchmark:
+    """Complete-information Bertrand if costs are revealed; else the closed form for `cost_spread` 0, the numeric common-cost equilibrium otherwise."""
+    if reveal_costs:
+        return CompleteInfoBenchmark(n_bidders, cost_low, cost_high)
     if cost_spread == 0:
         return BneBenchmark(n_bidders, cost_low, cost_high)
     return CommonCostBenchmark(n_bidders, cost_low, cost_high, cost_spread)

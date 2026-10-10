@@ -426,14 +426,14 @@ def test_tie_check_for_a_tie_free_and_a_tie_only_sessions() -> None:
                 meta, rows = scripted_session(bidder_type, rule=rule, seed=seed, n_rounds=25)
                 sessions.append((meta, rows))
     table = session_metrics_table(sessions)
-    chance = {(3, 0.01): chance_tie_rate(3, 0, 100, 0.01)}
+    chance = {(3, 0.01, 0.0): chance_tie_rate(3, 0, 100, 0.01)}
     check = tie_check(table, chance).set_index(["lineup_id", "tie_break_rule"])
     assert check.loc[("dummy-bne", "random"), "tie_rate"] == 0 and check.loc[("dummy-bne", "random"), "sessions_with_a_tie"] == 0
     assert check.loc[("dummy-match", "least_wins"), "tie_rate"] == 1 and check.loc[("dummy-match", "least_wins"), "sessions_with_a_tie"] == 5
     assert check.loc[("dummy-bne", "random"), "rounds"] == 125  # 5 sessions x 25 rounds
     # Zero ties in 125 rounds: the exact upper limit is 1 - 0.025 ** (1 / 125), about 2.9%.
     assert check.loc[("dummy-bne", "random"), "tie_ci_high"] == pytest.approx(1 - 0.025 ** (1 / 125), rel=1e-6)
-    assert check.loc[("dummy-bne", "random"), "chance_tie_rate"] == pytest.approx(chance[(3, 0.01)])
+    assert check.loc[("dummy-bne", "random"), "chance_tie_rate"] == pytest.approx(chance[(3, 0.01, 0.0)])
     pooled = check.loc[("pooled", "random+least_wins")]
     assert pooled["rounds"] == 500 and pooled["tie_rate"] == pytest.approx(0.5)  # half the sessions never tie, half always
 
@@ -446,7 +446,7 @@ def test_tie_check_reads_matched_one_shot_controls() -> None:
         control_meta.lineup_id = meta.lineup_id
         control_meta.session_id = f"control-{seed}"
         sessions += [(meta, rows), (control_meta, control_rows)]
-    check = tie_check(session_metrics_table(sessions), {(3, 0.01): 0.0003}).set_index(["lineup_id", "tie_break_rule"])
+    check = tie_check(session_metrics_table(sessions), {(3, 0.01, 0.0): 0.0003}).set_index(["lineup_id", "tie_break_rule"])
     row = check.loc[("dummy-match", "random")]
     assert row["tie_rate"] == 1 and row["control_tie_rate"] == 0 and row["excess_over_chance"] == pytest.approx(1 - 0.0003)
 
@@ -536,7 +536,22 @@ def test_tie_check_benchmark_follows_each_sessions_grid() -> None:
             sessions.append((meta, rows))
     table = session_metrics_table(sessions)
     assert set(table["bid_increment"]) == {1.0, 5.0}
-    check = tie_check(table, {(3, 1.0): 0.02, (3, 5.0): 0.1}).set_index(["lineup_id", "tie_break_rule"])
+    check = tie_check(table, {(3, 1.0, 0.0): 0.02, (3, 5.0, 0.0): 0.1}).set_index(["lineup_id", "tie_break_rule"])
     assert check.loc[("grid1", "random"), "chance_tie_rate"] == pytest.approx(0.02)
     assert check.loc[("grid5", "random"), "chance_tie_rate"] == pytest.approx(0.1)
     assert check.loc[("pooled", "random+least_wins"), "chance_tie_rate"] == pytest.approx(0.06)
+
+
+def test_controls_match_within_cost_spread() -> None:
+    """The same lineup, N, rule and seed at two cost spreads are different conditions; each control pairs with its own."""
+    from dataclasses import replace
+
+    sessions = []
+    for spread in (0.0, 5.0):
+        for window in (None, 0):
+            meta, rows = scripted_session("bne", rule="random", seed=1, n_rounds=6)
+            sid = f"s-{spread:g}-{window}"
+            sessions.append((replace(meta, session_id=sid, condition_id=sid, cost_spread=spread, history_window=window), rows))
+    table = session_metrics_table(sessions).set_index("session_id")
+    assert table.loc["s-0-None", "control_index"] == pytest.approx(table.loc["s-0-0", "collusion_index"])
+    assert table.loc["s-5-None", "control_index"] == pytest.approx(table.loc["s-5-0", "collusion_index"])

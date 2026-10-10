@@ -49,6 +49,7 @@ class SessionMeta:
     bid_increment: float
     n_rounds: int
     cost_spread: float = 0.0  # 0 = i.i.d. costs; s > 0 = common base + U[-s, s] per firm
+    reveal_costs: bool = False  # True = every firm is shown every firm's cost each round (complete information)
     history_window: int | None = None  # None = whole session; 0 = one-shot control
     temperature: float | None = None
     prompt_version: str | None = None
@@ -145,7 +146,7 @@ class CallRow:
 
 @dataclass(frozen=True)
 class BidRequest:
-    """What the auctioneer hands one firm for one bid; holds that firm's own cost and no other firm's."""
+    """What the auctioneer hands one firm for one bid; holds that firm's own cost, and others' only if `rival_costs` is set."""
 
     firm_id: str
     slot: int  # 0-indexed position in the lineup
@@ -154,6 +155,7 @@ class BidRequest:
     phase: CallPhase = "bid"
     tied_price: float | None = None  # rebid only: the price the firms tied at
     n_tied: int | None = None  # rebid only: how many firms tied, not which
+    rival_costs: tuple[tuple[str, float], ...] = ()  # (firm id, cost) of the other firms; empty unless the session reveals costs
 
 
 @dataclass(frozen=True)

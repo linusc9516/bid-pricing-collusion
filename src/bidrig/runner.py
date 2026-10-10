@@ -43,7 +43,7 @@ from bidrig.schema import (
     write_session,
 )
 
-AUCTION_KEYS = {"cost_low", "cost_high", "cost_spread", "reserve_price", "bid_increment", "tie_break_rule", "n_rounds", "n_bidders"}
+AUCTION_KEYS = {"cost_low", "cost_high", "cost_spread", "reveal_costs", "reserve_price", "bid_increment", "tie_break_rule", "n_rounds", "n_bidders"}
 SESSION_KEYS = {"n_sessions", "base_seed", "info_condition", "history_window", "disclose_horizon"}
 SCRIPTED_PARAMS = {"markup", "shade", "undercut", "price"}
 # Slot assignment uses its own stream, so it never shifts costs or tie-breaks.
@@ -102,10 +102,14 @@ class PlannedSession:
         return 0 if self.scripted else self.meta.n_rounds * self.meta.n_bidders
 
 
-def condition_id(cell_id: str, rule: str, info: str, n_bidders: int, history_window: int | None) -> str:
-    """e.g. `tie-least_wins__info-full__lineup-homog-deepseek__n3`; one-shot controls get `oneshot__`."""
+def condition_id(
+    cell_id: str, rule: str, info: str, n_bidders: int, history_window: int | None, cost_spread: float = 0.0,
+    reveal_costs: bool = False,
+) -> str:
+    """e.g. `tie-least_wins__info-full__lineup-homog-deepseek__n3`; one-shot controls get `oneshot__`, common-cost draws `__spread<s>`, revealed costs `__costs-public`."""
     prefix = "oneshot__" if history_window == 0 else ""
-    return f"{prefix}tie-{rule}__info-{info}__lineup-{cell_id}__n{n_bidders}"
+    suffix = (f"__spread{cost_spread:g}" if cost_spread else "") + ("__costs-public" if reveal_costs else "")
+    return f"{prefix}tie-{rule}__info-{info}__lineup-{cell_id}__n{n_bidders}{suffix}"
 
 
 def slot_models(lineup: dict[str, Any], seed: int, n_bidders: int) -> list[str | None]:
@@ -162,7 +166,10 @@ def plan_sessions(
             scripted = None
             if lineup["type"] == "scripted":
                 scripted = {"bidder": lineup["bidder"], **{k: v for k, v in lineup.items() if k in SCRIPTED_PARAMS}}
-            cid = condition_id(cell["id"], auction["tie_break_rule"], session["info_condition"], n, session["history_window"])
+            cid = condition_id(
+                cell["id"], auction["tie_break_rule"], session["info_condition"], n, session["history_window"],
+                auction.get("cost_spread", 0.0), auction.get("reveal_costs", False),
+            )
             for k in range(session["n_sessions"]):
                 seed = session["base_seed"] + k
                 aliases = slot_models(lineup, seed, n)
@@ -190,6 +197,7 @@ def plan_sessions(
                     cost_low=auction["cost_low"],
                     cost_high=auction["cost_high"],
                     cost_spread=auction.get("cost_spread", 0.0),
+                    reveal_costs=auction.get("reveal_costs", False),
                     reserve_price=auction["reserve_price"],
                     bid_increment=auction["bid_increment"],
                     n_rounds=auction["n_rounds"],
@@ -285,7 +293,7 @@ async def _run_one(
     bidders: list[Bidder]
     if planned.scripted:
         params = {k: v for k, v in planned.scripted.items() if k != "bidder"}
-        bne = make_benchmark(meta.n_bidders, meta.cost_low, meta.cost_high, meta.cost_spread)
+        bne = make_benchmark(meta.n_bidders, meta.cost_low, meta.cost_high, meta.cost_spread, meta.reveal_costs)
         bidders = [make_scripted_bidder(planned.scripted["bidder"], bne, meta.reserve_price, **params) for _ in meta.lineup]
     else:
         if client is None:

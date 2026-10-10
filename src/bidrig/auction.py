@@ -123,7 +123,15 @@ async def _resolve_tie(
 def _round_requests(meta: SessionMeta, round_number: int, costs: Sequence[float]) -> list[BidRequest]:
     """What the auctioneer hands each firm for one round, in slot order."""
     return [
-        BidRequest(firm_id=entry.firm_id, slot=slot, round=round_number, cost=costs[slot])
+        BidRequest(
+            firm_id=entry.firm_id,
+            slot=slot,
+            round=round_number,
+            cost=costs[slot],
+            rival_costs=(
+                tuple((other.firm_id, costs[j]) for j, other in enumerate(meta.lineup) if j != slot) if meta.reveal_costs else ()
+            ),
+        )
         for slot, entry in enumerate(meta.lineup)
     ]
 
@@ -172,6 +180,7 @@ async def _settle_round(
 
     cost_ticks = [to_ticks(c, increment) for c in costs]
     min_cost = min(cost_ticks)
+    bne_bids = bne.round_bids(costs)
     rows = []
     for slot, (request, (ticks, n_attempts)) in enumerate(zip(requests, bids, strict=True)):
         is_winner = slot == winner
@@ -193,7 +202,7 @@ async def _settle_round(
                 n_tied=len(tied),
                 tie_resolution=resolution,
                 rebid=None if rebid is None else from_ticks(rebid, increment),
-                bne_bid=bne.bid(request.cost),
+                bne_bid=bne_bids[slot],
                 is_min_cost=cost_ticks[slot] == min_cost,
                 model=bidders[slot].model,
             )
@@ -221,7 +230,7 @@ async def run_session(
     """
     if not len(bidders) == len(meta.lineup) == meta.n_bidders:
         raise ValueError("bidders, meta.lineup and meta.n_bidders must agree")
-    bne = make_benchmark(meta.n_bidders, meta.cost_low, meta.cost_high, meta.cost_spread)
+    bne = make_benchmark(meta.n_bidders, meta.cost_low, meta.cost_high, meta.cost_spread, meta.reveal_costs)
     costs = draw_costs(meta.seed, meta.n_bidders, meta.n_rounds, meta.cost_low, meta.cost_high, meta.bid_increment, meta.cost_spread)
     rng = np.random.default_rng([meta.seed, meta.n_bidders, _TIE_STREAM])
     wins = [0] * meta.n_bidders

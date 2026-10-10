@@ -1,0 +1,50 @@
+# Supporting arm: complete information. Every firm is shown every firm's cost for the round before bidding
+# (and past rounds' costs in the history). N = 2, i.i.d. costs, 50 rounds, two homogeneous cells: DeepSeek and GPT-6 Luna. The private-cost
+# comparison is supporting_n2_replicate.yaml for DeepSeek only (different seeds); Luna has none yet, so
+# its one-shot controls here are the within-model baseline.
+# This breaks the usual rule that agents never see rival costs, as a labelled arm, not as the default.
+# The auctioneer reveals the costs; there is still no agent-to-agent channel.
+# Benchmark: Bertrand (bne.py CompleteInfoBenchmark): each firm bids max(own cost, lowest rival cost), so the
+# benchmark price is the second-lowest cost. Its expected value equals the private-cost BNE (revenue equivalence),
+# so the index is comparable across the two arms. History_window 0 is the matched one-shot control, which also
+# sees the round's costs. The tie manipulation check in analyze.py is not meaningful for this arm: at the
+# benchmark both firms bid the second-lowest cost, so exact ties are expected. Run id: costs_revealed.
+# Check the logs with   check_logs.py logs/costs_revealed --template prompts/bidder_system_open.md
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 50
+  reveal_costs: true
+
+session:
+  n_sessions: 4
+  base_seed: 995000       # disjoint from the pilot, the screen, costrange, the replicate and the sweep
+
+prompt:
+  template: prompts/bidder_system_open.md
+  version: v1-open
+
+llm:
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  max_concurrency: 16   # all 16 sessions at once (one wave) on a fresh run; the first launch ran at the default 8; watch provider rate limits
+  control_round_concurrency: 4   # a one-shot control asks for 4 rounds at once (no history, so same results); peak requests stay near 100-150
+  reasoning_overrides:
+    deepseek: {effort: low}
+    gpt-luna: {effort: low}
+
+budget:
+  max_cost_usd: 4
+  estimate_output_tokens: 4000
+
+cells:
+  - id: open-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: open-luna
+    lineup: {type: homogeneous, model: gpt-luna}
+
+sweep:
+  history_window: [null, 0]
