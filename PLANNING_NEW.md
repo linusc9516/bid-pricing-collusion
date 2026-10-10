@@ -32,7 +32,7 @@ high prices. Until a test shows one, the baseline result is called "pricing abov
 | Tier | Claim | Evidence now | What it still needs |
 |---|---|---|---|
 | **Fallback (the worst case)** | Showing the bidding history changes how the models bid, although costs are independent each round and the history carries no information at equilibrium | Both models, all 12 seeds each: the mean gap between a bid and the Bayes-Nash bid rises from 0.6 to 6.2 bid units for DeepSeek and from 3.6 to 10.3 for GPT-6 Luna (0.1 to 10.2 counting only calls that thought). The judge finds inference from earlier rounds in 94% of history calls | The gap measure was chosen after the run, so this is exploratory. Declare it before the 150-round baseline and test it there on fresh sessions |
-| **Baseline** | With history, GPT-6 Luna prices above the competitive level; DeepSeek does not | Index +0.19 against −0.05; 7 of 12 GPT-6 Luna sessions above 0 | Whether it pays (section 2.1), whether it persists past round 50, whether it survives a narrow cost range |
+| **Baseline** | With history, GPT-6 Luna prices above the competitive level; DeepSeek does not | Index +0.19 against −0.05; 7 of 12 GPT-6 Luna sessions above 0 | It does not pay on average (section 2.1). Still open: whether it persists past round 50, and whether it survives a narrow cost range |
 | **Channel** | A channel between the firms raises prices beyond the baseline, and the agreement is visible in the channel; private notes alone do not | None yet | The main arms |
 
 The fallback claim holds even if every later arm is null. It is a statement about behaviour, not about collusion: the
@@ -64,8 +64,8 @@ feedback, or do the profits and the other firm's high bids push it there?
   to 5 on the three seeds whose first rounds showed bids of 83 to 100, and stays small on the other nine.
 - **There is something to the concern for GPT-6 Luna:** with history it bids 90 or more about twice as often as
   equilibrium play would. Few of those bids are at the maximum itself.
-- **Not settled:** whether bidding high in reply to a high-bidding opponent is a mistake or a sound reply. That is what
-  the best-response check of section 2.1 decides.
+- **Settled by section 2.1:** bidding high in reply to a high-bidding opponent is a sound reply to the bids already on
+  screen and an error over the session. A firm that bid the Bayes-Nash bid throughout would have earned more.
 
 ## 2. What exists
 
@@ -136,6 +136,44 @@ they were thought of after the results were seen.
 The same two checks are computed for every later arm, so that a channel effect on price can be read beside its effect
 on profit.
 
+**Results on `baseline_no_channel` (run 11 October; exploratory; 12 sessions per cell).**
+
+Joint profit as a ratio to the profit under equilibrium play on the same costs:
+
+| | One-shot | History | History sessions above 1.0 |
+|---|---|---|---|
+| DeepSeek | 0.96 | 0.88 (interval 0.81 to 0.95) | 2 of 12 |
+| GPT-6 Luna | 0.82 | 0.99 (interval 0.89 to 1.10) | 5 of 12 |
+
+- GPT-6 Luna's higher prices leave the firms where equilibrium play would: the mean price is 72.4, but the winner's
+  mean cost is 39.1 where the lowest cost averages 32.6.
+- With history DeepSeek earns 12% less than under equilibrium play.
+- On the three high seeds the ratio is 1.09, 1.25 and 1.35. Across seeds the ratio and the index have a rank
+  correlation of 0.95.
+
+Best reply, with history:
+
+| | DeepSeek | GPT-6 Luna |
+|---|---|---|
+| Bids within 1 of the best reply to the other firm's earlier bids | 49% | 77% |
+| Profit forgone against that best reply | 9% | 5% |
+| Profit forgone against the other firm's bids over the whole session | 21% | 36% |
+| Gain if one firm switches alone to the Bayes-Nash bid, the other firm's bids held fixed | +5% (8 of 12 sessions) | +10.5% (12 of 12; interval +7.6% to +13.6%) |
+
+- Each firm replies well to the bids already on screen and badly to what the other firm goes on to do, because the
+  other firm is adjusting too. This is the pattern called fictitious play.
+- A GPT-6 Luna firm would have earned more with the plain Bayes-Nash bid in every session, the three high seeds
+  included (+6% to +21% there, winning 79% of rounds).
+
+**Which description fits.** Not the first: no session is an outcome that neither firm wants to leave. On average the
+third: an anchoring error from which nobody gains. On the three high seeds the second: joint profit above equilibrium
+by the luck of the start, with deviation still paying.
+
+**Limits of these results.** The switching test holds the other firm's bids fixed, and a real opponent would react;
+fear of that reaction is what a collusive outcome rests on, and the judge finds no such reasoning. The "forgone"
+figures are biased upward, because the best reply is found and scored on the same sample: DeepSeek's one-shot arm,
+which bids the equilibrium, shows 6% to 13% by this method, so that is the noise floor. Scripts: not yet in the repo.
+
 ### 2.2 Observations and current explanations (state on 10 October)
 
 Kept apart on purpose: the first table is what the logs show, the second is what is believed about why.
@@ -158,18 +196,21 @@ Kept apart on purpose: the first table is what the logs show, the second is what
 | O12 | With a cost control, the coefficient of a bid on the other firm's previous bid is small: 0.10 and 0.06, against 0.01 and 0.00 one-shot | Descriptive |
 | O13 | GPT-6 Luna with history: ties in 7.3% of rounds (DeepSeek 1.2%); the lowest-cost firm wins 71% (92% one-shot) | Descriptive |
 | O14 | Earlier coarse-grid data (DeepSeek, three firms, 25 rounds): coarser grids fall faster in rounds 2 to 15 and end at the same level | Weak: 5 sessions, other seeds |
+| O16 | Joint profit with history is 0.99 of the equilibrium profit for GPT-6 Luna and 0.88 for DeepSeek; above it on GPT-6 Luna's three high seeds (1.09 to 1.35) | Exploratory |
+| O17 | With history, 77% of GPT-6 Luna's bids and 49% of DeepSeek's are within 1 of the best reply to the other firm's earlier bids | Exploratory |
+| O18 | One firm switching alone to the Bayes-Nash bid would gain 10.5% (GPT-6 Luna, 12 of 12 sessions) and 5% (DeepSeek, 8 of 12), the other firm's bids held fixed | Exploratory |
 | O15 | On seven faster hosts DeepSeek ran into the output cap on 19% to 44% of replies; on DeepInfra, 0 of 32 in the test | Operational |
 
 **Explanations (hypotheses, with what would test each)**
 
 | # | Explanation | Rests on | Test |
 |---|---|---|---|
-| E1 | Each firm sets its bid just under the bids on screen, whatever its own cost. Both do it, so the price falls by small steps from wherever the first rounds put it, and a high start stays high | O6, O8, O9, O11 | Replayed rival (S1); history window (X1); bid grid (X2) |
+| E1 | Each firm sets its bid just under the bids on screen, whatever its own cost: a best reply to the past as if it were fixed (fictitious play). Both do it, so the price falls by small steps from wherever the first rounds put it, and a high start stays high | O6, O8, O9, O11, O17 | Replayed rival (S1); history window (X1); bid grid (X2) |
 | E2 | The wide cost range supplies the high starts by chance: a firm that draws 90 must bid above 90 | O9 | A narrow independent cost range |
 | E3 | This is anchoring on displayed bids, not coordination | O10, O11; no reward and punishment shown | Forced deviation (section 10); the judge hand-check |
 | E4 | Intent before feedback is the equilibrium bid; the high bids are made by the feedback | Section 1.2 | Already shown descriptively; the replayed rival would show it causally |
 | E5 | GPT-6 Luna's one-shot shortfall is a thinking effect, not a strategy | O2 | None possible by assignment; report the split |
-| E6 | Undecided: the high bids are either a sound reply to a high-bidding opponent or an error | | Section 2.1 |
+| E6 | The high bids are an error over the session, not a stable outcome: neither joint profit nor a firm's own profit is served by them on average | O16, O18 | Done (section 2.1). A forced deviation would show whether the other firm reacts |
 | E7 | Unexplained: why GPT-6 Luna's level rises and DeepSeek's does not. Candidates: DeepSeek thinks about twice as long per call (1,800 tokens against 800) and infers a floor from many rounds, where GPT-6 Luna reacts to the latest level; GPT-6 Luna runs at a sampling setting that cannot be set | O4, O11 | A mixed pair; none for the sampling setting |
 | E8 | The two DeepSeek batches differ (O5) because the mean over 12 seeds depends on which cost sequences were drawn | O7 | More seeds; repeats of one seed |
 
