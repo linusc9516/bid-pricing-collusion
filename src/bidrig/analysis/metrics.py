@@ -363,6 +363,61 @@ def non_competitive_bids(table: pd.DataFrame) -> pd.DataFrame:
     return summary.reset_index()
 
 
+DESCRIPTIVE_BANDS = (0.5, 1.0, 2.0)  # bid units either side of the benchmark bid (configs/analysis.yaml, baseline_no_channel)
+DESCRIPTIVE_COLUMNS = ["model", "arm", "measure", "group", "n_sessions", "n", "mean", "min", "max"]
+
+
+def _session_descriptives(rows: Sequence[BidRow], calls: Sequence[CallRow]) -> dict[tuple[str, str], tuple[float, int]]:
+    """One session's descriptive values as {(measure, group): (value, number of bids, rounds or calls it rests on)}."""
+    bids = _bids_frame(rows)
+    valid = bids[bids["valid"]]
+    # The attempt that produced a firm's bid is its last one in the round.
+    last = {(c.round, c.firm_id): c for c in sorted(calls, key=lambda c: c.attempt) if c.phase == "bid"}
+    thought = valid.apply(lambda r: bool((c := last.get((r["round"], r["firm_id"]))) and (c.reasoning_tokens or 0) > 0), axis=1)
+    groups = {"all": valid, "lowest_cost": valid[valid["is_min_cost"]], "other": valid[~valid["is_min_cost"]]}
+    out: dict[tuple[str, str], tuple[float, int]] = {}
+    for group, frame in groups.items():
+        distance = (frame["bid"] - frame["bne_bid"]).abs()
+        for band in DESCRIPTIVE_BANDS:
+            out[(f"share_within_{band:g}", group)] = (_mean(distance <= band + 1e-9), len(frame))
+        out[("below_cost_bid_rate", group)] = (_mean(frame["bid"] < frame["cost"] - 1e-9), len(frame))
+    if calls:
+        for group, frame in (("calls_with_thinking", valid[thought]), ("calls_without_thinking", valid[~thought])):
+            diff = frame["bid"] - frame["bne_bid"]
+            out[("share_of_bids", group)] = (len(frame) / len(valid) if len(valid) else float("nan"), len(valid))
+            out[("share_within_1", group)] = (_mean(diff.abs() <= 1 + 1e-9), len(frame))
+            out[("median_bid_minus_benchmark", group)] = (float(diff.median()), len(frame))
+        bid_calls = [c for c in calls if c.phase == "bid"]
+        tokens = pd.Series([c.reasoning_tokens or 0 for c in bid_calls], dtype=float)
+        out[("thinking_tokens_per_call", "all")] = (_mean(tokens), len(bid_calls))
+        out[("calls_without_thinking_share", "all")] = (_mean(tokens == 0), len(bid_calls))
+        out[("cut_off_at_cap_share", "all")] = (_mean(pd.Series([c.finish_reason == "length" for c in bid_calls])), len(bid_calls))
+    return out
+
+
+def baseline_descriptives(sessions: Iterable[tuple[SessionMeta, Sequence[BidRow], Sequence[CallRow]]]) -> pd.DataFrame:
+    """The declared descriptive measures per model (`lineup_id`) and arm (`history` or `one_shot`); columns `DESCRIPTIVE_COLUMNS`.
+
+    Each measure is computed within a session, then `mean`, `min` and `max` are taken over the sessions in which it is
+    defined (`n_sessions`); `n` is the bids, rounds or calls behind it, summed over those sessions. No tests. The split
+    by hidden thinking is not an experiment: the model chooses when to think.
+    """
+    records = []
+    for meta, rows, calls in sessions:
+        values = _session_descriptives(rows, calls)
+        m = session_metrics(meta, rows)
+        for measure in ("reserve_bid_rate", "lowest_cost_win_share", "tie_rate"):
+            values[(measure, "all")] = (float(m[measure]), int(m["n_valid_rounds"]))
+        values[("invalid_bid_rate", "all")] = (float(m["invalid_bid_rate"]), len(rows))
+        for (measure, group), (value, n) in values.items():
+            records.append({"model": meta.lineup_id, "arm": "one_shot" if meta.is_control else "history",
+                            "measure": measure, "group": group, "value": value, "n": n})  # fmt: skip
+    frame = pd.DataFrame(records, columns=["model", "arm", "measure", "group", "value", "n"]).dropna(subset=["value"])
+    grouped = frame.groupby(["model", "arm", "measure", "group"], sort=False)
+    out = grouped.agg(n_sessions=("value", "count"), n=("n", "sum"), mean=("value", "mean"), min=("value", "min"), max=("value", "max"))
+    return out.reset_index()[DESCRIPTIVE_COLUMNS]
+
+
 def condition_means(table: pd.DataFrame) -> pd.DataFrame:
     """`condition_summary.csv` without intervals: mean of each metric over sessions per condition.
 

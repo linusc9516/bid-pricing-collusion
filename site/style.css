@@ -124,6 +124,10 @@ select { font: inherit; font-size: 13px; margin-left: 6px; background: var(--sur
 .legend span.key { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
 .sw.box { width: 12px; height: 12px; border-radius: 3px; }
+.sw.dot { width: 9px; height: 9px; border-radius: 50%; }
+.sw.ring { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--muted); box-sizing: border-box; }
+.sw.line { width: 18px; height: 2px; }
+.sw.dash { width: 18px; height: 0; border-top: 2px dashed var(--text); border-radius: 0; }
 .sw.a { background: var(--firm-a); } .sw.b { background: var(--firm-b); } .sw.c { background: var(--firm-c); }
 .strips { display: grid; gap: 8px; margin: 12px 0 0; }
 .strip { border: 1px solid var(--grid); border-radius: 12px; padding: 10px 12px; background: none; text-align: left; width: 100%; cursor: pointer; }

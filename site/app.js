@@ -20,7 +20,7 @@ const METRICS = [
   ["Reserve bids", "reserve_bid_rate", "pct", "Share of bids placed at the maximum allowed price."],
   ["Bid-cost correlation", "bid_cost_corr", 2, "Near 1 when bids follow the firm's own cost."],
 ];
-const state = { mode: "examples", ex: 0, s: 0, round: 1, showCost: false, showBne: false, run: null, custom: null, filter: {}, hist: "repeated" };
+const state = { mode: "examples", ex: 0, s: 0, round: 1, showCost: false, showBne: false, run: null, custom: null, filter: {}, hist: "repeated", pair: "collusion_index" };
 const view = () => state.custom || EXAMPLES[state.ex];
 
 function h(tag, attrs, ...kids) {
@@ -417,6 +417,160 @@ function classCard(sessions) {
     h("div", { class: "chartbox" }, root));
 }
 
+const SCATTER_MAX_POINTS = 3000; // per panel; above this every k-th bid is drawn
+
+// Every valid bid against the firm's own cost, one panel per model and arm, with the equilibrium bid and bid = cost as lines.
+function scatterCard(sessions) {
+  const use = sessions.filter((e) => e.points);
+  if (!use.length) return null;
+  const models = [...new Set(use.flatMap((e) => Object.keys(e.points)))].sort();
+  const arms = [[true, "one-shot"], [false, "repeated"]].filter(([c]) => use.some((e) => e.control === c));
+  const lo = Math.min(...use.map((e) => e.cost_low)), hi = Math.max(...use.map((e) => e.cost_high)), top = Math.max(...use.map((e) => e.reserve));
+  const W = 900, pw = 372, ph = 260, ml = 44, gapX = 56, headH = 46, mb = 44;
+  const rowH = headH + ph + mb;
+  const root = svg("svg", { class: "chart", viewBox: `0 0 ${W} ${models.length * rowH}`, role: "img", "aria-label": "Scatter of each bid against the firm's own cost, by model and arm" });
+  let sampled = false, noLine = false;
+  models.forEach((m, mi) => arms.forEach(([control, armName], ai) => {
+    const group = use.filter((e) => e.control === control && e.points[m]);
+    const all = group.flatMap((e) => e.points[m].map((p) => [p[0], p[1], p[2], e.seed]));
+    if (!all.length) return;
+    const x0 = ml + ai * (pw + gapX), y0 = mi * rowH + headH;
+    const x = (c) => x0 + ((c - lo) / (hi - lo)) * pw, y = (b) => y0 + (1 - b / top) * ph;
+    const clip = (a, b) => [[lo, a + b * lo], [hi, a + b * hi]].map(([c, v]) => `${x(c).toFixed(1)},${y(Math.max(0, Math.min(top, v))).toFixed(1)}`).join(" ");
+    for (let g = 0; g <= 4; g += 1) {
+      const c = lo + ((hi - lo) * g) / 4, b = (top * g) / 4;
+      root.append(svg("line", { x1: x0, x2: x0 + pw, y1: y(b), y2: y(b), stroke: "var(--grid)", "stroke-width": 1 }));
+      root.append(svg("text", { x: x0 - 6, y: y(b) + 4, "text-anchor": "end" }, String(Math.round(b))));
+      root.append(svg("text", { x: x(c), y: y0 + ph + 16, "text-anchor": "middle" }, String(Math.round(c))));
+    }
+    root.append(svg("text", { x: x0 + pw / 2, y: y0 + ph + 34, "text-anchor": "middle" }, "own cost"));
+    root.append(svg("text", { x: x0 - 30, y: y0 + ph / 2, "text-anchor": "middle", transform: `rotate(-90 ${x0 - 30} ${y0 + ph / 2})` }, "bid"));
+    // Below the bid = cost line a winning bid loses money.
+    root.append(svg("polygon", { points: `${x(lo)},${y(lo)} ${x(hi)},${y(Math.min(hi, top))} ${x(hi)},${y(0)} ${x(lo)},${y(0)}`, fill: "var(--cls-cost)", opacity: 0.07 }));
+    root.append(svg("polyline", { points: clip(0, 1), fill: "none", stroke: "var(--cls-cost)", "stroke-width": 1.5 }));
+    const step = Math.ceil(all.length / SCATTER_MAX_POINTS);
+    if (step > 1) sampled = true;
+    const color = MODEL_COLORS[mi % MODEL_COLORS.length];
+    for (const won of [0, 1]) for (let i = 0; i < all.length; i += step) {
+      const [c, b, flags, seed] = all[i];
+      if ((flags & 1) !== won) continue;
+      const dot = svg("circle", { cx: x(c).toFixed(1), cy: y(b).toFixed(1), r: won ? 2.4 : 2.2, fill: won ? color : "none", stroke: won ? "none" : "var(--muted)", "stroke-width": 1, opacity: won ? 0.75 : 0.6 });
+      dot.append(svg("title", null, `cost ${c.toFixed(2)}, bid ${b.toFixed(2)} · ${won ? "won" : "lost"}${flags & 2 ? " · lowest cost" : ""} · seed ${seed}`));
+      root.append(dot);
+    }
+    const k = all.length, sx = all.reduce((t, p) => t + p[0], 0) / k, sy = all.reduce((t, p) => t + p[1], 0) / k;
+    const sxx = all.reduce((t, p) => t + (p[0] - sx) ** 2, 0), sxy = all.reduce((t, p) => t + (p[0] - sx) * (p[1] - sy), 0);
+    let fit = "";
+    if (k >= 3 && sxx > 0) {
+      const b = sxy / sxx, a = sy - b * sx;
+      root.append(svg("polyline", { points: clip(a, b), fill: "none", stroke: "var(--surface)", "stroke-width": 5, opacity: 0.8 }));
+      root.append(svg("polyline", { points: clip(a, b), fill: "none", stroke: color, "stroke-width": 2 }));
+      fit = `fitted ${fmt(a, 1)} + ${fmt(b, 2)} × cost`;
+    }
+    const ns = new Set(group.map((e) => e.n_bidders));
+    let eq = "no single equilibrium line for these sessions";
+    if (ns.size === 1 && group.every((e) => !e.reveal_costs && !e.cost_spread && e.cost_high === hi && e.cost_low === lo)) {
+      const n = [...ns][0], a = hi / n, b = 1 - 1 / n;
+      root.append(svg("polyline", { points: clip(a, b), fill: "none", stroke: "var(--text)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+      eq = `equilibrium ${fmt(a, 1)} + ${fmt(b, 2)} × cost`;
+    } else noLine = true;
+    root.append(svg("rect", { x: x0, y: y0, width: pw, height: ph, fill: "none", stroke: "var(--axis)", "stroke-width": 1 }));
+    root.append(svg("text", { class: "strong", x: x0, y: y0 - 26 }, `${m} · ${armName}`));
+    root.append(svg("text", { x: x0 + pw, y: y0 - 26, "text-anchor": "end" }, `${k.toLocaleString()} bids`));
+    root.append(svg("text", { x: x0, y: y0 - 9 }, `${fit}${fit ? " · " : ""}${eq}`));
+  }));
+  const key = (cls, style, name) => h("span", { class: "key" }, h("span", { class: `sw ${cls}`, style }), name);
+  return h("section", { class: "cond histo" },
+    h("h3", null, "Bid against own cost"),
+    h("p", { class: "meta" }, "One point per valid bid. A firm bidding the equilibrium sits on the dashed line; the fitted line is the least-squares line through the panel's bids, "
+      + "so a lower line means lower bids at every cost and a flatter one means bids that react less to cost. Points in the shaded area are bids below the firm's own cost."
+      + (sampled ? ` Panels with more than ${SCATTER_MAX_POINTS.toLocaleString()} bids draw an even sample; the fitted line uses all of them.` : "")
+      + (noLine ? " No equilibrium line is drawn where costs are revealed, share a common part, or the sessions differ in the number of firms." : "")),
+    h("div", { class: "legend" }, key("dot", "background:var(--text-2)", "winning bid (in the model's colour)"), key("ring", "", "losing bid"),
+      key("dash", "", "equilibrium bid"), key("line", "background:var(--text-2)", "fitted line"), key("line", "background:var(--cls-cost)", "bid = cost")),
+    h("div", { class: "chartbox" }, root));
+}
+
+const PAIR_MEASURES = [
+  ["collusion_index", "collusion index (price level)", () => 0],
+  ["markup_ratio", "markup ratio, all bids", () => 1],
+  ["markup_ratio_min_cost", "markup ratio, lowest-cost firm", () => 1],
+  ["markup_ratio_other", "markup ratio, other firms", () => 1],
+  ["bid_slope", "slope of bid on cost", (e) => (e.reveal_costs || e.cost_spread ? null : 1 - 1 / e.n_bidders)],
+  ["bid_intercept", "intercept of bid on cost", (e) => (e.reveal_costs || e.cost_spread || e.cost_low ? null : e.cost_high / e.n_bidders)],
+];
+const PAIR_GROUPS_PER_ROW = 6;
+
+// One dot per session, each repeated session joined to its one-shot control: the comparison the session-level tests make.
+function pairedCard(run, sessions) {
+  const [key, name, bench] = PAIR_MEASURES.find(([k]) => k === state.pair) || PAIR_MEASURES[0];
+  const ids = new Map(run.sessions.map((e) => [e.id, e]));
+  const groups = new Map();
+  for (const e of sessions) {
+    if (e.control) continue;
+    const ctl = ids.get(`oneshot__${e.id}`);
+    if (!ctl || e.metrics[key] == null || ctl.metrics[key] == null) continue;
+    if (!groups.has(e.condition)) groups.set(e.condition, { first: e, pairs: [] });
+    groups.get(e.condition).pairs.push({ seed: e.seed, a: ctl.metrics[key], b: e.metrics[key] });
+  }
+  const pick = h("label", null, "measure",
+    h("select", { onchange: (ev) => { state.pair = ev.target.value; renderRun(); } }, ...PAIR_MEASURES.map(([k, t]) => h("option", { value: k, selected: k === key }, t))));
+  const head = [h("h3", null, "Each session against its one-shot control"),
+    h("p", { class: "meta" }, "One dot per session. A line joins a repeated session (right) to its one-shot control (left): same seed, same costs, no history shown. "
+      + "A line that falls means the history lowered that measure. The short bars are the means over sessions. This is the comparison the session-level tests make; a round is never an observation."),
+    h("div", { class: "legend" }, pick)];
+  if (!groups.size) return h("section", { class: "cond histo" }, ...head, h("p", { class: "meta" }, "No session in this selection has a matched control with this measure."));
+  const list = [...groups.entries()].sort();
+  const lineups = [...new Set(run.sessions.map((e) => e.models.join("+")))].sort();
+  const manyRules = new Set(list.map(([, g]) => g.first.tie_break_rule)).size > 1, manyN = new Set(list.map(([, g]) => g.first.n_bidders)).size > 1;
+  const benches = list.map(([, g]) => bench(g.first));
+  const values = list.flatMap(([, g]) => g.pairs.flatMap((p) => [p.a, p.b])).concat(benches.filter((v) => v != null));
+  const span = Math.max(...values) - Math.min(...values) || 1;
+  const tick = [1, 2, 2.5, 5, 10].map((m) => m * 10 ** Math.floor(Math.log10(span / 4))).find((t) => span / t <= 5);
+  const vmin = Math.floor((Math.min(...values) - span * 0.04) / tick) * tick, vmax = Math.ceil((Math.max(...values) + span * 0.04) / tick) * tick;
+  const W = 900, ml = 52, mr = 8, inset = 34, mt = 14, ph = 250, mb = 58; // inset keeps the outer mean labels off the axis labels and the edge
+  const colW = (W - ml - mr - 2 * inset) / Math.min(PAIR_GROUPS_PER_ROW, Math.max(list.length, 3)), half = Math.min(34, colW / 4);
+  const y = (v, r) => r * (mt + ph + mb) + mt + (1 - (v - vmin) / (vmax - vmin)) * ph;
+  const rows = Math.ceil(list.length / PAIR_GROUPS_PER_ROW);
+  const root = svg("svg", { class: "chart", viewBox: `0 0 ${W} ${rows * (mt + ph + mb)}`, role: "img", "aria-label": `${name}: each repeated session joined to its one-shot control` });
+  const digits = tick >= 1 ? 0 : tick >= 0.1 ? 1 : 2;
+  const perRow = Math.min(PAIR_GROUPS_PER_ROW, list.length), left = ml + (W - ml - mr - perRow * colW) / 2;
+  for (let r = 0; r < rows; r += 1) for (let v = vmin; v <= vmax + tick / 2; v += tick) {
+    root.append(svg("line", { x1: ml, x2: W - mr, y1: y(v, r), y2: y(v, r), stroke: "var(--grid)", "stroke-width": 1 }));
+    root.append(svg("text", { x: ml - 6, y: y(v, r) + 4, "text-anchor": "end" }, (Math.abs(v) < tick / 2 ? 0 : v).toFixed(digits)));
+  }
+  list.forEach(([, g], i) => {
+    const r = Math.floor(i / PAIR_GROUPS_PER_ROW), cx = left + ((i % PAIR_GROUPS_PER_ROW) + 0.5) * colW, xa = cx - half, xb = cx + half;
+    const color = MODEL_COLORS[lineups.indexOf(g.first.models.join("+")) % MODEL_COLORS.length];
+    if (benches[i] != null) {
+      root.append(svg("line", { x1: cx - colW / 2 + 6, x2: cx + colW / 2 - 6, y1: y(benches[i], r), y2: y(benches[i], r), stroke: "var(--text)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+    }
+    for (const p of g.pairs) {
+      const line = svg("line", { x1: xa, x2: xb, y1: y(p.a, r), y2: y(p.b, r), stroke: color, "stroke-width": 1.5, opacity: 0.45 });
+      line.append(svg("title", null, `seed ${p.seed}: one-shot ${p.a.toFixed(3)}, repeated ${p.b.toFixed(3)} (change ${(p.b - p.a >= 0 ? "+" : "") + (p.b - p.a).toFixed(3)})`));
+      root.append(line);
+    }
+    for (const p of g.pairs) for (const [px, v, arm] of [[xa, p.a, "one-shot"], [xb, p.b, "repeated"]]) {
+      const dot = svg("circle", { cx: px, cy: y(v, r), r: 4, fill: color, stroke: "var(--surface)", "stroke-width": 1.5 });
+      dot.append(svg("title", null, `seed ${p.seed}, ${arm}: ${v.toFixed(3)}`));
+      root.append(dot);
+    }
+    const ma = mean(g.pairs.map((p) => p.a)), mb2 = mean(g.pairs.map((p) => p.b)), base = r * (mt + ph + mb) + mt + ph;
+    for (const [px, v, side] of [[xa, ma, -1], [xb, mb2, 1]]) {
+      root.append(svg("line", { x1: px - 9, x2: px + 9, y1: y(v, r), y2: y(v, r), stroke: "var(--text)", "stroke-width": 3, "stroke-linecap": "round" }));
+      root.append(svg("text", { class: "inbar", x: px + side * 12, y: y(v, r) + 4, "text-anchor": side < 0 ? "end" : "start" }, v.toFixed(Math.max(2, digits))));
+    }
+    root.append(svg("text", { x: xa, y: base + 16, "text-anchor": "middle" }, "one-shot"));
+    root.append(svg("text", { x: xb, y: base + 16, "text-anchor": "middle" }, "repeated"));
+    root.append(svg("text", { class: "strong", x: cx, y: base + 36, "text-anchor": "middle" }, g.first.lineup));
+    root.append(svg("text", { x: cx, y: base + 51, "text-anchor": "middle" }, `${manyRules ? `${g.first.tie_break_rule} · ` : ""}${manyN ? `${g.first.n_bidders} firms · ` : ""}${g.pairs.length} pairs`));
+  });
+  return h("section", { class: "cond histo" }, ...head.slice(0, 2),
+    h("div", { class: "legend" }, h("span", { class: "key" }, h("span", { class: "sw dash" }), "benchmark value"),
+      h("span", { class: "key" }, h("span", { class: "sw line", style: "background:var(--text);height:3px" }), "mean over sessions"), pick),
+    h("div", { class: "chartbox" }, root));
+}
+
 // Share of each model's valid bids by (bid - equilibrium bid), one bar per model in each bin.
 function histogramCard(run, sessions) {
   const bins = run.diff_bins;
@@ -526,8 +680,10 @@ function renderRun() {
         + "Strips show the winner of each round (striped = tie, dot = lowest-cost firm won). Click a seed to open the session. Means are descriptive: sessions are the unit, and there are few per cell.")),
     filters.length ? h("div", { class: "toggles filters" }, ...filters) : null,
     h("h2", { class: "sect" }, "Bids across the run"),
-    h("p", { class: "sectnote" }, "Every valid bid in the sessions selected above, against the equilibrium bid."),
+    h("p", { class: "sectnote" }, "Every valid bid in the sessions selected above, against the equilibrium bid; then each session against its one-shot control."),
     classCard(sessions),
+    scatterCard(sessions),
+    pairedCard(run, sessions),
     histogramCard(run, sessions),
     h("h2", { class: "sect" }, "Conditions and sessions"),
     h("p", { class: "sectnote" }, "One card per condition: its measures, then each repeated session above its matched one-shot control."),

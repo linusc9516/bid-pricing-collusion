@@ -6,7 +6,8 @@ step 3b), non_competitive_bids.csv (bids at the reserve and below cost, kept apa
 collusion, tie and rotation measures), tie_check.csv (the pre-declared tie manipulation check and its
 verdict; thresholds from configs/analysis.yaml) and call_summary.csv to results/<run_id>/.
 With --plan, or when the run id is the one a plan in configs/analysis.yaml names, also writes baseline_tests.csv:
-the declared tests (analysis/stats.py), marked confirmatory only for the run the plan names, else exploratory.
+the declared tests (analysis/stats.py), marked confirmatory only for the run the plan names, else exploratory,
+and baseline_descriptives.csv: the declared descriptive measures per model and arm, no tests.
 """
 
 import argparse
@@ -16,6 +17,7 @@ import pandas as pd
 import yaml
 
 from bidrig.analysis.metrics import (
+    baseline_descriptives,
     call_summary,
     condition_means,
     manipulation_verdict,
@@ -68,6 +70,11 @@ def main() -> int:
         tests.to_csv(out / "baseline_tests.csv", index=False)
         print(f"{status} tests of plan {plan_name} ({out}/baseline_tests.csv):")
         print(tests.drop(columns=["status"]).to_string(index=False, float_format=lambda v: f"{v:.4f}"))
+        descriptives = baseline_descriptives(loaded)
+        descriptives.to_csv(out / "baseline_descriptives.csv", index=False)
+        print(f"\ndescriptive measures, no tests ({out}/baseline_descriptives.csv): mean over sessions")
+        wide = descriptives.assign(key=descriptives["measure"] + " [" + descriptives["group"] + "]").pivot(index="key", columns=["model", "arm"], values="mean")
+        print(wide.loc[list(dict.fromkeys(descriptives["measure"] + " [" + descriptives["group"] + "]"))].to_string(float_format=lambda v: f"{v:.3f}"))
         print()
     summary = condition_means(table)
     summary.to_csv(out / "condition_summary.csv", index=False)

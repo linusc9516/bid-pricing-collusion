@@ -582,3 +582,39 @@ def test_bid_line_and_markup_ratio_read_the_benchmark_for_bne_bidders(n: int) ->
     m = session_metrics(*scripted_session("bne", n=n, n_rounds=LONG))
     assert (m["bid_slope"], m["bid_intercept"]) == pytest.approx((1 - 1 / n, 100 / n), abs=0.01)
     assert (m["markup_ratio"], m["markup_ratio_min_cost"], m["markup_ratio_other"]) == pytest.approx((1, 1, 1), abs=0.001)
+
+
+def test_baseline_descriptives_by_hand() -> None:
+    """Three rounds, two firms. Firm A's calls carry hidden thinking, firm B's none; one of B's replies hits the cap first."""
+    from bidrig.analysis.metrics import DESCRIPTIVE_COLUMNS, baseline_descriptives
+    from bidrig.schema import CallRow
+
+    # (cost, bid, won); benchmark bids are 55, 65 | 60, 60 | 70, 55. Distances: 0, 0.8 | 1.5, 30 (below cost) | 5, 0.
+    rows = hand_rows(2, [[(10, 55, True), (30, 65.8, False)], [(20, 58.5, False), (20, 30, True)], [(40, 75, False), (10, 55, True)]])
+    rows[3] = replace(rows[3], cost=40.0, bne_bid=70.0, is_min_cost=False)  # firm B, round 2: a 30 bid under a cost of 40
+    rows[2] = replace(rows[2], is_min_cost=True)
+
+    def call(number: int, firm: str, attempt: int, tokens: int, finish: str = "tool_calls") -> CallRow:
+        return CallRow("hand", number, firm, attempt, "bid", "m", "host", "[]", None, None, 1.0, None, 10, 10, 1.0, reasoning_tokens=tokens, finish_reason=finish)
+
+    calls = [call(n, "A", 1, 200) for n in (1, 2, 3)] + [call(1, "B", 1, 0), call(2, "B", 1, 400, "length"), call(2, "B", 2, 0), call(3, "B", 1, 0)]
+    meta = make_meta(["llm"] * 2, n_rounds=3, lineup_id="cell")
+    out = baseline_descriptives([(meta, rows, calls)])
+    assert list(out.columns) == DESCRIPTIVE_COLUMNS and set(out["arm"]) == {"history"} and set(out["model"]) == {"cell"}
+    v = {(r.measure, r.group): (r["mean"], r.n) for _, r in out.iterrows()}
+    assert v[("share_within_0.5", "all")] == (pytest.approx(2 / 6), 6)
+    assert v[("share_within_1", "all")] == (pytest.approx(3 / 6), 6) and v[("share_within_2", "all")] == (pytest.approx(4 / 6), 6)
+    assert v[("share_within_1", "lowest_cost")] == (pytest.approx(2 / 3), 3)  # A in rounds 1 and 2, B in round 3
+    assert v[("below_cost_bid_rate", "other")] == (pytest.approx(1 / 3), 3)
+    assert v[("share_of_bids", "calls_with_thinking")] == (pytest.approx(0.5), 6)
+    assert v[("share_within_1", "calls_with_thinking")] == (pytest.approx(1 / 3), 3)  # firm A: 0, 1.5 and 5 away
+    assert v[("share_within_1", "calls_without_thinking")] == (pytest.approx(2 / 3), 3)  # B's round-2 bid came from its retry, which did not think
+    assert v[("median_bid_minus_benchmark", "calls_with_thinking")][0] == pytest.approx(0.0)
+    assert v[("thinking_tokens_per_call", "all")] == (pytest.approx(1000 / 7), 7)
+    assert v[("calls_without_thinking_share", "all")][0] == pytest.approx(3 / 7)
+    assert v[("cut_off_at_cap_share", "all")][0] == pytest.approx(1 / 7)
+    assert v[("invalid_bid_rate", "all")] == (pytest.approx(0.0), 6)
+    control = replace(meta, history_window=0, session_id="c")
+    both = baseline_descriptives([(meta, rows, calls), (control, rows, [])])
+    assert set(both["arm"]) == {"history", "one_shot"}
+    assert not ((both["arm"] == "one_shot") & (both["measure"] == "thinking_tokens_per_call")).any()  # no calls logged, no row

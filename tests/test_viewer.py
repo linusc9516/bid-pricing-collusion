@@ -134,3 +134,15 @@ def test_diff_histogram_counts_valid_bids_per_model_and_clamps_tails() -> None:
     far = [replace(r, bid=r.bne_bid + 10 * DIFF_BINS * DIFF_STEP) for r in valid[:1]] + [replace(r, bid=r.bne_bid + DIFF_LOW * 3) for r in valid[1:2]]
     counts = next(iter(diff_histogram(meta, far).values()))
     assert counts[-1] >= 1 and counts[0] >= 1
+
+
+def test_bid_points_list_every_valid_bid_with_win_and_cost_role_flags() -> None:
+    from bidrig.viewer import bid_points
+
+    meta, rows, _ = two_round_session()
+    valid = [r for r in rows if r.bid is not None]
+    points = [p for model in bid_points(meta, rows).values() for p in model]
+    assert len(points) == len(valid)
+    assert sorted(p[2] for p in points) == sorted(int(r.is_winner) + 2 * int(r.is_min_cost) for r in valid)
+    made = [replace(valid[0], cost=12.344, bid=56.789, is_winner=True, is_min_cost=True), replace(valid[0], bid=None)]
+    assert list(bid_points(meta, made).values()) == [[[12.34, 56.79, 3]]]

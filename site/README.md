@@ -61,10 +61,14 @@ winner string) and `data/sessions/<run_id>/<session_id>.js` (one file per sessio
 opens). Both are gitignored; only `examples.js` is committed. Pages, linked by URL fragment:
 
 - `#/runs`: one row per run.
-- `#/run/<run_id>`: two charts over the run's bids, then its conditions. "Where bids sit, by cost role" classifies
+- `#/run/<run_id>`: four charts over the run's bids, then its conditions. "Where bids sit, by cost role" classifies
   each valid bid as below own cost, below, at (within 1 bid unit, or one increment on a coarser grid) or above the
   equilibrium bid, one bar per model, cost role (the round's lowest-cost firm or not) and arm, with the share of
-  those bids that won. "Bid minus equilibrium bid" is the histogram of distances, which the classes do not show.
+  those bids that won. "Bid against own cost" plots every valid bid against the firm's cost, one panel per model and
+  arm, with the equilibrium bid, bid = cost and a fitted line; panels over 3,000 bids draw an even sample. "Each
+  session against its one-shot control" has one dot per session, each repeated session joined to its control, for a
+  chosen measure (index, markup ratio overall or by cost role, slope, intercept): the comparison the session-level
+  tests make. "Bid minus equilibrium bid" is the histogram of distances.
   Each condition has mean index, range, mean delta, tie rate and lowest-cost win share
   (n/a under `least_wins`), then every session's winner strip above its matched control's. Filters by model,
   bidder count and tie rule appear when the run has more than one.
