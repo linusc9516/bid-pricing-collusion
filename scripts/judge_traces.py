@@ -47,7 +47,7 @@ from bidrig.llm import (
 from bidrig.schema import SESSION_FILE, read_calls, read_meta
 
 ROOT = Path(__file__).resolve().parents[1]
-JUDGE_MAX_TOKENS = 900
+JUDGE_MAX_TOKENS = 1300  # nine labels, each with a quote
 
 
 def load_traces(log_dir: Path, only: Sequence[str] = ()) -> tuple[list[Trace], dict[str, dict]]:
