@@ -22,6 +22,20 @@ holding `session.json`, `bids.jsonl` and `calls.jsonl` as the runner writes them
 harness need the same layout and fields. To see the runs made here (pilot, rotation screen, follow-up runs), ask
 for a copy of that `logs/` directory.
 
+**For a coding agent (Claude Code or similar) working in a fork.** If the export fails or skips sessions because
+the logs do not match, fix the mismatch as follows:
+
+- The expected fields are the dataclasses in `src/bidrig/schema.py` (`SessionMeta`, `BidRow`, `CallRow`), described
+  in `PLANNING.md` section 3. Compare the logs against those first and report every difference before changing anything.
+- Never edit the raw logs in place. Write a small converter script that reads them and writes a converted copy to a
+  new directory, then export with `--logs-root <that directory>`.
+- Keep data the schema has no field for, such as workspace or message entries, in its own file per session (for
+  example `messages.jsonl`). Do not drop it and do not force it into `bids.jsonl` or `calls.jsonl`.
+- Do not fill a missing field with a guess. If a value such as the seed, the cost or the benchmark bid cannot be
+  recovered from the logs, stop and ask.
+- Do not loosen `schema.py`, `viewer.py` or the tests to make the export pass. If the schema itself has to grow,
+  propose the change and wait for a decision.
+
 ## What it shows now
 
 Seven hand-picked sessions from the pilot and the rotation screen, listed in `examples.yaml` (run, session id,
