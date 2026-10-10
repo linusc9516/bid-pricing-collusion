@@ -42,3 +42,5 @@ def test_baseline_plan_declares_two_confirmatory_claims_on_twelve_fresh_seeds() 
     assert high - low + 1 == plan["design"]["n_pairs_per_model"] == 12
     assert set(plan["design"]["cells"]) == {"deepseek", "gpt-luna"}
     assert plan["confirmatory"][1]["margin"] == 0.05
+    assert plan["confirmatory"][1]["near_margin"] == 0.1
+    assert list(plan["confirmatory"][1]["labels"]) == ["at_equilibrium", "near_equilibrium", "not_at_equilibrium"]

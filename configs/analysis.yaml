@@ -157,6 +157,15 @@ baseline_n2:
       test: equivalence by interval      # no p-value: a non-significant difference from 0 would not show equivalence
       supported_if: the 95% percentile bootstrap interval of the mean one-shot index (10,000 resamples of
                     whole sessions) lies wholly inside -0.05 to +0.05
+      near_margin: 0.1                   # a second, looser band, declared with the first (10 October 2026, before the
+                                         # run). About 3.3 price units, or 5% of the benchmark price. It is close to
+                                         # the size of the exploratory history effect (-0.114), so it supports the
+                                         # weaker wording only
+      labels:                            # exactly one applies per model, read from the same 95% interval
+        at_equilibrium: the interval lies wholly inside -0.05 to +0.05      # H2 supported
+        near_equilibrium: the interval lies wholly inside -0.1 to +0.1 but not inside -0.05 to +0.05   # H2 not
+                                         # supported; reported as "near the competitive level", never as "at" it
+        not_at_equilibrium: any part of the interval lies outside -0.1 to +0.1
       not_supported_if: any part of the interval lies outside the margin. If the whole interval lies outside,
                         the claim is reported as contradicted, with the direction
       correction: none                   # each model's claim stands alone, and a 95% interval is stricter than the
