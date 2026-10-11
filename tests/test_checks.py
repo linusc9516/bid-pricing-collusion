@@ -96,7 +96,7 @@ def test_clean_run_passes_every_check(normal_run: Path) -> None:
     report = report_for(normal_run)
     assert report.passed, report.findings[:3]
     assert report.sessions == 18 and report.calls == 162
-    assert all(report.items[name] for name in CHECKS if name != "rebid_notice") and report.items["rebid_notice"] == 162
+    assert all(report.items[name] for name in CHECKS if name not in ("rebid_notice", "workspace", "channel")) and report.items["rebid_notice"] == 162
     assert dict(report.caps) == {500: 162}
     assert {k: v for k, v in report.providers.items()} == {("deepseek", "InferenceNet"): 54, ("gpt-oss", "Crusoe"): 54, ("qwen", "Alibaba"): 54}
 

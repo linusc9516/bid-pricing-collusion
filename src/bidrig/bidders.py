@@ -9,8 +9,14 @@ from pathlib import Path
 from typing import ClassVar, Protocol
 
 from bidrig.bne import Benchmark
+from bidrig.channel import SEND_TOOL, SKIP_TOOL, channel_tools
 from bidrig.llm import Host, ModelSpec, OpenRouterClient, ProviderStats
-from bidrig.prompts import DEFAULT_TEMPLATE, build_messages
+from bidrig.prompts import (
+    DEFAULT_TEMPLATE,
+    build_communication_messages,
+    build_messages,
+    build_reflection_messages,
+)
 from bidrig.schema import (
     BidderType,
     BidRequest,
@@ -19,6 +25,7 @@ from bidrig.schema import (
     CallRow,
     SessionMeta,
 )
+from bidrig.workspace import END_TOOL, READ_TOOL, WRITE_TOOL, Workspace, workspace_tools
 
 
 class Bidder(Protocol):
@@ -145,6 +152,9 @@ class LLMBidder:
     max_output_tokens: int = 400  # stated in the prompt; keep equal to llm.max_output_tokens
     template: Path = DEFAULT_TEMPLATE
     stats: ProviderStats = field(default_factory=ProviderStats)  # shared by the session's firms
+    workspace: Workspace | None = None  # shared by the session's firms; set exactly when meta.workspace
+    reflection_steps: int = 4  # most requests in one reflection step
+    channel: Workspace | None = None  # the session's message log; set exactly when meta.channel
 
     bidder_type: ClassVar[BidderType] = "llm"
 
@@ -155,7 +165,11 @@ class LLMBidder:
 
     async def bid(self, request: BidRequest) -> BidResponse:
         """The model's bid for `request` (None after every retry failed); attempts go to `calls`."""
-        messages = build_messages(self.meta, self.log, request, self.reasoning_length, self.max_output_tokens, self.template)
+        store = self.workspace or self.channel
+        notes = await store.notes_before(request.round) if store else ()
+        messages = build_messages(
+            self.meta, self.log, request, self.reasoning_length, self.max_output_tokens, self.template, notes
+        )
         bid, rows = await self.client.request_bid(
             self.spec,
             self.host,
@@ -171,3 +185,85 @@ class LLMBidder:
         )
         self.calls.extend(rows)
         return BidResponse(bid, len(rows))
+
+    async def reflect(self, round_number: int, slot: int) -> None:
+        """The reflection step after `round_number`: read and write the shared workspace; calls go to `calls`."""
+        if self.workspace is None:
+            raise ValueError("reflection needs a workspace")
+        workspace = self.workspace
+        firm_id = self.meta.lineup[slot].firm_id
+
+        async def handle(name: str, args: dict) -> str:
+            if name == READ_TOOL:
+                return await workspace.read(firm_id, round_number)
+            if name == WRITE_TOOL:
+                text = args.get("text")
+                if not isinstance(text, str) or not text.strip():
+                    return "Not accepted: give the note as a non-empty text."
+                note = await workspace.write(firm_id, round_number, text)
+                return f"Note saved (cut to {workspace.max_chars} characters)." if note.truncated else "Note saved."
+            return f"Unknown tool {name!r}."
+
+        messages = build_reflection_messages(
+            self.meta, self.log, firm_id, round_number, self.reasoning_length, self.max_output_tokens, self.template
+        )
+        rows = await self.client.run_tools(
+            self.spec,
+            self.host,
+            messages,
+            workspace_tools(workspace.max_chars),
+            handle,
+            END_TOOL,
+            self.reflection_steps,
+            session_id=self.meta.session_id,
+            session_seed=self.meta.seed,
+            round_number=round_number,
+            firm_id=firm_id,
+            slot=slot,
+            stats=self.stats,
+        )
+        self.calls.extend(rows)
+
+    async def communicate(self, round_number: int, slot: int) -> None:
+        """The communication step after `round_number`: one request, at most one message; calls go to `calls`."""
+        if self.channel is None:
+            raise ValueError("communication needs a channel")
+        channel = self.channel
+        firm_id = self.meta.lineup[slot].firm_id
+        # Firms write concurrently, so each sees only messages from earlier rounds, never this round's.
+        earlier = await channel.notes_before(round_number)
+        sent = False
+
+        async def handle(name: str, args: dict) -> str:
+            nonlocal sent
+            if name != SEND_TOOL:
+                return f"Unknown tool {name!r}."
+            if sent:
+                return "Not accepted: one message per communication step."
+            text = args.get("text")
+            if not isinstance(text, str) or not text.strip():
+                return "Not accepted: give the message as a non-empty text."
+            sent = True
+            message = await channel.write(firm_id, round_number, text)
+            return f"Message sent (cut to {channel.max_chars} characters)." if message.truncated else "Message sent."
+
+        messages = build_communication_messages(
+            self.meta, self.log, firm_id, round_number, earlier, self.reasoning_length, self.max_output_tokens, self.template
+        )
+        rows = await self.client.run_tools(
+            self.spec,
+            self.host,
+            messages,
+            channel_tools(channel.max_chars),
+            handle,
+            SKIP_TOOL,
+            1,
+            session_id=self.meta.session_id,
+            session_seed=self.meta.seed,
+            round_number=round_number,
+            firm_id=firm_id,
+            slot=slot,
+            stats=self.stats,
+            phase="message",
+        )
+        self.calls.extend(rows)

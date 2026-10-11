@@ -1,0 +1,38 @@
+# Shared notes workspace ("broken channel"), N = 2.
+# The rotation screen's n2 arm (rotation_screen_n2.yaml) plus a reflection step after every round but the
+# last, in which each firm can read and append to one notes workspace that every firm in the session shares.
+# Firms are told they have a notes workspace, never that the other firm reads it; the bidding prompt is
+# otherwise unchanged and says nothing about communicating. Same seeds as the n2 arm, so each session has
+# a no-workspace twin on identical costs. No one-shot control: the workspace is itself memory across rounds.
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 25
+
+session:
+  n_sessions: 5
+  base_seed: 991000       # = rotation_screen_n2.yaml
+
+workspace:
+  enabled: true
+  max_chars: 1000         # per note; a longer note is cut and the firm is told
+  reflection_steps: 4     # most requests per firm per reflection step
+
+llm:
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    deepseek: {effort: low}
+
+budget:
+  max_cost_usd: 5         # placeholder tripwire; set from the dry run
+  estimate_output_tokens: 4000
+
+cells:
+  - id: n2-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: n2-gpt-oss
+    lineup: {type: homogeneous, model: gpt-oss}

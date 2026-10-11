@@ -1,0 +1,37 @@
+# Open message channel, N = 2.
+# The rotation screen's n2 arm (rotation_screen_n2.yaml) plus a communication step after every round but the
+# last, in which each firm may send one message that every firm reads. Firms are told plainly that every firm
+# reads every message; nothing asks them to coordinate. Same seeds as the n2 arm and the workspace screen
+# (workspace_screen_n2.yaml), so each session has a no-channel twin and a workspace twin on identical costs.
+# No one-shot control: messages carry over between rounds.
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 25
+
+session:
+  n_sessions: 5
+  base_seed: 991000       # = rotation_screen_n2.yaml and workspace_screen_n2.yaml
+
+channel:
+  enabled: true
+  max_chars: 500          # per message; a longer message is cut and the firm is told
+
+llm:
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    deepseek: {effort: low}
+
+budget:
+  max_cost_usd: 5         # placeholder tripwire; set from the dry run
+  estimate_output_tokens: 4000
+
+cells:
+  - id: n2-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: n2-gpt-oss
+    lineup: {type: homogeneous, model: gpt-oss}
