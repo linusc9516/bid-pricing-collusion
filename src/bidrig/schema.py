@@ -12,7 +12,7 @@ from typing import Any, Literal
 InfoCondition = Literal["full", "winner_price", "winner_only"]
 TieBreakRule = Literal["random", "least_wins", "bafo"]
 TieResolution = Literal["none", "random", "least_wins", "bafo", "bafo_random"]
-BidderType = Literal["llm", "bne", "markup", "overbid", "rotation", "match"]
+BidderType = Literal["llm", "bne", "markup", "overbid", "rotation", "match", "replay"]
 SessionStatus = Literal["running", "complete", "failed"]
 CallPhase = Literal["bid", "rebid", "reflect", "message"]
 
@@ -58,6 +58,7 @@ class SessionMeta:
     workspace: bool = False  # shared notes workspace with a reflection step after each round but the last
     channel: bool = False  # open message channel with a communication step after each round but the last
     providers: dict[str, dict[str, str]] = field(default_factory=dict)
+    replay: dict[str, Any] | None = None  # set when a firm replays recorded bids: {file, level, source_seed, firm_id}; None otherwise
     provider_retries: int = 0  # requests repeated after a transient provider error
     provider_errors: list[str] = field(default_factory=list)  # first 20 failed requests, as text
     git_sha: str | None = None

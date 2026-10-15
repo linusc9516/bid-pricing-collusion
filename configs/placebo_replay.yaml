@@ -1,0 +1,53 @@
+# Replay-rival placebo (PLANNING_NEW.md S1): does a firm's bidding follow the bids on screen when nobody answers it?
+# One model plays firm A against a scripted firm B that replays, unchanged, the bids firm B made in a recorded
+# history session of baseline_no_channel (GPT-6 Luna against itself). Nothing firm A does changes what firm B bids.
+# Two arms on the same 12 seeds, so firm A's costs are identical in both: `high` replays one of the four sessions
+# with the highest price level (mean replayed bid 84 to 91), `low` one of the four with the lowest (71 to 76).
+# Both models are shown the same replays, so the two models face the same stimulus.
+# The analysis is declared in configs/analysis.yaml, section placebo_replay (H6). Do not change a setting here without
+# changing that section first, and never after the first session has run.
+# Settings are the baseline's (configs/baseline_no_channel.yaml): prompt v1, 50 rounds, cap 4,000, DeepSeek at low
+# effort on DeepInfra, GPT-6 Luna at high effort on OpenAI. There is no one-shot arm: the comparison is high against low.
+# 48 sessions, 2,400 model calls (firm B makes none). Run id: placebo_replay.
+# Firm B's logged cost, benchmark bid and profit carry no meaning; analyse firm A's rows only (analysis/placebo.py).
+# Check the logs with   check_logs.py logs/placebo_replay --expect-cap 4000
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 50
+
+session:
+  n_sessions: 12
+  base_seed: 996000       # the baseline's seeds, so firm A's cost sequences are those of baseline_no_channel
+
+replay:
+  file: configs/replay/baseline_no_channel_luna_B.json
+  # Source seeds, by the price level of the recorded session. Session k replays source k mod 4 of its arm's list,
+  # or the next one if that is its own seed.
+  high: [996003, 996004, 996002, 996008]
+  low: [996001, 996010, 996000, 996009]
+
+llm:
+  host: deepseek=backup
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    deepseek: {effort: low}
+    gpt-luna: {effort: high}
+
+budget:
+  max_cost_usd: 4.63      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap); about $2 expected
+  estimate_output_tokens: 4000
+
+cells:
+  - id: placebo-high-deepseek
+    lineup: {type: replay, model: deepseek, level: high}
+  - id: placebo-low-deepseek
+    lineup: {type: replay, model: deepseek, level: low}
+  - id: placebo-high-luna
+    lineup: {type: replay, model: gpt-luna, level: high}
+  - id: placebo-low-luna
+    lineup: {type: replay, model: gpt-luna, level: low}

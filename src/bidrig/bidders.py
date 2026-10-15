@@ -121,6 +121,23 @@ class MatchBidder(ScriptedBidder):
         return self.price
 
 
+@dataclass(frozen=True)
+class ReplayBidder(ScriptedBidder):
+    """Bids a fixed list, one entry per round, whatever its cost and whatever the other firms do.
+
+    Used as a placebo rival: its bids come from a recorded session, so nothing the other firm does is answered.
+    Its logged cost, benchmark bid and profit carry no meaning.
+    """
+
+    bids: tuple[float, ...] = ()  # bid for round 1, 2, ...; needs one per round of the session
+    bidder_type: ClassVar[BidderType] = "replay"
+
+    def quote(self, request: BidRequest) -> float:
+        if not 1 <= request.round <= len(self.bids):
+            raise ValueError(f"replay has {len(self.bids)} bids, asked for round {request.round}")
+        return self.bids[request.round - 1]
+
+
 SCRIPTED_BIDDERS: dict[str, type[ScriptedBidder]] = {
     cls.bidder_type: cls for cls in (BneBidder, MarkupBidder, OverbidBidder, RotationBidder, MatchBidder)
 }

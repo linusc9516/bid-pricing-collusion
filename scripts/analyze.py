@@ -27,6 +27,7 @@ from bidrig.analysis.metrics import (
     session_metrics_table,
     tie_check,
 )
+from bidrig.analysis.placebo import placebo_table, placebo_tests
 from bidrig.analysis.profit import profit_checks_table, round_block_gaps
 from bidrig.analysis.stats import baseline_tests, seed_rank_correlation
 from bidrig.bne import chance_tie_rate
@@ -67,7 +68,17 @@ def main() -> int:
     analysis = yaml.safe_load((ROOT / "configs" / "analysis.yaml").read_text())
     declared = next((k for k, v in analysis.items() if isinstance(v, dict) and v.get("run_id") == args.log_dir.name), None)
     plan_name = args.plan or declared
-    if plan_name:
+    if plan_name and analysis[plan_name].get("kind") == "replay_placebo":
+        status = "confirmatory" if plan_name == declared else "exploratory"
+        placebo = placebo_table((meta, rows) for meta, rows, _ in loaded)
+        placebo.to_csv(out / "placebo_sessions.csv", index=False)
+        tests = placebo_tests(placebo, analysis[plan_name], status)
+        tests.to_csv(out / "placebo_tests.csv", index=False)
+        print(f"{status} tests of plan {plan_name} ({out}/placebo_tests.csv): the model firm's bids, high replay minus low replay, paired by seed")
+        print(tests.drop(columns=["status"]).to_string(index=False, float_format=lambda v: f"{v:.4f}"))
+        print(f"\nreplayed mean bid by arm: {placebo.groupby('level')['replayed_mean_bid'].mean().round(2).to_dict()}")
+        print("The session-level tables below mix the model firm with the replayed firm and are not meaningful for this run.\n")
+    elif plan_name:
         status = "confirmatory" if plan_name == declared else "exploratory"
         tests = baseline_tests(table, analysis[plan_name], status)
         tests.to_csv(out / "baseline_tests.csv", index=False)

@@ -5,6 +5,7 @@ Behaviour is specified in PLANNING.md section 2.5; host rules in 5.5.
 
 import asyncio
 import itertools
+import json
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -16,7 +17,7 @@ import numpy as np
 import yaml
 
 from bidrig.auction import run_session
-from bidrig.bidders import Bidder, LLMBidder, make_scripted_bidder
+from bidrig.bidders import Bidder, LLMBidder, ReplayBidder, make_scripted_bidder
 from bidrig.bne import make_benchmark
 from bidrig.llm import (
     BudgetExceeded,
@@ -99,11 +100,11 @@ class PlannedSession:
 
     @property
     def n_llm_calls(self) -> int:
-        """Bid calls before rebids and retries, plus one request per reflection or communication step (a reflection may use more)."""
+        """Bid calls before rebids and retries, plus one request per reflection or communication step (a reflection may use more); a replayed firm makes none."""
         if self.scripted:
             return 0
         steps = self.meta.n_rounds - 1 if self.meta.workspace or self.meta.channel else 0
-        return (self.meta.n_rounds + steps) * self.meta.n_bidders
+        return (self.meta.n_rounds + steps) * sum(alias is not None for alias in self.models)
 
 
 def condition_id(
@@ -134,6 +135,10 @@ def slot_models(lineup: dict[str, Any], seed: int, n_bidders: int) -> list[str |
         return [None] * n_bidders
     if kind == "homogeneous":
         return [lineup["model"]] * n_bidders
+    if kind == "replay":
+        if n_bidders != 2:
+            raise ValueError("a replay lineup is one model against one replayed firm, so it needs n_bidders = 2")
+        return [lineup["model"], None]
     if kind == "heterogeneous":
         models = list(lineup["models"])
         if len(models) != n_bidders:
@@ -141,6 +146,28 @@ def slot_models(lineup: dict[str, Any], seed: int, n_bidders: int) -> list[str |
         order = np.random.default_rng([seed, n_bidders, _SLOT_STREAM]).permutation(n_bidders)
         return [models[i] for i in order]
     raise ValueError(f"unknown lineup type {kind!r}")
+
+
+def load_replay(path: Path) -> dict[str, Any]:
+    """A replay file (configs/replay/*.json): recorded bids of one firm per source session, keyed by the source seed."""
+    data = json.loads(Path(path).read_text())
+    for seed, session in data["sessions"].items():
+        if session["level"] not in ("high", "low") or not session["bids"]:
+            raise ValueError(f"replay file {path}: session {seed} needs a level (high or low) and its bids")
+    return data
+
+
+def replay_source(replay: dict[str, Any], level: str, seed: int, base_seed: int) -> int:
+    """The source seed whose bids session `seed` replays at `level` (`high` or `low`).
+
+    Sessions take the level's sources in turn: session k (seed - base_seed) uses source k mod the number of sources.
+    A session never replays its own seed; it takes the next source instead.
+    """
+    sources = [int(s) for s in replay[level]]
+    if not sources:
+        raise ValueError(f"replay config has no {level} sources")
+    k = (seed - base_seed) % len(sources)
+    return sources[k] if sources[k] != seed else sources[(k + 1) % len(sources)]
 
 
 def git_sha(root: Path) -> str | None:
@@ -195,6 +222,12 @@ def plan_sessions(
             for k in range(session["n_sessions"]):
                 seed = session["base_seed"] + k
                 aliases = slot_models(lineup, seed, n)
+                replay = None
+                if lineup["type"] == "replay":
+                    if session["history_window"] == 0 or auction["tie_break_rule"] == "bafo":
+                        raise ValueError("a replay lineup has no one-shot control and cannot rebid")
+                    source = replay_source(config["replay"], lineup["level"], seed, session["base_seed"])
+                    replay = {"file": config["replay"]["file"], "level": lineup["level"], "source_seed": source, "firm_id": firm_ids(n)[1]}
                 for alias in aliases:
                     if alias is not None and alias not in models:
                         raise ValueError(f"model {alias!r} is not in configs/models.yaml")
@@ -213,7 +246,7 @@ def plan_sessions(
                     tie_break_rule=auction["tie_break_rule"],
                     lineup_id=cell["id"],
                     lineup=[
-                        LineupEntry(f, scripted["bidder"] if scripted else "llm", alias)
+                        LineupEntry(f, scripted["bidder"] if scripted else "llm" if alias else "replay", alias)
                         for f, alias in zip(firm_ids(n), aliases, strict=True)
                     ],
                     cost_low=auction["cost_low"],
@@ -230,6 +263,7 @@ def plan_sessions(
                     workspace=workspace,
                     channel=channel,
                     providers=providers,
+                    replay=replay,
                     git_sha=sha,
                 )
                 planned.append(PlannedSession(meta, scripted, aliases))
@@ -267,6 +301,8 @@ def estimate(plan: list[PlannedSession], config: dict[str, Any], models: dict[st
         tokens_in = base_in + per_row * meta.n_bidders * shown_rounds
         calls_per_firm = p.n_llm_calls / meta.n_bidders  # reflections priced like bids; notes in the prompt are not counted
         for alias in p.models:
+            if alias is None:
+                continue  # a replayed firm makes no call
             spec = models[alias]
             host = spec.host(host_role_for(host_role, alias))
             price_in, price_out = (host.price_in, host.price_out) if host else (spec.price_in, spec.price_out)
@@ -328,23 +364,31 @@ async def _run_one(
             raise ValueError("an LLM session needs a client")
         llm = config.get("llm", {})
         template = Path(config["_root"]) / config["prompt"]["template"]
-        bidders = [
-            LLMBidder(
-                models[alias],
-                models[alias].host(host_role_for(host_role, alias)),
-                client,
-                meta,
-                log,
-                reasoning_length=llm.get("reasoning_length", "short"),
-                max_output_tokens=llm.get("max_output_tokens", 400),
-                template=template,
-                stats=stats,
-                workspace=workspace,
-                reflection_steps=config.get("workspace", {}).get("reflection_steps", 4),
-                channel=channel,
+        bidders = []
+        for alias in planned.models:
+            if alias is None:
+                recorded = load_replay(Path(config["_root"]) / meta.replay["file"])["sessions"][str(meta.replay["source_seed"])]["bids"]
+                if len(recorded) < meta.n_rounds:
+                    raise ValueError(f"replay source {meta.replay['source_seed']} has {len(recorded)} bids, the session has {meta.n_rounds} rounds")
+                bne = make_benchmark(meta.n_bidders, meta.cost_low, meta.cost_high, meta.cost_spread, meta.reveal_costs)
+                bidders.append(ReplayBidder(bne, meta.reserve_price, bids=tuple(recorded)))
+                continue
+            bidders.append(
+                LLMBidder(
+                    models[alias],
+                    models[alias].host(host_role_for(host_role, alias)),
+                    client,
+                    meta,
+                    log,
+                    reasoning_length=llm.get("reasoning_length", "short"),
+                    max_output_tokens=llm.get("max_output_tokens", 400),
+                    template=template,
+                    stats=stats,
+                    workspace=workspace,
+                    reflection_steps=config.get("workspace", {}).get("reflection_steps", 4),
+                    channel=channel,
+                )
             )
-            for alias in planned.models
-        ]
 
     async def reflect(round_number: int) -> None:
         # Concurrent, like bids; the workspace lock keeps every read and write whole.

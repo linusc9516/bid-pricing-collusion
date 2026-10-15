@@ -220,3 +220,94 @@ baseline_no_channel:
 
   # H3 (a channel changes the price level against the history arm of this baseline) is not declared here.
   # It is written into this file before the first channel run.
+
+# --- Written 11 October 2026, BEFORE the run `placebo_replay` exists ------------------------------------------
+# NOT YET COMMITTED when written: commits were on hold while a collaborator's copy was being merged. This section
+# counts as declared from the commit that adds it, and the run must not start before that commit.
+#
+# Why: baseline_no_channel showed that with the bidding history on screen both models leave the Bayes-Nash bid, and
+# that GPT-6 Luna's prices end above the competitive level on seeds where high bids appeared early. Two readings fit:
+# the firm anchors on the numbers displayed, or the two firms respond to each other. In this run nobody responds: the
+# other firm replays recorded bids. If the model firm's bids still follow the displayed level, the numbers alone do it.
+
+placebo_replay:
+  kind: replay_placebo                   # read by scripts/analyze.py (analysis/placebo.py)
+  run_id: placebo_replay
+  config: configs/placebo_replay.yaml
+
+  design:
+    firms: firm A is a model; firm B replays, unchanged, firm B's bids from a recorded history session of
+           baseline_no_channel (GPT-6 Luna against itself). Firm A is told nothing about this; its prompt is the baseline's
+    replay_file: configs/replay/baseline_no_channel_luna_B.json
+    arms:
+      high: sources 996003, 996004, 996002, 996008   # the four recorded sessions with the highest index (0.29 to 0.67); mean replayed bid 84 to 91
+      low: sources 996001, 996010, 996000, 996009    # the four with the lowest (-0.19 to -0.02); mean replayed bid 71 to 76
+    source_rule: session k of an arm (seed 996000 + k) replays source k mod 4 of that arm's list, or the next one if
+                 that source is its own seed
+    cells:                               # the same replays are shown to both models
+      deepseek: {reasoning: {effort: low}, host: DeepInfra}
+      gpt-luna: {reasoning: {effort: high}, host: OpenAI}
+    seeds: 996000-996011                 # the baseline's, so firm A's costs are identical in the two arms and in the baseline
+    n_pairs_per_model: 12                # a pair is one seed's high session and low session. Fixed; none is added after a result is seen
+    n_rounds: 50
+    other_settings: as baseline_no_channel (prompt v1, private i.i.d. costs on 0 to 100, cap 4000, random tie-break,
+                    whole history shown, temperature 1.0 sent to deepseek and not sent to gpt-luna)
+    one_shot_control: none               # the comparison is high against low on the same costs
+
+  unit: session                          # one value per session, from firm A's valid bids only
+
+  confirmatory:
+    - id: H6_bids_follow_replayed_level
+      claim: a firm's bids follow the price level of the bids it is shown, although the other firm does not respond to it
+      outcome: markup_ratio              # firm A, all 50 rounds: sum of (bid - cost) over sum of (Bayes-Nash bid - cost)
+      contrast: the high-replay session minus the low-replay session of the same seed
+      null: the mean difference over the 12 pairs is 0
+      test: exact paired sign-flip permutation test on the mean difference   # all 4,096 sign patterns
+      two_sided: true
+      alpha: 0.05
+      correction: holm                   # over the two models
+      supported_if: the Holm-adjusted p is below alpha and the mean difference is positive
+      reading:
+        supported: displayed bids move a firm's bidding with no responding opponent. The baseline's dependence on early
+                   displayed bids then needs no coordination to explain it. It does not show that coordination is absent
+                   from the baseline
+        not_supported: no evidence that the displayed level alone moves bidding. The baseline effect may need two firms
+                       responding to each other. It is not evidence of coordination either
+        negative_and_significant: the firm bids lower against higher displayed bids; reported as found
+      reported: mean markup_ratio in each arm, the mean difference with a 95% percentile bootstrap interval (10,000
+                resamples of whole pairs), the count of positive pairs out of 12, raw and adjusted p
+
+  # Secondary: same contrast and test, Holm-adjusted within this family per model, labelled secondary.
+  secondary:
+    - markup_ratio_late          # rounds 11 to 50, when at least ten rounds of replayed bids are on screen
+    - bid_minus_benchmark        # mean of (bid - Bayes-Nash bid), in bid units
+    - bid_minus_benchmark_late
+    - bid_gap                    # mean absolute distance from the Bayes-Nash bid
+    - bid_slope                  # least-squares slope of bid on own cost; 0.5 at the benchmark
+
+  descriptive:
+    - replayed_mean_bid per arm (the manipulation; fixed by the replay file)
+    - win_share of firm A per arm
+    - firm A's markup_ratio beside the same model's baseline history session on the same seed
+    - the trace judge's labels on firm A's reasoning, including whether it remarks that firm B does not react
+
+  exclusions:
+    - A session that ends `failed` is rerun on the same seed, host and settings, at most 3 times; its partial log is discarded.
+    - A pair enters only if both of its sessions are `complete`. A seed that cannot be completed is dropped for that
+      model, named in the report, and not replaced.
+    - No session is excluded for its bids or its outcome.
+    - Sensitivity, reported beside the main result - the test again without pairs in which firm A has fewer than 48 valid bids in either session.
+
+  limits:                                # stated with the result
+    - There are eight source sessions, four per arm, each replayed in three sessions of a model. The result is about
+      these eight replays; sessions sharing a source are not independent stimuli.
+    - The high and low replays differ in more than their level (their spread and their path over the rounds differ too).
+    - The replays come from GPT-6 Luna sessions and are shown to both models.
+    - Firm B's logged cost, benchmark bid and profit are not meaningful, and session-level metrics that mix the two
+      firms (the index, joint profit) are not used.
+    - A null result here cannot distinguish "needs a responding opponent" from "these replays were not different enough".
+
+  reporting:
+    - The confirmatory and secondary results are reported whether or not they support the claim.
+    - Any analysis thought of after the run has been seen is labelled exploratory.
+    - scripts/check_logs.py is run on the raw logs before any result is computed.
