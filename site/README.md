@@ -96,6 +96,16 @@ opens). Both are gitignored; only `examples.js` is committed. Pages, linked by U
   bidder count and tie rule appear when the run has more than one.
 - `#/s/<run_id>/<session_id>/<0 = repeated, 1 = control>/<round>`: the full session view used by the examples.
 
+A session with a shared notes workspace or an open message channel (`workspace.jsonl` or `messages.jsonl` in its
+directory) gets one more panel above the round view: every note or message, oldest first, grouped by the round
+after which it was written, with the writer, a mark on a note cut at the length limit, and a count of reads that
+showed a firm another firm's notes ("Show reads" lists each read). The group of the selected round is outlined;
+selecting a group opens its round. In the round view, each firm's card then lists its reflection or communication
+step after the bid: one entry per request, with the tools it called, the note or message as written, the hidden
+thinking, and what the firm was shown, including the tool results returned earlier in the step. The export reads
+the two files by name and needs no schema field for them; reading the `session.json` of such a session needs the
+`workspace` and `channel` fields of the branch that adds those arms.
+
 A control is found by the id `oneshot__<session_id>`. Sessions that are not `complete` are skipped. Means are
 descriptive; the viewer computes no tests or intervals. Not yet built: cross-run comparison, and a CSV download.
 

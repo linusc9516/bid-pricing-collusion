@@ -10,7 +10,13 @@ import yaml
 from helpers import custom_session, fixed
 
 from bidrig.schema import CallRow, write_session
-from bidrig.viewer import METRIC_KEYS, session_bundle
+from bidrig.viewer import (
+    MESSAGES_FILE,
+    METRIC_KEYS,
+    WORKSPACE_FILE,
+    read_events,
+    session_bundle,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -45,6 +51,37 @@ def test_bundle_has_rounds_firms_calls_and_prompts() -> None:
     assert shown["tokens"] == [10, 20, 7] and shown["finish"] == "tool_calls"
     assert set(bundle["metrics"]) == set(METRIC_KEYS)
     assert bundle["metrics"]["collusion_index"] is None and bundle["metrics"]["tie_rate"] == 0.0
+
+
+def test_workspace_notes_and_reflection_steps_reach_the_bundle(tmp_path: Path) -> None:
+    meta, rows = custom_session([fixed(50.0), fixed(60.0)], n_rounds=2)
+    events = [
+        {"seq": 1, "round": 1, "firm_id": "A", "op": "read", "text": None, "truncated": False, "n_notes": 0, "n_foreign": 0},
+        {"seq": 2, "round": 1, "firm_id": "A", "op": "write", "text": "bid high\nnext round", "truncated": True, "n_notes": None, "n_foreign": None},
+    ]
+    (tmp_path / WORKSPACE_FILE).write_text("".join(json.dumps(e) + "\n" for e in events))
+    assert read_events(tmp_path, WORKSPACE_FILE) == events and read_events(tmp_path, MESSAGES_FILE) == []
+    made = [{"name": "write_workspace", "arguments": {"text": "bid high\nnext round"}}, {"name": "end_reflection", "arguments": {}}]
+    step = replace(call(meta.session_id, 1, "A", None, phase="reflect"), attempt=2, reasoning=json.dumps(made))
+    earlier = [{"role": "assistant", "content": ""}, {"role": "tool", "content": "The notes workspace is empty."}]
+    step = replace(step, prompt=json.dumps(json.loads(step.prompt) + earlier))
+    bundle = session_bundle(meta, rows, [call(meta.session_id, 1, "A", 50.0), step], workspace=events)
+    assert "messages" not in bundle
+    assert bundle["workspace"][1] == {"firm": "A", "seq": 2, "round": 1, "op": "write", "text": "bid high\nnext round", "truncated": True, "n_notes": None, "n_foreign": None}
+    bid, reflect = bundle["rounds"][0]["firms"][0]["calls"]
+    assert "tools" not in bid and bid["reasoning"] == "because"
+    assert reflect["reasoning"] is None and reflect["results"] == ["The notes workspace is empty."]
+    assert reflect["tools"] == [
+        {"name": "write_workspace", "text": "bid high\nnext round", "arguments": None},
+        {"name": "end_reflection", "text": None, "arguments": None},
+    ]
+    assert reflect["user"] == "user r1 A reflect"  # the step's own user message, not a tool result
+    json.dumps(bundle, allow_nan=False)
+
+
+def test_a_session_without_workspace_or_messages_has_neither_key() -> None:
+    meta, rows, calls = two_round_session()
+    assert not {"workspace", "messages"} & set(session_bundle(meta, rows, calls))
 
 
 def test_bundle_without_calls_is_json_safe() -> None:
@@ -195,3 +232,19 @@ Closing.
     assert '<section class="panel"><h3>4. Summary</h3>' in html and '<h2 class="sect">3. Findings</h2>' in html
     f2 = html[html.index('id="F2"') : html.index('id="F5"')]
     assert f2.index("</table></div>") < f2.index("chartslot")  # the chart sits under the finding's own table
+
+
+def test_index_entry_summarises_a_workspace_and_omits_it_otherwise() -> None:
+    from bidrig.viewer import index_entry
+
+    meta, rows = custom_session([fixed(50.0), fixed(60.0)], n_rounds=3)
+    events = [
+        {"seq": 1, "round": 1, "firm_id": "A", "op": "write", "text": "x", "n_notes": None, "n_foreign": None},
+        {"seq": 2, "round": 1, "firm_id": "B", "op": "read", "text": None, "n_notes": 1, "n_foreign": 1},
+        {"seq": 3, "round": 2, "firm_id": "A", "op": "read", "text": None, "n_notes": 1, "n_foreign": 0},
+        {"seq": 4, "round": 2, "firm_id": "A", "op": "write", "text": "y", "n_notes": None, "n_foreign": None},
+    ]
+    assert "notes" not in index_entry(meta, rows, {})
+    assert index_entry(meta, rows, {}, events)["notes"] == {"kind": "workspace", "writes": {"A": 2}, "foreign_reads": 1, "first_foreign": 1}
+    sent = index_entry(meta, rows, {}, messages=[events[0]])["notes"]
+    assert sent == {"kind": "messages", "writes": {"A": 1}, "foreign_reads": None, "first_foreign": None}

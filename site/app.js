@@ -25,7 +25,7 @@ const METRICS = [
   ["Reserve bids", "reserve_bid_rate", "pct", "Share of bids placed at the maximum allowed price."],
   ["Bid-cost correlation", "bid_cost_corr", 2, "Near 1 when bids follow the firm's own cost."],
 ];
-const state = { mode: "examples", ex: 0, s: 0, round: 1, showCost: false, showBne: false, run: null, custom: null, filter: {}, hist: "repeated", pair: "collusion_index" };
+const state = { mode: "examples", ex: 0, s: 0, round: 1, showCost: false, showBne: false, showReads: false, run: null, custom: null, filter: {}, hist: "repeated", pair: "collusion_index" };
 const view = () => state.custom || EXAMPLES[state.ex];
 
 function h(tag, attrs, ...kids) {
@@ -251,23 +251,103 @@ function roundPanel(s) {
   return h("div", { class: "round" }, head, table, cards);
 }
 
+// Tool calls of a reflection or communication step, in plain words; a note or message is shown as written.
+const TOOL_TEXT = {
+  read_workspace: "Read the workspace",
+  write_workspace: "Wrote a note",
+  end_reflection: "Ended the step",
+  send_message: "Sent a message",
+  no_message: "Sent no message",
+};
+const STEP_TEXT = { reflect: "Reflection after this round", message: "Communication step after this round" };
+
+function toolLine(t) {
+  return h("div", { class: "tool" },
+    h("div", { class: "toolname" }, TOOL_TEXT[t.name] || h("code", null, t.name || "unnamed tool")),
+    t.text != null ? h("blockquote", { class: "notetext" }, t.text) : null,
+    t.arguments ? h("pre", null, typeof t.arguments === "string" ? t.arguments : JSON.stringify(t.arguments, null, 2)) : null);
+}
+
+function callFoot(c, shown) {
+  const tokens = c.tokens && c.tokens[1] != null ? `prompt ${c.tokens[0]} · output ${c.tokens[1]}${c.tokens[2] != null ? ` · thinking ${c.tokens[2]}` : ""}` : "";
+  return [
+    c.content ? h("p", null, h("i", null, "Free text outside the tool call: "), c.content) : null,
+    c.thinking ? h("details", null,
+      h("summary", null, `Hidden thinking (${c.thinking_chars.toLocaleString()} characters${c.thinking_chars > c.thinking.length ? `, first ${c.thinking.length.toLocaleString()} shown` : ""})`),
+      h("pre", null, c.thinking)) : null,
+    shown ? h("details", null, h("summary", null, "What this firm was shown"), h("pre", null, shown)) : null,
+    h("div", { class: "note" }, tokens)];
+}
+
+function bidCall(c, s) {
+  return h("div", { class: "call" },
+    h("div", { class: "head" }, h("b", null, c.phase === "rebid" ? "Rebid" : "Bid"), ` · attempt ${c.attempt} · `,
+      c.error ? "no bid" : `bid ${money(c.bid, s)}`, c.finish ? ` · ${c.finish === "length" ? "cut off at the output cap" : c.finish}` : ""),
+    c.error ? h("p", { class: "err" }, c.error) : null,
+    c.reasoning ? h("p", null, c.reasoning) : null,
+    ...callFoot(c, c.user));
+}
+
+// One request of a reflection or communication step. Results of the tools called in earlier requests of the step are part of what the firm was shown.
+function toolCall(c) {
+  const results = (c.results || []).map((r, i) => `[tool result ${i + 1}]\n${r}`).join("\n\n");
+  const shown = [c.user, results].filter(Boolean).join("\n\n");
+  return h("div", { class: "call" },
+    h("div", { class: "head" }, h("b", null, `Request ${c.attempt}`), c.finish === "length" ? " · cut off at the output cap" : ""),
+    c.error ? h("p", { class: "err" }, c.error === "no tool call" ? "No tool call: the step ended here." : c.error) : null,
+    ...(c.tools || []).map(toolLine),
+    ...callFoot(c, shown));
+}
+
 function firmCard(f, s) {
-  const tokens = (c) => (c.tokens && c.tokens[1] != null ? `prompt ${c.tokens[0]} · output ${c.tokens[1]}${c.tokens[2] != null ? ` · thinking ${c.tokens[2]}` : ""}` : "");
-  const calls = f.calls.length
-    ? f.calls.map((c) =>
-        h("div", { class: "call" },
-          h("div", { class: "head" }, h("b", null, c.phase === "rebid" ? "Rebid" : "Bid"), ` · attempt ${c.attempt} · `,
-            c.error ? "no bid" : `bid ${money(c.bid, s)}`, c.finish ? ` · ${c.finish === "length" ? "cut off at the output cap" : c.finish}` : ""),
-          c.error ? h("p", { class: "err" }, c.error) : null,
-          c.reasoning ? h("p", null, c.reasoning) : null,
-          c.content ? h("p", null, h("i", null, "Free text outside the tool call: "), c.content) : null,
-          c.thinking ? h("details", null,
-            h("summary", null, `Hidden thinking (${c.thinking_chars.toLocaleString()} characters${c.thinking_chars > c.thinking.length ? `, first ${c.thinking.length.toLocaleString()} shown` : ""})`),
-            h("pre", null, c.thinking)) : null,
-          h("details", null, h("summary", null, "What this firm was shown"), h("pre", null, c.user)),
-          h("div", { class: "note" }, tokens(c))))
-    : [h("p", { class: "note" }, "No model call (scripted bidder).")];
-  return h("div", { class: "card" }, h("h4", null, h("span", { class: `firmdot ${cls(f.id)}` }), `Firm ${f.id}`), ...calls);
+  const bids = f.calls.filter((c) => !c.tools), steps = f.calls.filter((c) => c.tools);
+  const body = bids.length ? bids.map((c) => bidCall(c, s)) : [h("p", { class: "note" }, f.calls.length ? "No bid call logged." : "No model call (scripted bidder).")];
+  const after = steps.length ? [h("div", { class: "stephead" }, STEP_TEXT[steps[0].phase] || steps[0].phase), ...steps.map(toolCall)] : [];
+  return h("div", { class: "card" }, h("h4", null, h("span", { class: `firmdot ${cls(f.id)}` }), `Firm ${f.id}`), ...body, ...after);
+}
+
+// The whole workspace or message log of a session, oldest first, grouped by the round after which each entry was made.
+function eventsPanel(s, key) {
+  const events = s[key];
+  if (!events || !events.length) return null;
+  const isNotes = key === "workspace";
+  const writes = events.filter((e) => e.op === "write"), reads = events.filter((e) => e.op === "read");
+  const firms = [...new Set(events.map((e) => e.firm))].sort();
+  const perFirm = firms.map((f) => `Firm ${f} ${writes.filter((e) => e.firm === f).length}`).join(", ");
+  const noun = isNotes ? "note" : "message";
+  const facts = [`${writes.length} ${noun}${writes.length === 1 ? "" : "s"} (${perFirm})`];
+  if (isNotes) {
+    const foreign = reads.filter((e) => e.n_foreign > 0);
+    facts.push(`${reads.length} read${reads.length === 1 ? "" : "s"}, ${foreign.length} of them showing the other firm's notes`);
+    for (const f of firms) {
+      const first = foreign.find((e) => e.firm === f);
+      facts.push(first ? `Firm ${f} first shown another firm's note after round ${first.round}` : `Firm ${f} never read another firm's note`);
+    }
+  }
+  const shown = events.filter((e) => e.op === "write" || state.showReads);
+  const rounds = [...new Set(shown.map((e) => e.round))].sort((a, b) => a - b);
+  const entry = (e) => e.op === "read"
+    ? h("div", { class: "ev read" }, h("span", { class: `firmdot ${cls(e.firm)}` }),
+        `Firm ${e.firm} read the workspace: ${e.n_notes} note${e.n_notes === 1 ? "" : "s"}, ${e.n_foreign} by another firm`)
+    : h("div", { class: "ev" },
+        h("div", { class: "who" }, h("span", { class: `firmdot ${cls(e.firm)}` }), h("b", null, `Firm ${e.firm}`), ` · ${s.meta.models[e.firm] || ""}`,
+          e.truncated ? h("span", { class: "badge descriptive" }, "cut at the length limit") : null),
+        h("blockquote", { class: "notetext" }, e.text));
+  const box = h("div", { class: "evbox" }, ...rounds.map((n) =>
+    h("div", { class: `evgroup${n === state.round ? " on" : ""}` },
+      h("button", { type: "button", class: "evround", onclick: () => { state.round = n; render(); } }, `After round ${n}`),
+      ...shown.filter((e) => e.round === n).map(entry))));
+  requestAnimationFrame(() => { const on = box.querySelector(".evgroup.on"); if (on) box.scrollTop = on.offsetTop; });
+  return h("section", { class: "panel" },
+    h("h3", null, isNotes ? "Shared notes workspace" : "Messages between firms"),
+    h("p", { class: "meta" }, isNotes
+      ? "Every firm reads and writes the same notes. Firms are told they have a notes workspace, not that the other firm reads it. A note is shown in every bid prompt from the next round on."
+      : "Each firm may send one message after a round. Firms are told every firm reads every message. A message is shown in every bid prompt from the next round on."),
+    h("p", { class: "meta" }, facts.join(" · "), "."),
+    isNotes ? h("div", { class: "toggles" }, h("label", null,
+      h("input", { type: "checkbox", checked: state.showReads, onchange: (ev) => { state.showReads = ev.target.checked; render(); } }), "Show reads")) : null,
+    box,
+    h("p", { class: "note" }, `The group for the round selected below is outlined. Select a group to open its round.`));
 }
 
 function systemPrompt(s) {
@@ -287,6 +367,7 @@ function renderExample() {
       h("div", { class: "chartbox" }, chartFor(s)),
       h("div", { class: "toggles" }, "Filled dot = bid, ringed = winner.", toggle("showCost", "Show costs (hollow circle)"), toggle("showBne", "Show equilibrium bids (diamond)"))),
     s.system && Object.keys(s.system).length ? h("section", { class: "panel" }, systemPrompt(s)) : null,
+    eventsPanel(s, "workspace"), eventsPanel(s, "messages"),
     roundPanel(s)].filter(Boolean));
 }
 
@@ -692,6 +773,30 @@ function histogramCard(run, sessions) {
     h("div", { class: "chartbox" }, root));
 }
 
+// Sessions of the run that have a shared notes workspace or a message channel, each linked to its session page.
+function notesCard(run, sessions) {
+  const rows = sessions.filter((e) => e.notes).sort((a, b) => a.models.join().localeCompare(b.models.join()) || a.seed - b.seed);
+  if (!rows.length) return null;
+  const isNotes = rows[0].notes.kind === "workspace";
+  const total = (e) => Object.values(e.notes.writes).reduce((a, b) => a + b, 0);
+  const link = (e) => `#/s/${encodeURIComponent(run.id)}/${encodeURIComponent(e.id)}/0/${Math.min((e.notes.first_foreign || 0) + 1, e.n_rounds)}`;
+  return h("section", { class: "panel" },
+    h("h3", null, isNotes ? "Shared notes workspace" : "Messages between firms"),
+    h("p", { class: "meta" }, isNotes
+      ? "These sessions have a notes workspace that both firms read and write; the firms are not told it is shared. Open a session to read every note in order and each firm's reflection step."
+      : "In these sessions each firm may send one message after a round, and is told every firm reads it. Open a session to read every message in order."),
+    h("div", { class: "tablewrap" }, h("table", null,
+      h("thead", null, h("tr", null, ...["Session", isNotes ? "Notes written" : "Messages sent", ...(isNotes ? ["Reads showing the other firm's notes", "First such read"] : []), "Index"]
+        .map((t, i) => h("th", { class: i ? "num" : "" }, t)))),
+      h("tbody", null, ...rows.map((e) => h("tr", null,
+        h("td", null, h("a", { href: link(e) }, `${e.models.join(" + ")} · seed ${e.seed}`)),
+        h("td", { class: "num" }, `${total(e)} (${Object.entries(e.notes.writes).map(([f, n]) => `${f} ${n}`).join(", ")})`),
+        ...(isNotes ? [h("td", { class: "num" }, String(e.notes.foreign_reads)),
+          h("td", { class: "num" }, e.notes.first_foreign == null ? "never" : `after round ${e.notes.first_foreign}`)] : []),
+        h("td", { class: "num" }, fmt(e.metrics.collusion_index, 2))))))),
+    h("p", { class: "note" }, isNotes ? "A link opens the session at the first round a firm bid after being shown the other firm's notes." : ""));
+}
+
 function renderRun() {
   const run = state.run, root = document.getElementById("example");
   if (!run) { root.replaceChildren(h("p", null, "Unknown run. ", h("a", { href: "#/runs" }, "Back to all runs"))); return; }
@@ -721,7 +826,7 @@ function renderRun() {
       const ctl = run.sessions.find((c) => c.id === `oneshot__${e.id}`);
       const link = (id, w) => `#/s/${encodeURIComponent(run.id)}/${encodeURIComponent(id)}/${w}/1`;
       return h("div", { class: "sessrow" },
-        h("div", { class: "label" }, h("a", { href: link(e.id, 0) }, `seed ${e.seed}`),
+        h("div", { class: "label" }, h("span", null, h("a", { href: link(e.id, 0) }, `seed ${e.seed}`), e.notes ? h("span", { class: "badge descriptive notesbadge" }, e.notes.kind === "workspace" ? "shared notes" : "messages") : null),
           h("span", null, `index ${fmt(e.metrics.collusion_index, 2)} · delta ${fmt(e.metrics.delta_index, 2)} · ties ${fmt(e.metrics.tie_rate, "pct")}`)),
         miniStrip(e),
         ctl ? h("div", { class: "ctl" }, h("span", { class: "note" }, "one-shot control · ", h("a", { href: link(e.id, 1) }, `index ${fmt(ctl.metrics.collusion_index, 2)}`)), miniStrip(ctl)) : null);
@@ -746,6 +851,7 @@ function renderRun() {
       h("p", null, `${run.sessions.filter((e) => !e.control).length} repeated sessions and ${run.sessions.filter((e) => e.control).length} one-shot controls. `
         + "Strips show the winner of each round (striped = tie, dot = lowest-cost firm won). Click a seed to open the session. Means are descriptive: sessions are the unit, and there are few per cell.")),
     filters.length ? h("div", { class: "toggles filters" }, ...filters) : null,
+    notesCard(run, sessions),
     h("h2", { class: "sect" }, "Bids across the run"),
     h("p", { class: "sectnote" }, "Every valid bid in the sessions selected above, against the equilibrium bid; then each session against its one-shot control."),
     classCard(sessions),

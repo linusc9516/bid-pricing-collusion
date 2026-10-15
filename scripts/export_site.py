@@ -26,8 +26,11 @@ from bidrig.viewer import (
     DIFF_LOW,
     DIFF_STEP,
     MAX_THINKING_CHARS,
+    MESSAGES_FILE,
+    WORKSPACE_FILE,
     findings_html,
     index_entry,
+    read_events,
     session_bundle,
 )
 
@@ -56,8 +59,9 @@ def export_run(run_id: str, logs_root: Path, sessions_dir: Path, max_thinking: i
     entries = []
     for (meta, rows), path in loaded:
         metrics = table.loc[meta.session_id].to_dict()
-        entries.append(index_entry(meta, rows, metrics))
-        bundle = session_bundle(meta, rows, read_calls(path), metrics, max_thinking)
+        workspace, messages = read_events(path, WORKSPACE_FILE), read_events(path, MESSAGES_FILE)
+        entries.append(index_entry(meta, rows, metrics, workspace, messages))
+        bundle = session_bundle(meta, rows, read_calls(path), metrics, max_thinking, workspace, messages)
         if no_prompts:
             bundle["system"] = {}
             for r in bundle["rounds"]:

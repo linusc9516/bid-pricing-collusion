@@ -4,6 +4,7 @@ import json
 import math
 import re
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 from bidrig.schema import BidRow, CallRow, SessionMeta
@@ -35,13 +36,57 @@ def _messages(call: CallRow) -> dict[str, str]:
     return out
 
 
+WORKSPACE_FILE = "workspace.jsonl"  # shared notes of a workspace session, one row per read or write
+MESSAGES_FILE = "messages.jsonl"  # messages of an open-channel session, same row fields
+TOOL_PHASES = ("reflect", "message")  # call phases whose `reasoning` holds the tool calls made, as JSON
+
+
+def read_events(path: Path, name: str) -> list[dict[str, Any]]:
+    """Rows of `name` (WORKSPACE_FILE or MESSAGES_FILE) in one session directory, in file order; empty if the file is absent."""
+    file = path / name
+    if not file.exists():
+        return []
+    return [json.loads(line) for line in file.read_text().splitlines() if line.strip()]
+
+
+def _events(events: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Workspace or message rows for the viewer; `round` is the round just played when the row was written."""
+    keys = ("seq", "round", "op", "text", "truncated", "n_notes", "n_foreign")
+    return [{"firm": e["firm_id"], **{k: e.get(k) for k in keys}} for e in events]
+
+
+def _tool_calls(call: CallRow) -> list[dict[str, Any]]:
+    """Tool calls of one reflection or communication request: `{name, text, arguments}`, `text` being the note or message if any."""
+    try:
+        made = json.loads(call.reasoning or "[]")
+    except json.JSONDecodeError:
+        return [{"name": "unreadable", "text": call.reasoning, "arguments": None}]
+    out = []
+    for item in made:
+        args = item.get("arguments")
+        text = args.get("text") if isinstance(args, dict) else None
+        rest = {k: v for k, v in args.items() if k != "text"} if isinstance(args, dict) else args
+        out.append({"name": item.get("name"), "text": text if isinstance(text, str) else None, "arguments": rest or None})
+    return out
+
+
+def _tool_results(call: CallRow) -> list[str]:
+    """Tool results the model had been sent back before this request, oldest first (a step's own results appear in the next step)."""
+    return [m.get("content") or "" for m in json.loads(call.prompt) if m.get("role") == "tool"]
+
+
 def _call_bundle(call: CallRow, max_thinking: int) -> dict[str, Any]:
-    """One LLM attempt: reasoning field, hidden thinking (truncated), free text, error, tokens and the user message."""
+    """One LLM attempt: reasoning field, hidden thinking (truncated), free text, error, tokens and the user message.
+
+    A reflection or communication request has `tools` (the calls it made) and `results` in place of `reasoning`.
+    """
     thinking = call.thinking or ""
+    tools = call.phase in TOOL_PHASES
     return {
+        **({"tools": _tool_calls(call), "results": _tool_results(call)} if tools else {}),
         "phase": call.phase,
         "attempt": call.attempt,
-        "reasoning": call.reasoning,
+        "reasoning": None if tools else call.reasoning,
         "thinking": thinking[:max_thinking] or None,
         "thinking_chars": len(thinking),
         "content": call.content,
@@ -59,8 +104,13 @@ def session_bundle(
     calls: Sequence[CallRow],
     metrics: dict[str, Any] | None = None,
     max_thinking: int = MAX_THINKING_CHARS,
+    workspace: Sequence[dict[str, Any]] = (),
+    messages: Sequence[dict[str, Any]] = (),
 ) -> dict[str, Any]:
-    """Everything the viewer shows for one session: settings, metrics, rounds, per-firm calls and system prompts."""
+    """Everything the viewer shows for one session: settings, metrics, rounds, per-firm calls and system prompts.
+
+    `workspace` and `messages` are the rows of workspace.jsonl and messages.jsonl; each adds a key only when it has rows.
+    """
     models = {entry.firm_id: entry.model or entry.bidder_type for entry in meta.lineup}
     by_key: dict[tuple[int, str], list[CallRow]] = {}
     systems: dict[str, str] = {}
@@ -118,6 +168,8 @@ def session_bundle(
         "metrics": {k: _clean((metrics or {}).get(k)) for k in METRIC_KEYS},
         "system": systems,
         "rounds": rounds,
+        **({"workspace": _events(workspace)} if workspace else {}),
+        **({"messages": _events(messages)} if messages else {}),
     }
 
 
@@ -196,7 +248,31 @@ def bid_points(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, list[list
     return out
 
 
-def index_entry(meta: SessionMeta, rows: Sequence[BidRow], metrics: dict[str, Any]) -> dict[str, Any]:
+def notes_summary(events: Sequence[dict[str, Any]], kind: str) -> dict[str, Any] | None:
+    """What a run page shows of a session's workspace or message log, None if it has none.
+
+    `writes` is notes or messages per firm; `foreign_reads` counts reads that showed a firm another firm's notes, and
+    `first_foreign` is the earliest round after which that happened (both None for messages, which have no reads).
+    """
+    if not events:
+        return None
+    writes: dict[str, int] = {}
+    for e in events:
+        if e["op"] == "write":
+            writes[e["firm_id"]] = writes.get(e["firm_id"], 0) + 1
+    foreign = [e for e in events if e["op"] == "read" and (e.get("n_foreign") or 0) > 0]
+    reads = kind == "workspace"
+    return {
+        "kind": kind,
+        "writes": dict(sorted(writes.items())),
+        "foreign_reads": len(foreign) if reads else None,
+        "first_foreign": min((e["round"] for e in foreign), default=None) if reads else None,
+    }
+
+
+def index_entry(
+    meta: SessionMeta, rows: Sequence[BidRow], metrics: dict[str, Any], workspace: Sequence[dict[str, Any]] = (), messages: Sequence[dict[str, Any]] = ()
+) -> dict[str, Any]:
     """One session's row in the run list: settings, headline metrics and per-round strings `w` (winner or '-'),
     `t` (1 = tie) and `m` (1 = the lowest-cost firm won), all of length n_rounds."""
     winners, ties, mins = [], [], []
@@ -206,7 +282,7 @@ def index_entry(meta: SessionMeta, rows: Sequence[BidRow], metrics: dict[str, An
         winners.append(winner.firm_id if winner else "-")
         ties.append("1" if in_round[0].tie_resolution != "none" else "0")
         mins.append("1" if winner is not None and winner.is_min_cost else "0")
-    return {
+    entry = {
         "id": meta.session_id,
         "condition": meta.condition_id,
         "lineup": meta.lineup_id,
@@ -233,6 +309,10 @@ def index_entry(meta: SessionMeta, rows: Sequence[BidRow], metrics: dict[str, An
         "t": "".join(ties),
         "m": "".join(mins),
     }
+    summary = notes_summary(workspace, "workspace") or notes_summary(messages, "messages")
+    if summary:
+        entry["notes"] = summary
+    return entry
 
 
 def findings_html(text: str) -> str:
