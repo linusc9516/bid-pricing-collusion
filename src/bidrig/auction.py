@@ -5,7 +5,7 @@ No LLM is involved in any decision here. Mechanics are in PLANNING.md sections 2
 
 import asyncio
 import math
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import replace
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -215,13 +215,15 @@ async def run_session(
     bidders: Sequence[Bidder],
     log: list[BidRow] | None = None,
     round_concurrency: int = 1,
+    between_rounds: Callable[[int], Awaitable[None]] | None = None,
 ) -> list[BidRow]:
     """Run every round of one session; returns n_rounds * n_bidders rows in (round, slot) order.
 
     `bidders` are in the slot order of `meta.lineup`. Wins counted for `least_wins` are the
     contracts awarded earlier in this session, whatever decided them. If `log` is given, each
     round's rows are appended to it once the round is over, so bidders that share the list
-    (through the visibility filter) never see a round before it has happened.
+    (through the visibility filter) never see a round before it has happened. `between_rounds`
+    is awaited with the round number after every round but the last, once its rows are logged.
 
     `round_concurrency` above 1 asks for up to that many rounds' bids at once. It applies only to a one-shot
     control (`history_window` 0) played by model bidders: no bid there depends on an earlier round, so only
@@ -259,6 +261,8 @@ async def run_session(
         rows.extend(round_rows)
         if winner is not None:
             wins[winner] += 1
+        if between_rounds is not None and index + 1 < meta.n_rounds:
+            await between_rounds(index + 1)
     return rows
 
 

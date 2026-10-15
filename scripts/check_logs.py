@@ -1,7 +1,7 @@
 """CLI: check a run's raw logs against the auction rules and the prompt design (PLANNING.md 5.5).
 Usage: check_logs.py RUN_DIR [--expect-cap N] [--max-failures N] [--include-incomplete]
        check_logs.py RUN_DIR --pick
-       check_logs.py RUN_DIR --show SESSION_ID ROUND FIRM [--phase bid|rebid]
+       check_logs.py RUN_DIR --show SESSION_ID ROUND FIRM [--phase bid|rebid|reflect|message]
 
 Exits 1 if any check fails. --pick lists representative prompts to read by hand; --show prints one.
 """
@@ -69,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--include-incomplete", action="store_true", help="also check running or failed sessions")
     parser.add_argument("--pick", action="store_true", help="list representative prompts to read by hand")
     parser.add_argument("--show", nargs=3, metavar=("SESSION_ID", "ROUND", "FIRM"), help="print one call")
-    parser.add_argument("--phase", choices=["bid", "rebid"], default="bid")
+    parser.add_argument("--phase", choices=["bid", "rebid", "reflect", "message"], default="bid")
     args = parser.parse_args(argv)
 
     logs, skipped = load_logs(args.run_dir, args.include_incomplete)

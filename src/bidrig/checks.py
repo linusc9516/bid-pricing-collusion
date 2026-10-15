@@ -19,10 +19,12 @@ from bidrig.prompts import (
     DEFAULT_TEMPLATE,
     REASONING_LENGTHS,
     TIE_RULE_SENTENCES,
+    notes_block,
     system_prompt,
     user_prompt,
 )
 from bidrig.schema import (
+    MESSAGES_FILE,
     SESSION_FILE,
     BidRequest,
     BidRow,
@@ -30,7 +32,9 @@ from bidrig.schema import (
     SessionMeta,
     read_calls,
     read_session,
+    read_workspace_events,
 )
+from bidrig.workspace import WorkspaceEvent, notes_before
 
 CAP_PATTERN = re.compile(r"limited to (\d+) tokens")
 ROUND_LINE = re.compile(r"^Round (\d+):", re.MULTILINE)
@@ -54,6 +58,8 @@ CHECKS = [
     "cost_line",
     "leak",
     "rebid_notice",
+    "workspace",
+    "channel",
 ]
 
 
@@ -65,6 +71,8 @@ class SessionLog:
     meta: SessionMeta
     rows: list[BidRow]
     calls: list[CallRow]
+    workspace: list[WorkspaceEvent] = field(default_factory=list)
+    messages: list[WorkspaceEvent] = field(default_factory=list)  # channel sessions; same event shape as the workspace
 
 
 @dataclass(frozen=True)
@@ -112,7 +120,9 @@ def load_logs(run_dir: Path, include_incomplete: bool = False) -> tuple[list[Ses
         if meta.status != "complete" and not include_incomplete:
             skipped.append(f"{meta.session_id} ({meta.status})")
             continue
-        logs.append(SessionLog(session_json.parent, meta, rows, read_calls(session_json.parent)))
+        events = [WorkspaceEvent.from_dict(e) for e in read_workspace_events(session_json.parent)]
+        messages = [WorkspaceEvent.from_dict(e) for e in read_workspace_events(session_json.parent, MESSAGES_FILE)]
+        logs.append(SessionLog(session_json.parent, meta, rows, read_calls(session_json.parent), events, messages))
     return logs, skipped
 
 
@@ -304,6 +314,8 @@ def check_calls(log: SessionLog, report: CheckReport, template: Path = DEFAULT_T
             report.fail("provider", sid, f"{label}: no serving provider recorded")
         elif pinned and call.provider.lower() != pinned["name"].lower():
             report.fail("provider", sid, f"{label}: served by {call.provider}, pinned {pinned['name']}")
+        if call.phase in ("reflect", "message"):
+            continue  # a tool conversation, not a bid prompt; the workspace and channel checks cover it
 
         messages = _messages(call)
         report.items["retry_messages"] += 1
@@ -351,9 +363,14 @@ def check_calls(log: SessionLog, report: CheckReport, template: Path = DEFAULT_T
                 else ()
             ),
         )
-        expected_user = user_prompt(meta, log.rows, request)
+        notes = notes_before(log.workspace if meta.workspace else log.messages, call.round)
+        expected_user = user_prompt(meta, log.rows, request, notes)
         if user != expected_user:
             report.fail("user_prompt", sid, f"{label}: differs from the rebuild; {_first_difference(user, expected_user)}")
+        # Notes and messages are free text by the firms (any figures in them are the channel under study), so the checks below skip them.
+        block = notes_block(meta, notes, call.firm_id)
+        if block is not None:
+            user = user.replace(block, "")
 
         report.items["rounds_shown"] += 1
         shown = {int(n) for n in ROUND_LINE.findall(user)}
@@ -388,6 +405,53 @@ def check_calls(log: SessionLog, report: CheckReport, template: Path = DEFAULT_T
             report.fail("rebid_notice", sid, f"{label}: rebid notice {notices}, expected {row.n_tied} firms at {low and from_ticks(low, inc):.2f}")
 
 
+def check_workspace(log: SessionLog, report: CheckReport) -> None:
+    """Workspace events are numbered in order, come from the lineup's firms, and only follow rounds that had a next round."""
+    meta, sid = log.meta, log.meta.session_id
+    if not meta.workspace:
+        if log.workspace:
+            report.fail("workspace", sid, "workspace events in a session without a workspace")
+        return
+    firms = {entry.firm_id for entry in meta.lineup}
+    reflecting = {(c.round, c.firm_id) for c in log.calls if c.phase == "reflect"}
+    report.items["workspace"] += 1
+    if [e.seq for e in log.workspace] != list(range(1, len(log.workspace) + 1)):
+        report.fail("workspace", sid, "event numbers are not 1, 2, 3, ...")
+    for event in log.workspace:
+        if event.firm_id not in firms or not 1 <= event.round < meta.n_rounds:
+            report.fail("workspace", sid, f"event {event.seq}: firm {event.firm_id} after round {event.round}")
+        elif (event.round, event.firm_id) not in reflecting:
+            report.fail("workspace", sid, f"event {event.seq}: no reflection call by firm {event.firm_id} after round {event.round}")
+
+
+def check_channel(log: SessionLog, report: CheckReport) -> None:
+    """Messages are numbered in order, at most one per firm per step, from the lineup's firms, each matched by a communication call."""
+    meta, sid = log.meta, log.meta.session_id
+    if not meta.channel:
+        if log.messages:
+            report.fail("channel", sid, "messages in a session without a channel")
+        return
+    firms = {entry.firm_id for entry in meta.lineup}
+    steps = {(c.round, c.firm_id) for c in log.calls if c.phase == "message"}
+    report.items["channel"] += 1
+    if [e.seq for e in log.messages] != list(range(1, len(log.messages) + 1)):
+        report.fail("channel", sid, "message numbers are not 1, 2, 3, ...")
+    if any(e.op != "write" for e in log.messages):
+        report.fail("channel", sid, "a channel event that is not a sent message")
+    sent = Counter((e.round, e.firm_id) for e in log.messages)
+    for (round_number, firm), count in sent.items():
+        if count > 1:
+            report.fail("channel", sid, f"firm {firm} sent {count} messages after round {round_number}")
+    for event in log.messages:
+        if event.firm_id not in firms or not 1 <= event.round < meta.n_rounds:
+            report.fail("channel", sid, f"message {event.seq}: firm {event.firm_id} after round {event.round}")
+        elif (event.round, event.firm_id) not in steps:
+            report.fail("channel", sid, f"message {event.seq}: no communication call by firm {event.firm_id} after round {event.round}")
+    expected = {(r, f) for r in range(1, meta.n_rounds) for f in firms}
+    if steps != expected:
+        report.fail("channel", sid, f"communication calls for {len(steps)} firm-rounds, expected {len(expected)}")
+
+
 def check_run(logs: list[SessionLog], template: Path = DEFAULT_TEMPLATE, include_incomplete: bool = False) -> CheckReport:
     """Run every check over every session; scripted sessions (no calls) only get the structure, cost and auction checks."""
     report = CheckReport(sessions=len(logs))
@@ -397,4 +461,6 @@ def check_run(logs: list[SessionLog], template: Path = DEFAULT_TEMPLATE, include
         check_auction(log, report)
         if log.calls or any(entry.model for entry in log.meta.lineup):
             check_calls(log, report, template)
+        check_workspace(log, report)
+        check_channel(log, report)
     return report

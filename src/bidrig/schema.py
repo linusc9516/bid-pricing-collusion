@@ -14,11 +14,13 @@ TieBreakRule = Literal["random", "least_wins", "bafo"]
 TieResolution = Literal["none", "random", "least_wins", "bafo", "bafo_random"]
 BidderType = Literal["llm", "bne", "markup", "overbid", "rotation", "match"]
 SessionStatus = Literal["running", "complete", "failed"]
-CallPhase = Literal["bid", "rebid"]
+CallPhase = Literal["bid", "rebid", "reflect", "message"]
 
 SESSION_FILE = "session.json"
 BIDS_FILE = "bids.jsonl"
 CALLS_FILE = "calls.jsonl"
+WORKSPACE_FILE = "workspace.jsonl"
+MESSAGES_FILE = "messages.jsonl"
 
 
 @dataclass(frozen=True)
@@ -53,6 +55,8 @@ class SessionMeta:
     history_window: int | None = None  # None = whole session; 0 = one-shot control
     temperature: float | None = None
     prompt_version: str | None = None
+    workspace: bool = False  # shared notes workspace with a reflection step after each round but the last
+    channel: bool = False  # open message channel with a communication step after each round but the last
     providers: dict[str, dict[str, str]] = field(default_factory=dict)
     provider_retries: int = 0  # requests repeated after a transient provider error
     provider_errors: list[str] = field(default_factory=list)  # first 20 failed requests, as text
@@ -216,20 +220,29 @@ def write_meta(log_dir: Path, meta: SessionMeta) -> Path:
     return out
 
 
-def _write_jsonl(path: Path, rows: Iterable[BidRow | CallRow]) -> None:
+def _write_jsonl(path: Path, rows: Iterable[Any]) -> None:
     with path.open("w") as handle:
         for row in rows:
             handle.write(json.dumps(row.to_dict()) + "\n")
 
 
 def write_session(
-    log_dir: Path, meta: SessionMeta, rows: Iterable[BidRow], calls: Iterable[CallRow] | None = None
+    log_dir: Path,
+    meta: SessionMeta,
+    rows: Iterable[BidRow],
+    calls: Iterable[CallRow] | None = None,
+    workspace: Iterable[Any] | None = None,
+    messages: Iterable[Any] | None = None,
 ) -> Path:
-    """Write session.json, bids.jsonl and, if given, calls.jsonl; returns the session directory."""
+    """Write session.json, bids.jsonl and, if given, calls.jsonl, workspace.jsonl and messages.jsonl; returns the session directory."""
     out = write_meta(log_dir, meta)
     _write_jsonl(out / BIDS_FILE, rows)
     if calls is not None:
         _write_jsonl(out / CALLS_FILE, calls)
+    if workspace is not None:
+        _write_jsonl(out / WORKSPACE_FILE, workspace)
+    if messages is not None:
+        _write_jsonl(out / MESSAGES_FILE, messages)
     return out
 
 
@@ -245,6 +258,15 @@ def read_calls(path: Path) -> list[CallRow]:
         return []
     with calls.open() as handle:
         return [fill_trace(CallRow.from_dict(json.loads(line))) for line in handle if line.strip()]
+
+
+def read_workspace_events(path: Path, name: str = WORKSPACE_FILE) -> list[dict[str, Any]]:
+    """workspace.jsonl (or messages.jsonl) of one session directory, as dicts (see `bidrig.workspace.WorkspaceEvent`); empty if absent."""
+    events = Path(path) / name
+    if not events.exists():
+        return []
+    with events.open() as handle:
+        return [json.loads(line) for line in handle if line.strip()]
 
 
 def read_session(path: Path) -> tuple[SessionMeta, list[BidRow]]:

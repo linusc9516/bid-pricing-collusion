@@ -1,0 +1,25 @@
+# Pre-run check for the shared workspace: one 3-round session per model, two reflection steps each.
+# Read the reflect calls in calls.jsonl and workspace.jsonl by hand before workspace_screen_n2.yaml.
+
+inherits: base.yaml
+
+auction:
+  n_rounds: 3
+  n_bidders: 2
+
+session:
+  n_sessions: 1
+  base_seed: 980000
+
+workspace:
+  enabled: true
+
+budget:
+  max_cost_usd: 0.1
+  estimate_output_tokens: 1000
+
+cells:
+  - id: tiny-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: tiny-gpt-oss
+    lineup: {type: homogeneous, model: gpt-oss}

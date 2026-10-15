@@ -9,7 +9,7 @@ import math
 import random
 import time
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -195,7 +195,7 @@ def tool_choice_value(setting: str) -> str | dict[str, Any]:
 
 def call_seed(session_seed: int, round_number: int, slot: int, phase: CallPhase, attempt: int) -> int:
     """Deterministic per-call sampling seed in [0, 2**31)."""
-    key = (session_seed, round_number, slot, 1 if phase == "rebid" else 0, attempt)
+    key = (session_seed, round_number, slot, {"bid": 0, "rebid": 1, "reflect": 2, "message": 3}[phase], attempt)
     value = 0
     for part in key:
         value = (value * 1_000_003 + part) % (2**31 - 1)
@@ -322,9 +322,15 @@ class OpenRouterClient:
         raise AssertionError("unreachable")
 
     def request_kwargs(
-        self, spec: ModelSpec, host: Host | None, messages: Sequence[dict[str, str]], seed: int, reserve_price: float
+        self,
+        spec: ModelSpec,
+        host: Host | None,
+        messages: Sequence[dict[str, Any]],
+        seed: int,
+        reserve_price: float,
+        tools: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        """Keyword arguments for `chat.completions.create`, including OpenRouter routing."""
+        """Keyword arguments for `chat.completions.create`, including OpenRouter routing; `tools` replaces the bid tool."""
         extra: dict[str, Any] = {"usage": {"include": True}}
         reasoning = self.settings.reasoning_overrides.get(spec.alias, spec.reasoning)
         if reasoning is None and self.settings.reasoning_effort:
@@ -339,8 +345,9 @@ class OpenRouterClient:
         kwargs = {
             "model": spec.slug,
             "messages": list(messages),
-            "tools": [bid_tool(reserve_price)],
-            "tool_choice": tool_choice_value(self.settings.tool_choice),
+            "tools": tools if tools is not None else [bid_tool(reserve_price)],
+            # `forced` names submit_bid, so other tool sets always get auto.
+            "tool_choice": "auto" if tools is not None else tool_choice_value(self.settings.tool_choice),
             "max_tokens": self.settings.max_output_tokens,
             "seed": seed,
             "extra_body": extra,
@@ -370,53 +377,143 @@ class OpenRouterClient:
         and `BudgetExceeded` before an attempt once the cap is reached. Provider retries are counted in `stats`.
         """
         stats = stats if stats is not None else ProviderStats()
-        price_in, price_out = (host.price_in, host.price_out) if host else (spec.price_in, spec.price_out)
         conversation = list(messages)
         rows: list[CallRow] = []
         for attempt in range(1, self.settings.max_retries + 2):
-            self.spend.check()
             kwargs = self.request_kwargs(
                 spec, host, conversation, call_seed(session_seed, round_number, slot, phase, attempt), reserve_price
             )
-            response, latency_ms = await self._create(
-                kwargs, spec.alias, stats, f"round {round_number} firm {firm_id} {phase} attempt {attempt}"
+            response, row = await self._attempt(
+                spec, host, kwargs, stats, session_id=session_id, round_number=round_number, firm_id=firm_id,
+                attempt=attempt, phase=phase,
             )
-            provider = _extra(response, "provider")
-            if host is not None and provider is not None and provider.lower() != host.name.lower():
-                raise ProviderError(f"{spec.alias} was served by {provider}, not the pinned {host.name}")
-
-            usage = getattr(response, "usage", None)
-            prompt_tokens = getattr(usage, "prompt_tokens", None)
-            completion_tokens = getattr(usage, "completion_tokens", None)
-            self.spend.add(((prompt_tokens or 0) * price_in + (completion_tokens or 0) * price_out) / 1e6)
-
             bid, reasoning, error = parse_bid(response, reserve_price)
-            dump = response.model_dump_json() if hasattr(response, "model_dump_json") else repr(response)
-            trace = trace_fields(json.loads(dump)) if dump.startswith("{") else {}
-            rows.append(
-                CallRow(
-                    session_id=session_id,
-                    round=round_number,
-                    firm_id=firm_id,
-                    attempt=attempt,
-                    phase=phase,
-                    model=spec.alias,
-                    provider=provider,
-                    prompt=json.dumps(conversation),
-                    raw_response=dump,
-                    reasoning=reasoning,
-                    parsed_bid=bid,
-                    error=error,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    latency_ms=latency_ms,
-                    **trace,
-                )
-            )
+            rows.append(replace(row, reasoning=reasoning, parsed_bid=bid, error=error))
             if error is None:
                 return bid, rows
             conversation = [*messages, _corrective(error, reserve_price)]
         return None, rows
+
+    async def _attempt(
+        self,
+        spec: ModelSpec,
+        host: Host | None,
+        kwargs: dict[str, Any],
+        stats: ProviderStats,
+        *,
+        session_id: str,
+        round_number: int,
+        firm_id: str,
+        attempt: int,
+        phase: CallPhase,
+    ) -> tuple[Any, CallRow]:
+        """One request after the spend check: host check, spend, and its call row with no parsed result yet."""
+        self.spend.check()
+        response, latency_ms = await self._create(
+            kwargs, spec.alias, stats, f"round {round_number} firm {firm_id} {phase} attempt {attempt}"
+        )
+        provider = _extra(response, "provider")
+        if host is not None and provider is not None and provider.lower() != host.name.lower():
+            raise ProviderError(f"{spec.alias} was served by {provider}, not the pinned {host.name}")
+
+        price_in, price_out = (host.price_in, host.price_out) if host else (spec.price_in, spec.price_out)
+        usage = getattr(response, "usage", None)
+        prompt_tokens = getattr(usage, "prompt_tokens", None)
+        completion_tokens = getattr(usage, "completion_tokens", None)
+        self.spend.add(((prompt_tokens or 0) * price_in + (completion_tokens or 0) * price_out) / 1e6)
+
+        dump = response.model_dump_json() if hasattr(response, "model_dump_json") else repr(response)
+        trace = trace_fields(json.loads(dump)) if dump.startswith("{") else {}
+        row = CallRow(
+            session_id=session_id,
+            round=round_number,
+            firm_id=firm_id,
+            attempt=attempt,
+            phase=phase,
+            model=spec.alias,
+            provider=provider,
+            prompt=json.dumps(kwargs["messages"]),
+            raw_response=dump,
+            reasoning=None,
+            parsed_bid=None,
+            error=None,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            latency_ms=latency_ms,
+            **trace,
+        )
+        return response, row
+
+    async def run_tools(
+        self,
+        spec: ModelSpec,
+        host: Host | None,
+        messages: Sequence[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        handle: Callable[[str, dict[str, Any]], Awaitable[str]],
+        end_tool: str,
+        max_steps: int,
+        *,
+        session_id: str,
+        session_seed: int,
+        round_number: int,
+        firm_id: str,
+        slot: int,
+        stats: ProviderStats | None = None,
+        phase: CallPhase = "reflect",
+    ) -> list[CallRow]:
+        """A tool step: let the model call `tools` until it calls `end_tool`, stops calling tools, or uses `max_steps` requests.
+
+        `handle(name, arguments)` runs one tool call and returns the text sent back as its result. Each request
+        is one call row with `phase` and `attempt` = step; `reasoning` holds the tool calls it made, as JSON.
+        """
+        stats = stats if stats is not None else ProviderStats()
+        conversation: list[dict[str, Any]] = list(messages)
+        rows: list[CallRow] = []
+        for step in range(1, max_steps + 1):
+            kwargs = self.request_kwargs(
+                spec, host, conversation, call_seed(session_seed, round_number, slot, phase, step), 0, tools
+            )
+            response, row = await self._attempt(
+                spec, host, kwargs, stats, session_id=session_id, round_number=round_number, firm_id=firm_id,
+                attempt=step, phase=phase,
+            )
+            message = response.choices[0].message
+            calls = list(message.tool_calls or [])
+            made, results, ended = [], [], False
+            for index, call in enumerate(calls):
+                name = call.function.name
+                try:
+                    args = json.loads(call.function.arguments or "{}")
+                except (json.JSONDecodeError, TypeError):
+                    args = None
+                made.append({"name": name, "arguments": args if isinstance(args, dict) else call.function.arguments})
+                if name == end_tool:
+                    ended, result = True, "Reflection step ended."
+                elif not isinstance(args, dict):
+                    result = "Not accepted: the tool arguments are not a JSON object."
+                else:
+                    result = await handle(name, args)
+                results.append({"role": "tool", "tool_call_id": getattr(call, "id", None) or f"call_{step}_{index}", "content": result})
+            rows.append(replace(row, reasoning=json.dumps(made), error=None if calls else "no tool call"))
+            if ended or not calls:
+                break
+            conversation.append(
+                {
+                    "role": "assistant",
+                    "content": message.content or "",
+                    "tool_calls": [
+                        {
+                            "id": r["tool_call_id"],
+                            "type": "function",
+                            "function": {"name": c.function.name, "arguments": c.function.arguments or "{}"},
+                        }
+                        for c, r in zip(calls, results, strict=True)
+                    ],
+                }
+            )
+            conversation.extend(results)
+        return rows
 
 
 def make_openai_client(api_key: str, base_url: str | None = None, max_retries: int = 3, timeout: float = 120.0) -> Any:

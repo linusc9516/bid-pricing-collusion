@@ -42,6 +42,7 @@ from bidrig.schema import (
     write_meta,
     write_session,
 )
+from bidrig.workspace import Workspace
 
 AUCTION_KEYS = {"cost_low", "cost_high", "cost_spread", "reveal_costs", "reserve_price", "bid_increment", "tie_break_rule", "n_rounds", "n_bidders"}
 SESSION_KEYS = {"n_sessions", "base_seed", "info_condition", "history_window", "disclose_horizon"}
@@ -98,17 +99,31 @@ class PlannedSession:
 
     @property
     def n_llm_calls(self) -> int:
-        """Bid calls before rebids and retries."""
-        return 0 if self.scripted else self.meta.n_rounds * self.meta.n_bidders
+        """Bid calls before rebids and retries, plus one request per reflection or communication step (a reflection may use more)."""
+        if self.scripted:
+            return 0
+        steps = self.meta.n_rounds - 1 if self.meta.workspace or self.meta.channel else 0
+        return (self.meta.n_rounds + steps) * self.meta.n_bidders
 
 
 def condition_id(
-    cell_id: str, rule: str, info: str, n_bidders: int, history_window: int | None, cost_spread: float = 0.0,
+    cell_id: str,
+    rule: str,
+    info: str,
+    n_bidders: int,
+    history_window: int | None,
+    cost_spread: float = 0.0,
     reveal_costs: bool = False,
+    workspace: bool = False,
+    channel: bool = False,
 ) -> str:
-    """e.g. `tie-least_wins__info-full__lineup-homog-deepseek__n3`; one-shot controls get `oneshot__`, common-cost draws `__spread<s>`, revealed costs `__costs-public`."""
+    """e.g. `tie-least_wins__info-full__lineup-homog-deepseek__n3`; one-shot controls get `oneshot__`, common-cost draws `__spread<s>`, revealed costs `__costs-public`, workspace sessions `__ws`, channel sessions `__msg`."""
     prefix = "oneshot__" if history_window == 0 else ""
-    suffix = (f"__spread{cost_spread:g}" if cost_spread else "") + ("__costs-public" if reveal_costs else "")
+    suffix = (
+        (f"__spread{cost_spread:g}" if cost_spread else "")
+        + ("__costs-public" if reveal_costs else "")
+        + ("__ws" if workspace else "__msg" if channel else "")
+    )
     return f"{prefix}tie-{rule}__info-{info}__lineup-{cell_id}__n{n_bidders}{suffix}"
 
 
@@ -156,6 +171,10 @@ def plan_sessions(
         raise ValueError(f"cannot sweep {sorted(unknown)}")
     combos = [dict(zip(sweep, values, strict=True)) for values in itertools.product(*sweep.values())]
     llm = config.get("llm", {})
+    workspace = bool(config.get("workspace", {}).get("enabled", False))
+    channel = bool(config.get("channel", {}).get("enabled", False))
+    if workspace and channel:
+        raise ValueError("workspace and channel are separate modes; enable at most one")
     planned = []
     for cell in config["cells"]:
         for combo in combos:
@@ -166,9 +185,12 @@ def plan_sessions(
             scripted = None
             if lineup["type"] == "scripted":
                 scripted = {"bidder": lineup["bidder"], **{k: v for k, v in lineup.items() if k in SCRIPTED_PARAMS}}
+            if (workspace or channel) and (lineup["type"] == "scripted" or session["history_window"] == 0):
+                mode = "workspace" if workspace else "channel"
+                raise ValueError(f"cell {cell['id']}: the {mode} needs LLM bidders and history (no one-shot control)")
             cid = condition_id(
                 cell["id"], auction["tie_break_rule"], session["info_condition"], n, session["history_window"],
-                auction.get("cost_spread", 0.0), auction.get("reveal_costs", False),
+                auction.get("cost_spread", 0.0), auction.get("reveal_costs", False), workspace=workspace, channel=channel,
             )
             for k in range(session["n_sessions"]):
                 seed = session["base_seed"] + k
@@ -205,6 +227,8 @@ def plan_sessions(
                     # None when no model of the lineup is sent a temperature (ModelSpec.send_temperature)
                     temperature=llm.get("temperature") if any(a and models[a].send_temperature for a in aliases) else None,
                     prompt_version=None if scripted else config.get("prompt", {}).get("version"),
+                    workspace=workspace,
+                    channel=channel,
                     providers=providers,
                     git_sha=sha,
                 )
@@ -241,11 +265,12 @@ def estimate(plan: list[PlannedSession], config: dict[str, Any], models: dict[st
         # The prompt grows by one line per firm per earlier round; on average (n_rounds - 1) / 2 rounds are shown.
         shown_rounds = 0 if meta.history_window == 0 else (meta.n_rounds - 1) / 2
         tokens_in = base_in + per_row * meta.n_bidders * shown_rounds
+        calls_per_firm = p.n_llm_calls / meta.n_bidders  # reflections priced like bids; notes in the prompt are not counted
         for alias in p.models:
             spec = models[alias]
             host = spec.host(host_role_for(host_role, alias))
             price_in, price_out = (host.price_in, host.price_out) if host else (spec.price_in, spec.price_out)
-            cost = meta.n_rounds * (tokens_in * price_in + out * price_out) / 1e6
+            cost = calls_per_firm * (tokens_in * price_in + out * price_out) / 1e6
             by_model[alias] = by_model.get(alias, 0.0) + cost
     return Estimate(
         n_conditions=len({p.meta.condition_id for p in plan}),
@@ -291,6 +316,8 @@ async def _run_one(
     write_meta(log_dir, meta)
     log: list[BidRow] = []
     stats = ProviderStats()
+    workspace = Workspace(config.get("workspace", {}).get("max_chars", 1000)) if meta.workspace else None
+    channel = Workspace(config.get("channel", {}).get("max_chars", 500)) if meta.channel else None
     bidders: list[Bidder]
     if planned.scripted:
         params = {k: v for k, v in planned.scripted.items() if k != "bidder"}
@@ -312,25 +339,43 @@ async def _run_one(
                 max_output_tokens=llm.get("max_output_tokens", 400),
                 template=template,
                 stats=stats,
+                workspace=workspace,
+                reflection_steps=config.get("workspace", {}).get("reflection_steps", 4),
+                channel=channel,
             )
             for alias in planned.models
         ]
+
+    async def reflect(round_number: int) -> None:
+        # Concurrent, like bids; the workspace lock keeps every read and write whole.
+        await asyncio.gather(*(b.reflect(round_number, slot) for slot, b in enumerate(bidders)))  # type: ignore[attr-defined]
+
+    async def communicate(round_number: int) -> None:
+        # Concurrent, like bids: no firm sees another's message from the same step before sending its own.
+        await asyncio.gather(*(b.communicate(round_number, slot) for slot, b in enumerate(bidders)))  # type: ignore[attr-defined]
+
+    events = workspace.events if workspace else None
+    messages = channel.events if channel else None
+    between = reflect if workspace else communicate if channel else None
     try:
-        await run_session(meta, bidders, log, int(config.get("llm", {}).get("control_round_concurrency", 1)))
+        await run_session(
+            meta, bidders, log, int(config.get("llm", {}).get("control_round_concurrency", 1)), between_rounds=between
+        )
     except BaseException:
         meta.status, meta.finished_at = "failed", _now()
         meta.provider_retries, meta.provider_errors = stats.retries, stats.errors
-        write_session(log_dir, meta, log, _calls(bidders))
+        write_session(log_dir, meta, log, _calls(bidders), events, messages)
         raise
     meta.status, meta.finished_at = "complete", _now()
     meta.provider_retries, meta.provider_errors = stats.retries, stats.errors
-    write_session(log_dir, meta, log, _calls(bidders))
+    write_session(log_dir, meta, log, _calls(bidders), events, messages)
 
 
 def _calls(bidders: list[Bidder]) -> list[CallRow]:
     """Every LLM attempt of a session, ordered by round, firm and attempt."""
     calls = [c for b in bidders for c in getattr(b, "calls", [])]
-    return sorted(calls, key=lambda c: (c.round, c.firm_id, c.phase == "rebid", c.attempt))
+    order = {"bid": 0, "rebid": 1, "reflect": 2, "message": 3}
+    return sorted(calls, key=lambda c: (c.round, c.firm_id, order[c.phase], c.attempt))
 
 
 async def run_plan(
