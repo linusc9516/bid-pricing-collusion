@@ -183,7 +183,7 @@ class LLMBidder:
     async def bid(self, request: BidRequest) -> BidResponse:
         """The model's bid for `request` (None after every retry failed); attempts go to `calls`."""
         store = self.workspace or self.channel
-        notes = await store.notes_before(request.round) if store else ()
+        notes = await store.notes_before(request.round, request.firm_id) if store else ()
         messages = build_messages(
             self.meta, self.log, request, self.reasoning_length, self.max_output_tokens, self.template, notes
         )
@@ -204,7 +204,7 @@ class LLMBidder:
         return BidResponse(bid, len(rows))
 
     async def reflect(self, round_number: int, slot: int) -> None:
-        """The reflection step after `round_number`: read and write the shared workspace; calls go to `calls`."""
+        """The reflection step after `round_number`: read and write the workspace (shared or private); calls go to `calls`."""
         if self.workspace is None:
             raise ValueError("reflection needs a workspace")
         workspace = self.workspace
@@ -248,7 +248,7 @@ class LLMBidder:
         channel = self.channel
         firm_id = self.meta.lineup[slot].firm_id
         # Firms write concurrently, so each sees only messages from earlier rounds, never this round's.
-        earlier = await channel.notes_before(round_number)
+        earlier = await channel.notes_before(round_number, firm_id)
         sent = False
 
         async def handle(name: str, args: dict) -> str:

@@ -117,13 +117,14 @@ def condition_id(
     reveal_costs: bool = False,
     workspace: bool = False,
     channel: bool = False,
+    workspace_shared: bool = True,
 ) -> str:
-    """e.g. `tie-least_wins__info-full__lineup-homog-deepseek__n3`; one-shot controls get `oneshot__`, common-cost draws `__spread<s>`, revealed costs `__costs-public`, workspace sessions `__ws`, channel sessions `__msg`."""
+    """e.g. `tie-least_wins__info-full__lineup-homog-deepseek__n3`; one-shot controls get `oneshot__`, common-cost draws `__spread<s>`, revealed costs `__costs-public`, shared-workspace sessions `__ws`, private-notes sessions `__pn`, channel sessions `__msg`."""
     prefix = "oneshot__" if history_window == 0 else ""
     suffix = (
         (f"__spread{cost_spread:g}" if cost_spread else "")
         + ("__costs-public" if reveal_costs else "")
-        + ("__ws" if workspace else "__msg" if channel else "")
+        + (("__ws" if workspace_shared else "__pn") if workspace else "__msg" if channel else "")
     )
     return f"{prefix}tie-{rule}__info-{info}__lineup-{cell_id}__n{n_bidders}{suffix}"
 
@@ -199,6 +200,7 @@ def plan_sessions(
     combos = [dict(zip(sweep, values, strict=True)) for values in itertools.product(*sweep.values())]
     llm = config.get("llm", {})
     workspace = bool(config.get("workspace", {}).get("enabled", False))
+    workspace_shared = bool(config.get("workspace", {}).get("shared", True))
     channel = bool(config.get("channel", {}).get("enabled", False))
     if workspace and channel:
         raise ValueError("workspace and channel are separate modes; enable at most one")
@@ -218,6 +220,7 @@ def plan_sessions(
             cid = condition_id(
                 cell["id"], auction["tie_break_rule"], session["info_condition"], n, session["history_window"],
                 auction.get("cost_spread", 0.0), auction.get("reveal_costs", False), workspace=workspace, channel=channel,
+                workspace_shared=workspace_shared,
             )
             for k in range(session["n_sessions"]):
                 seed = session["base_seed"] + k
@@ -261,6 +264,7 @@ def plan_sessions(
                     temperature=llm.get("temperature") if any(a and models[a].send_temperature for a in aliases) else None,
                     prompt_version=None if scripted else config.get("prompt", {}).get("version"),
                     workspace=workspace,
+                    workspace_shared=workspace_shared,
                     channel=channel,
                     providers=providers,
                     replay=replay,
@@ -352,7 +356,7 @@ async def _run_one(
     write_meta(log_dir, meta)
     log: list[BidRow] = []
     stats = ProviderStats()
-    workspace = Workspace(config.get("workspace", {}).get("max_chars", 1000)) if meta.workspace else None
+    workspace = Workspace(config.get("workspace", {}).get("max_chars", 1000), meta.workspace_shared) if meta.workspace else None
     channel = Workspace(config.get("channel", {}).get("max_chars", 500)) if meta.channel else None
     bidders: list[Bidder]
     if planned.scripted:

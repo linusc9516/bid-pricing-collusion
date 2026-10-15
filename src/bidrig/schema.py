@@ -56,6 +56,7 @@ class SessionMeta:
     temperature: float | None = None
     prompt_version: str | None = None
     workspace: bool = False  # shared notes workspace with a reflection step after each round but the last
+    workspace_shared: bool = True  # with a workspace: True, every firm reads every note (M2); False, only its own (private notes, M1)
     channel: bool = False  # open message channel with a communication step after each round but the last
     providers: dict[str, dict[str, str]] = field(default_factory=dict)
     replay: dict[str, Any] | None = None  # set when a firm replays recorded bids: {file, level, source_seed, firm_id}; None otherwise

@@ -59,6 +59,7 @@ CHECKS = [
     "leak",
     "rebid_notice",
     "workspace",
+    "private_notes",
     "channel",
 ]
 
@@ -363,7 +364,8 @@ def check_calls(log: SessionLog, report: CheckReport, template: Path = DEFAULT_T
                 else ()
             ),
         )
-        notes = notes_before(log.workspace if meta.workspace else log.messages, call.round)
+        private = meta.workspace and not meta.workspace_shared
+        notes = notes_before(log.workspace if meta.workspace else log.messages, call.round, call.firm_id if private else None)
         expected_user = user_prompt(meta, log.rows, request, notes)
         if user != expected_user:
             report.fail("user_prompt", sid, f"{label}: differs from the rebuild; {_first_difference(user, expected_user)}")
@@ -424,6 +426,30 @@ def check_workspace(log: SessionLog, report: CheckReport) -> None:
             report.fail("workspace", sid, f"event {event.seq}: no reflection call by firm {event.firm_id} after round {event.round}")
 
 
+def check_private_notes(log: SessionLog, report: CheckReport) -> None:
+    """In a private-notes session, every read shows the reader its own notes only, and no prompt holds another firm's note."""
+    meta, sid = log.meta, log.meta.session_id
+    if not meta.workspace or meta.workspace_shared:
+        return
+    report.items["private_notes"] += 1
+    own: Counter[str] = Counter()
+    for event in log.workspace:
+        if event.op == "write":
+            own[event.firm_id] += 1
+        elif event.n_foreign != 0 or event.n_notes != own[event.firm_id]:
+            report.fail("private_notes", sid, f"event {event.seq}: firm {event.firm_id} read {event.n_notes} notes ({event.n_foreign} foreign), it had written {own[event.firm_id]}")
+    writes = [e for e in log.workspace if e.op == "write" and e.text]
+    for call in log.calls:
+        mine = {e.text for e in writes if e.firm_id == call.firm_id}
+        # A foreign note identical to one of the firm's own cannot be told apart from it, so it is not counted.
+        foreign = {e.text for e in writes if e.firm_id != call.firm_id} - mine
+        shown = "\n".join(str(m.get("content") or "") for m in _messages(call))
+        found = [text for text in foreign if text in shown]
+        if found:
+            label = f"round {call.round} firm {call.firm_id} {call.phase} attempt {call.attempt}"
+            report.fail("private_notes", sid, f"{label}: prompt holds {len(found)} note(s) by another firm, e.g. {found[0][:60]!r}")
+
+
 def check_channel(log: SessionLog, report: CheckReport) -> None:
     """Messages are numbered in order, at most one per firm per step, from the lineup's firms, each matched by a communication call."""
     meta, sid = log.meta, log.meta.session_id
@@ -462,5 +488,6 @@ def check_run(logs: list[SessionLog], template: Path = DEFAULT_TEMPLATE, include
         if log.calls or any(entry.model for entry in log.meta.lineup):
             check_calls(log, report, template)
         check_workspace(log, report)
+        check_private_notes(log, report)
         check_channel(log, report)
     return report

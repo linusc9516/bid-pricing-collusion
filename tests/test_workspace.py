@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -18,7 +19,7 @@ from bidrig.llm import LLMSettings, OpenRouterClient, SpendTracker
 from bidrig.prompts import WORKSPACE_PARAGRAPH, system_prompt
 from bidrig.runner import plan_sessions, prepare, run_plan
 from bidrig.schema import read_workspace_events
-from bidrig.workspace import Workspace
+from bidrig.workspace import Workspace, notes_before
 
 CONFIGS = Path(__file__).parents[1] / "configs"
 
@@ -142,3 +143,65 @@ def test_runner_writes_the_workspace_and_the_checks_pass(tmp_path: Path) -> None
     assert [e["op"] for e in events].count("write") == 4
     phases = [c.phase for c in logs[0].calls]
     assert phases.count("bid") == 6 and phases.count("reflect") == 12
+
+
+def test_private_workspace_reads_and_shows_only_the_firms_own_notes() -> None:
+    workspace = Workspace(shared=False)
+
+    async def go() -> tuple[str, list]:
+        await workspace.write("A", 1, "A note")
+        await workspace.write("B", 1, "B note")
+        return await workspace.read("A", 1), await workspace.notes_before(2, "A")
+
+    text, shown = asyncio.run(go())
+    assert "A note" in text and "B note" not in text and [n.text for n in shown] == ["A note"]
+    read = next(e for e in workspace.events if e.op == "read")
+    assert (read.n_notes, read.n_foreign) == (1, 0)
+    assert [n.text for n in notes_before(workspace.events, 2)] == ["A note", "B note"]  # the log keeps both
+
+
+def test_private_notes_never_reach_the_other_firm() -> None:
+    fake = FakeOpenAI(fn=reflecting_model())
+    meta = make_meta(["llm"] * 2, n_rounds=3)
+    meta.workspace, meta.workspace_shared = True, False
+    client = OpenRouterClient(fake, LLMSettings(), SpendTracker(1.0))
+    log: list = []
+    workspace = Workspace(shared=False)
+    bidders = [LLMBidder(SPEC, HOST, client, meta, log, workspace=workspace) for _ in range(2)]
+
+    async def between(round_number: int) -> None:
+        await asyncio.gather(*(b.reflect(round_number, slot) for slot, b in enumerate(bidders)))
+
+    asyncio.run(run_session(meta, bidders, log, between_rounds=between))
+    assert len([e for e in workspace.events if e.op == "write"]) == 4
+    for request in fake.requests:
+        firm = request["messages"][0]["content"].split("Firm ")[1][0]
+        other = "B" if firm == "A" else "A"
+        shown = "\n".join(str(m.get("content") or "") for m in request["messages"])
+        assert f"Firm {other} plans to bid high." not in shown
+    assert system_prompt(meta, "A", "short", 400).endswith(WORKSPACE_PARAGRAPH)  # same prompt as the shared arm
+
+
+def test_runner_private_notes_session_passes_the_checks_and_a_shared_one_would_not(tmp_path: Path) -> None:
+    config, models, _ = prepare(CONFIGS / "workspace_tiny.yaml")
+    config["workspace"] = {**config["workspace"], "shared": False}
+    plan = plan_sessions(config, "private", models)
+    assert all(p.meta.condition_id.endswith("__pn") and not p.meta.workspace_shared for p in plan)
+    route = lambda kw: HOSTS[kw["extra_body"].get("provider", {"only": [None]})["only"][0]]
+    make_fake = lambda: FakeOpenAI(fn=reflecting_model("Cost was 12.34; firm {firm} bids high.", provider=route))
+    result = asyncio.run(run_plan(plan, config, models, tmp_path, make_fake))
+    assert not result.failed
+    logs, _ = load_logs(tmp_path / "private")
+    report = check_run(logs)
+    assert report.passed, report.findings[:3]
+    assert report.items["private_notes"] == 2 and report.items["workspace"] == 2
+    reads = [e for e in read_workspace_events(logs[0].path) if e["op"] == "read"]
+    assert reads and all(e["n_foreign"] == 0 for e in reads)
+
+    shared = prepare(CONFIGS / "workspace_tiny.yaml")[2]
+    asyncio.run(run_plan(shared, config | {"workspace": {**config["workspace"], "shared": True}}, models, tmp_path, make_fake))
+    shared_logs, _ = load_logs(tmp_path / "workspace_tiny")
+    assert check_run(shared_logs).passed
+    relabelled = [replace(log, meta=replace(log.meta, workspace_shared=False)) for log in shared_logs]
+    failures = check_run(relabelled).failures("private_notes")
+    assert any("foreign" in f.detail for f in failures) and any("by another firm" in f.detail for f in failures)
