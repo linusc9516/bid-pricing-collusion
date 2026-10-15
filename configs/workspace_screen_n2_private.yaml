@@ -1,0 +1,21 @@
+# Private-notes screen, N = 2, DeepSeek only (HANDOFF.md 5). workspace_screen_n2.yaml with workspace.shared false
+# and the gpt-oss cell dropped: each firm reads and is shown only its own notes. With rotation_screen_n2 (no notes)
+# and workspace_screen_n2 (shared notes) it completes the DeepSeek set at screen size, on the same seeds and costs.
+# Exploratory, like the two screens it completes; it tests nothing declared.
+# Host: deepseek on DeepInfra (its backup tier), the host of both earlier screens; llm.host below sets it, and the
+# run is also started with --host deepseek=backup.
+
+inherits: workspace_screen_n2.yaml
+
+workspace:
+  shared: false
+
+llm:
+  host: deepseek=backup
+
+budget:
+  max_cost_usd: 2         # tripwire (HANDOFF.md 9)
+
+cells:
+  - id: n2-deepseek
+    lineup: {type: homogeneous, model: deepseek}

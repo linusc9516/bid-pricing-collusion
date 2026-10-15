@@ -1,0 +1,41 @@
+# M1, private notes, GPT-6 Luna. Declared in configs/analysis.yaml, section notes_luna (H3: private notes against no
+# channel; H4: shared workspace against private notes), committed before this run. Do not change a setting here
+# without changing that section first, in its own commit, and never after the first session has run.
+# The Luna history cell of baseline_no_channel.yaml plus a reflection step after every round but the last, in which
+# each firm can read and add to its own notes; the other firm never sees them. The only difference from
+# notes_luna_shared.yaml is workspace.shared. Same seeds as the baseline, so each session is paired with the
+# baseline's Luna history session on identical costs. No one-shot control: the notes are themselves memory.
+# Runs in two stages under run id notes_luna (HANDOFF.md 9.1): notes_luna_private_stage1.yaml (seeds 996000 to
+# 996003), then this file, which skips those four and runs 996004 to 996011.
+# Host: gpt-luna on OpenAI (its only pinned host), effort high, no temperature sent.
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 50
+
+session:
+  n_sessions: 12
+  base_seed: 996000       # = baseline_no_channel.yaml
+
+workspace:
+  enabled: true
+  shared: false           # M1: each firm reads and is shown only its own notes
+  max_chars: 1000         # per note; a longer note is cut and the firm is told (as workspace_screen_n2)
+  reflection_steps: 4     # most requests per firm per reflection step (as workspace_screen_n2)
+
+llm:
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    gpt-luna: {effort: high}   # applies to the reflection requests too
+
+budget:
+  max_cost_usd: 7         # tripwire (HANDOFF.md 9)
+  estimate_output_tokens: 4000
+
+cells:
+  - id: luna
+    lineup: {type: homogeneous, model: gpt-luna}

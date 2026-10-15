@@ -1,0 +1,10 @@
+# Stage 1 of notes_luna_shared.yaml (HANDOFF.md 9.1): seeds 996000 to 996003 only, run id notes_luna. Stage 2 runs
+# notes_luna_shared.yaml (12 sessions) under the same run id and skips these four. Committed with the declaration.
+
+inherits: notes_luna_shared.yaml
+
+session:
+  n_sessions: 4           # seeds 996000 to 996003
+
+budget:
+  max_cost_usd: 3         # tripwire for 4 of the 12 sessions

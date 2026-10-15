@@ -1,0 +1,15 @@
+# Smoke test of GPT-6 Luna with the reflection tools (HANDOFF.md 8), shared notes: one 3-round session, two
+# reflection steps per firm, with the settings of notes_luna_shared.yaml. Read the reflect calls in calls.jsonl and
+# workspace.jsonl by hand, and run check_logs.py, before notes_luna_shared_stage1.yaml. Run id smoke_notes_luna.
+
+inherits: notes_luna_shared.yaml
+
+auction:
+  n_rounds: 3
+
+session:
+  n_sessions: 1
+  base_seed: 980000       # = workspace_tiny.yaml; disjoint from the declared seeds
+
+budget:
+  max_cost_usd: 0.5
