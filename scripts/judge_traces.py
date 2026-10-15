@@ -1,15 +1,18 @@
 """CLI: judge the bidders' reasoning traces for coordination reasoning (rubric and method in analysis/trace_judge.py).
 
 Usage: judge_traces.py LOG_DIR [--judge gemini] [--only ID_PART ...] [--sample 12 | --all] [--cap-usd 1.0] [--yes]
+       judge_traces.py LOG_DIR --phase reflect ...     the reflection steps of a shared-workspace run, with the notes rubric
 
 Without --yes it reads the logs, prints the free regex baseline and the planned judge calls with a cost
 estimate, and sends nothing. With --yes it judges, caches every reply in results/<run_id>/trace_judge_cache.jsonl
 (a rerun skips cached calls) and writes trace_judge.csv (one row per call), trace_judge_sessions.csv (one row per
-session) and trace_judge_check.csv (random calls with their quotes, for a hand check).
+session) and trace_judge_check.csv (random calls with their quotes, for a hand check). With --phase reflect the files are
+named notes_judge*.csv and notes_judge_cache.jsonl, and a row is one firm's reflection step after a round.
 """
 
 import argparse
 import asyncio
+import dataclasses
 import json
 import os
 import random
@@ -21,16 +24,17 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from bidrig.analysis.trace_judge import (
-    ADOPTING,
     BASELINE_PATTERNS,
-    LABELS,
-    RUBRIC_VERSION,
+    BID_RUBRIC,
+    NOTES_RUBRIC,
+    Rubric,
     Trace,
     baseline_flags,
     cache_key,
     estimate_cost,
     judge_messages,
     parse_judgement,
+    reflection_traces,
     sample_traces,
     traces_from_calls,
 )
@@ -44,22 +48,34 @@ from bidrig.llm import (
     load_models,
     make_openai_client,
 )
-from bidrig.schema import SESSION_FILE, read_calls, read_meta
+from bidrig.schema import SESSION_FILE, SessionMeta, read_calls
 
 ROOT = Path(__file__).resolve().parents[1]
 JUDGE_MAX_TOKENS = 1300  # nine labels, each with a quote
 
 
-def load_traces(log_dir: Path, only: Sequence[str] = ()) -> tuple[list[Trace], dict[str, dict]]:
-    """Traces of every complete session under `log_dir` (only those whose id contains one of `only`, if given), and each session's condition, control flag and lineup."""
+META_FIELDS = {f.name for f in dataclasses.fields(SessionMeta)}
+
+
+def read_meta_known(path: Path) -> SessionMeta:
+    """session.json with the fields this checkout's schema has; a newer harness's extra fields (workspace, channel) are not needed to judge and are dropped."""
+    data = json.loads((path / SESSION_FILE).read_text())
+    return SessionMeta.from_dict({k: v for k, v in data.items() if k in META_FIELDS})
+
+
+def load_traces(log_dir: Path, only: Sequence[str] = (), phase: str = "bid") -> tuple[list[Trace], dict[str, dict]]:
+    """Traces of every complete session under `log_dir` (only those whose id contains one of `only`, if given), and each session's condition, control flag and lineup.
+
+    `phase` "bid" gives one trace per bid call, "reflect" one per reflection step.
+    """
     traces: list[Trace] = []
     info: dict[str, dict] = {}
     for path in sorted(log_dir.glob(f"*/*/{SESSION_FILE}")):
-        meta = read_meta(path.parent)
+        meta = read_meta_known(path.parent)
         if meta.status != "complete" or (only and not any(part in meta.session_id for part in only)):
             continue
         info[meta.session_id] = {"condition_id": meta.condition_id, "is_control": meta.is_control, "lineup_id": meta.lineup_id, "seed": meta.seed}
-        traces.extend(traces_from_calls(read_calls(path.parent)))
+        traces.extend((reflection_traces if phase == "reflect" else traces_from_calls)(read_calls(path.parent)))
     return traces, info
 
 
@@ -73,7 +89,7 @@ def baseline_table(traces: list[Trace], info: dict[str, dict]) -> pd.DataFrame:
     return frame.groupby(["lineup", "arm"]).agg(traces=("any", "size"), **{k: (k, "mean") for k in [*BASELINE_PATTERNS, "any"]}).round(3)
 
 
-async def judge_all(client: OpenRouterClient, spec, traces: list[Trace], workers: int, cache: dict[str, dict], cache_path: Path) -> None:
+async def judge_all(client: OpenRouterClient, spec, traces: list[Trace], workers: int, cache: dict[str, dict], cache_path: Path, rubric: Rubric = BID_RUBRIC) -> None:
     """Judge every trace missing from `cache`, appending each reply to the cache file as it arrives."""
     gate = asyncio.Semaphore(workers)
     stats = ProviderStats()
@@ -82,10 +98,10 @@ async def judge_all(client: OpenRouterClient, spec, traces: list[Trace], workers
     lock = asyncio.Lock()
 
     async def one(trace: Trace) -> None:
-        key = cache_key(spec.alias, trace)
+        key = cache_key(spec.alias, trace, rubric.version)
         async with gate:
             client.spend.check()
-            kwargs = client.request_kwargs(spec, host, judge_messages(trace), 0, 100.0)
+            kwargs = client.request_kwargs(spec, host, judge_messages(trace, rubric), 0, 100.0)
             kwargs.pop("tools"), kwargs.pop("tool_choice")
             kwargs.update(temperature=0.0, max_tokens=JUDGE_MAX_TOKENS)
             response, _ = await client._create(kwargs, spec.alias, stats, f"{trace.session_id} r{trace.round} {trace.firm_id}")
@@ -98,7 +114,7 @@ async def judge_all(client: OpenRouterClient, spec, traces: list[Trace], workers
             with cache_path.open("a") as handle:
                 handle.write(json.dumps(record) + "\n")
 
-    results = await asyncio.gather(*(one(t) for t in traces if cache_key(spec.alias, t) not in cache), return_exceptions=True)
+    results = await asyncio.gather(*(one(t) for t in traces if cache_key(spec.alias, t, rubric.version) not in cache), return_exceptions=True)
     failures = [r for r in results if isinstance(r, Exception)]
     for failure in failures:
         if isinstance(failure, BudgetExceeded):
@@ -122,6 +138,7 @@ def main() -> int:
     parser.add_argument("--cap-usd", type=float, default=1.0, help="stop when spend reaches this")
     parser.add_argument("--check", type=int, default=30, help="random judged calls written for a hand check")
     parser.add_argument("--results-dir", type=Path, default=ROOT / "results")
+    parser.add_argument("--phase", choices=["bid", "reflect"], default="bid", help="bid calls (default), or the reflection steps of a workspace run")
     parser.add_argument("--yes", action="store_true", help="actually call the API")
     args = parser.parse_args()
 
@@ -129,7 +146,8 @@ def main() -> int:
     run_id = log_dir.name
     out = args.results_dir / run_id
     out.mkdir(parents=True, exist_ok=True)
-    all_traces, info = load_traces(log_dir, args.only)
+    rubric, stem = (NOTES_RUBRIC, "notes_judge") if args.phase == "reflect" else (BID_RUBRIC, "trace_judge")
+    all_traces, info = load_traces(log_dir, args.only, args.phase)
     if not all_traces:
         print(f"no traces under {log_dir} (complete sessions with a reasoning or thinking text)", file=sys.stderr)
         return 1
@@ -149,16 +167,16 @@ def main() -> int:
         print("WARNING: the judge is one of the bidder models; prefer another family", file=sys.stderr)
 
     baseline = baseline_table(all_traces, info)
-    baseline.to_csv(out / "trace_baseline.csv")
+    baseline.to_csv(out / ("notes_baseline.csv" if args.phase == "reflect" else "trace_baseline.csv"))
     print("\nregex baseline: share of traces matching each phrase family (broad; overcounts)\n")
     print(baseline.to_string())
 
-    cache_path = out / "trace_judge_cache.jsonl"
+    cache_path = out / f"{stem}_cache.jsonl"
     cache: dict[str, dict] = {}
     if cache_path.exists():
         cache = {r["key"]: r for r in map(json.loads, filter(None, cache_path.read_text().splitlines()))}
-    todo = [t for t in traces if cache_key(spec.alias, t) not in cache]
-    print(f"\nrubric {RUBRIC_VERSION}: {len(todo)} calls to send ({len(traces) - len(todo)} cached), estimated ${estimate_cost(todo, price_in, price_out):.2f} at listed prices, cap ${args.cap_usd:.2f}")
+    todo = [t for t in traces if cache_key(spec.alias, t, rubric.version) not in cache]
+    print(f"\nrubric {rubric.version}: {len(todo)} calls to send ({len(traces) - len(todo)} cached), estimated ${estimate_cost(todo, price_in, price_out, rubric=rubric):.2f} at listed prices, cap ${args.cap_usd:.2f}")
     if not args.yes:
         print("Nothing sent; rerun with --yes to call the API.")
         return 0
@@ -170,37 +188,37 @@ def main() -> int:
         return 1
     settings = LLMSettings(temperature=0.0, max_output_tokens=JUDGE_MAX_TOKENS, request_timeout_s=120.0)
     client = OpenRouterClient(make_openai_client(key, os.environ.get("OPENROUTER_BASE_URL") or None, timeout=settings.request_timeout_s), settings, SpendTracker(args.cap_usd))
-    asyncio.run(judge_all(client, spec, todo, args.workers, cache, cache_path))
+    asyncio.run(judge_all(client, spec, todo, args.workers, cache, cache_path, rubric))
     print(f"spent about ${client.spend.spent_usd:.3f}")
 
     rows = []
     for t in traces:
-        record = cache.get(cache_key(spec.alias, t))
+        record = cache.get(cache_key(spec.alias, t, rubric.version))
         if record is None:
             continue
-        judged = parse_judgement(record["reply"], t.text)
+        judged = parse_judgement(record["reply"], t.text, rubric.labels)
         rows.append({"session_id": t.session_id, "round": t.round, "firm_id": t.firm_id, "model": t.model, **info[t.session_id], **judged,
-                     "adopting": any(judged[name] for name in ADOPTING), "trace_chars": len(t.text)})
+                     "adopting": any(judged[name] for name in rubric.adopting), "trace_chars": len(t.text)})
     frame = pd.DataFrame(rows)
-    frame.drop(columns=["claimed"]).to_csv(out / "trace_judge.csv", index=False)
+    frame.drop(columns=["claimed"]).to_csv(out / f"{stem}.csv", index=False)
     frame["claimed_n"] = frame["claimed"].map(len)
 
     per = frame.groupby(["session_id", "condition_id", "lineup_id", "is_control", "seed"]).agg(
         judged=("round", "size"), parse_ok=("parse_ok", "mean"), quote_ok=("quote_ok", "mean"), adopting=("adopting", "mean"),
-        **{name: (name, "mean") for name in LABELS},
+        **{name: (name, "mean") for name in rubric.labels},
     ).reset_index()
     metrics = args.results_dir / run_id / "session_metrics.csv"
     if metrics.exists():
         m = pd.read_csv(metrics)[["session_id", "collusion_index", "delta_index"]]
         per = per.merge(m, on="session_id", how="left")
-    per.round(3).to_csv(out / "trace_judge_sessions.csv", index=False)
-    frame.sample(min(args.check, len(frame)), random_state=0)[["session_id", "round", "firm_id", *[f"{n}_quote" for n in LABELS], "claimed_n"]].to_csv(out / "trace_judge_check.csv", index=False)
+    per.round(3).to_csv(out / f"{stem}_sessions.csv", index=False)
+    frame.sample(min(args.check, len(frame)), random_state=0)[["session_id", "round", "firm_id", *[f"{n}_quote" for n in rubric.labels], "claimed_n"]].to_csv(out / f"{stem}_check.csv", index=False)
 
     print(f"\nparsed {frame['parse_ok'].mean():.1%} of replies; claimed labels with a verbatim quote {frame['quote_ok'].mean():.1%}")
-    summary = frame.assign(arm=frame["is_control"].map({True: "control", False: "repeated"})).groupby(["lineup_id", "arm"])[[*LABELS, "adopting"]].mean().round(3)
-    print("\nshare of judged calls with each label (adopting = adopts_coordination or punish_reward)\n")
+    summary = frame.assign(arm=frame["is_control"].map({True: "control", False: "repeated"})).groupby(["lineup_id", "arm"])[[*rubric.labels, "adopting"]].mean().round(3)
+    print(f"\nshare of judged calls with each label (adopting = {' or '.join(rubric.adopting)})\n")
     print(summary.to_string())
-    print(f"\nwrote trace_judge.csv, trace_judge_sessions.csv, trace_judge_check.csv, trace_baseline.csv to {out}")
+    print(f"\nwrote {stem}.csv, {stem}_sessions.csv, {stem}_check.csv and the regex baseline to {out}")
     return 0
 
 

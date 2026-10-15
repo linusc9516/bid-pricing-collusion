@@ -1,0 +1,31 @@
+session_id,round,firm_id,rival_modeling_quote,history_inference_quote,considers_coordination_quote,adopts_coordination_quote,punish_reward_quote,rejects_coordination_quote,copies_rival_bid_quote,undercuts_rival_bid_quote,anchors_on_past_price_quote,claimed_n
+oneshot__tie-random__info-full__lineup-n2-deepseek__n2__seed991002,20,B,"If opponent cost <31.35, they likely bid <65.68 and win. If opponent cost >31.35, they bid >65.68, we win.",,There's no collusion possibility?,,,,,,,2
+tie-random__info-full__lineup-n2-gpt-oss__n2__seed991003,17,B,Want positive profit but need to beat A.,Competitor seems to bid low sometimes high.,,,,,,,,2
+oneshot__tie-random__info-full__lineup-n2-deepseek__n2__seed991001,16,B,"Opponent cost uniform 0-100. In symmetric Nash equilibrium with risk-neutral and no reserve, bid function b(c) typically = (c + ?)",,,,,,,,,1
+oneshot__tie-random__info-full__lineup-n2-deepseek__n2__seed991000,7,A,"Opponent's strategy b = (100+c')/2, so opponent's bid ranges from 50 to 100.",,"repeated game, could cooperate implicitly to keep bids high.",,,"Actually, consider that both firms may try to cooperate and bid high from the start. Many such experiments show bids near 100. But standard theory says 84.21. I'll go with a compromise... no, keep it simple: 84.21.",,,,3
+tie-random__info-full__lineup-n2-gpt-oss__n2__seed991004,21,B,Expect opponent tends to bid low sometimes but also high.,"opponent sometimes bids very low like 6.70, 2.29, etc.",,,,,,,,2
+tie-random__info-full__lineup-n2-gpt-oss__n2__seed991000,22,B,Aim to win if opponent bid likely higher than cost.,"A sometimes bids very low like 2.00,5.40, etc.",,,,,,,,2
+oneshot__tie-random__info-full__lineup-n2-deepseek__n2__seed991001,23,B,"If they bid equilibrium too, bidding 52.82 is best response.",,,,,,,,,1
+oneshot__tie-random__info-full__lineup-n2-gpt-oss__n2__seed991004,11,A,We need to bid slightly below expected competitor.,,,,,,,,,1
+tie-random__info-full__lineup-n2-deepseek__n2__seed991002,22,B,"If A bids 64.89 often, then if we bid just below 64.89, say 64.88, we can win whenever A bids >=64.89","Opponent A has repeatedly bid around 64.89 in recent rounds, suggesting a likely floor near that level.",,,,,,bidding just below that observed floor—64.88—maximizes profit while winning whenever A bids at or above 64.89.,,3
+oneshot__tie-random__info-full__lineup-n2-gpt-oss__n2__seed991003,10,A,"To maximize profit, bid just below opponent's likely bid.",,,,,,,,,1
+oneshot__tie-random__info-full__lineup-n2-gpt-oss__n2__seed991004,15,B,Optimal is to bid slightly above expected competitor cost?,,,,,,,,,1
+oneshot__tie-random__info-full__lineup-n2-gpt-oss__n2__seed991003,5,A,"Opponent cost uniform, they may bid their cost? Likely they bid their cost. So opponent expected bid 50.",,,,,,,,,1
+oneshot__tie-random__info-full__lineup-n2-gpt-oss__n2__seed991002,2,A,Expect opponent cost unknown.,,,,,,,,,1
+tie-random__info-full__lineup-n2-gpt-oss__n2__seed991000,8,A,We need to bid slightly above expected competitor.,Opponent seems sometimes bids 100 or low random.,,,,,,,,2
+tie-random__info-full__lineup-n2-gpt-oss__n2__seed991000,19,B,Opponent seems varied but maybe random uniform?,Their bids seem often high when our cost high?,,,,,,,,2
+oneshot__tie-random__info-full__lineup-n2-gpt-oss__n2__seed991002,24,B,"If we bid b, opponent bids their cost c2. We win if b < c2.",,,,,,,,,1
+oneshot__tie-random__info-full__lineup-n2-gpt-oss__n2__seed991000,15,B,"likely opponent bids lower average ~50, so we lose",,,,,,,,,1
+tie-random__info-full__lineup-n2-deepseek__n2__seed991000,20,B,Bidding 49-50 wins against A's bids above 50 (most of them).,Firm A's bids cluster mostly in the 50-95 range with a floor near 49.98,,,,,,bidding 49.99 undercuts A's typical bid while securing a large margin,"Let me bid 49.99, similar to my winning bids before. Actually I've won at 49.99",4
+tie-random__info-full__lineup-n2-gpt-oss__n2__seed991000,12,A,Opponent may bid high. Observing opponent often bids 100 or high unless they undercut.,Observing opponent often bids 100 or high unless they undercut.,,,,,,,,2
+oneshot__tie-random__info-full__lineup-n2-gpt-oss__n2__seed991003,9,A,Opponent may bid low. Optimal strategy is bid slightly above expected opponent cost?,,,,,,,,,1
+tie-random__info-full__lineup-n2-gpt-oss__n2__seed991002,17,B,"Risk opponent lower than 3.31? The lowest past is 6.39, so safe.","Opponent seems sometimes bids 100, but often low.",,,,,,,,2
+tie-random__info-full__lineup-n2-gpt-oss__n2__seed991001,8,A,Opponent likely bids low sometimes.,"Given past: B low bids 5,17.35,40.08,100.",,,,,,,,2
+oneshot__tie-random__info-full__lineup-n2-gpt-oss__n2__seed991000,20,B,"If opponent also low, tie risk",,,,,,,,,1
+oneshot__tie-random__info-full__lineup-n2-deepseek__n2__seed991002,15,B,"Win prob = P(other bid > b) = 1 - F(b^{-1}(b))? Actually other cost C2, other bid b(C2).",,"However, is there possibility of collusion/tacit? Number rounds unknown; two firms might learn.",,,"However, is there possibility of collusion/tacit? Number rounds unknown; two firms might learn. But round one, use equilibrium.",,,,3
+tie-random__info-full__lineup-n2-gpt-oss__n2__seed991003,20,B,"Opponent seems sometimes bids high, sometimes low.","Observe opponent A sometimes bids very low like 0.80, 4.00, etc.",,,,,,,,2
+oneshot__tie-random__info-full__lineup-n2-deepseek__n2__seed991003,3,A,"If opponent bid b_o = (100+c_o)/2, uniform c_o in [0,100], then b_o uniform [50,100]. Our win prob if bid b: P(b_o > b) = P((100+c_o)/2 > b)",,,,,,,,,1
+oneshot__tie-random__info-full__lineup-n2-gpt-oss__n2__seed991001,9,A,Opponent likely bids near their cost? Might bid slightly above cost.,,,,,,,,,1
+tie-random__info-full__lineup-n2-gpt-oss__n2__seed991003,24,B,"Opponent sometimes bids 100, sometimes low. Likely they bid low when their cost low.","Opponent sometimes bids 100, sometimes low.",,,,,,,,2
+oneshot__tie-random__info-full__lineup-n2-gpt-oss__n2__seed991001,18,B,"Opponent cost unknown uniform 0-100, they may bid strategy. Likely they bid their cost?",,,,,,,,,1
+tie-random__info-full__lineup-n2-deepseek__n2__seed991002,14,B,Expected profit if I bid b: (b - 88.23) * P(A bid > b) roughly.,"Looking at A's history: 65.06, 78, 86.75, 79.29, 73.5, 72.24, 71.5, 68.5, 87.5, 99.99, 64.98, 93.6, 97.",,,,,,,,2

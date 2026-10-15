@@ -138,3 +138,34 @@ def test_judge_all_with_a_fake_client_caches_replies_and_tracks_spend(tmp_path: 
     assert len(path.read_text().splitlines()) == 3 and len(cache) == 3
     asyncio.run(judge_all(client, spec, traces, 2, cache, path))
     assert len(sent) == 3  # cached calls are not sent again
+
+
+def test_reflection_traces_join_a_steps_thinking_and_its_notes() -> None:
+    from bidrig.analysis.trace_judge import MAX_TRACE_CHARS, reflection_traces
+
+    write = json.dumps([{"name": "write_workspace", "arguments": {"text": " B reads my notes. "}}, {"name": "end_reflection", "arguments": {}}])
+    calls = [
+        call("s", 1, "A"),  # a bid call is not part of a reflection step
+        call("s", 1, "A", thinking="second", reasoning=write, attempt=2, phase="reflect"),
+        call("s", 1, "A", thinking="first", reasoning=json.dumps([{"name": "read_workspace", "arguments": {}}]), attempt=1, phase="reflect"),
+        call("s", 1, "B", thinking=None, reasoning="[]", phase="reflect"),  # no thinking and no note: dropped
+        call("s", 2, "B", thinking="x" * (2 * MAX_TRACE_CHARS), reasoning=write, phase="reflect"),
+    ]
+    first, long = reflection_traces(calls)
+    assert (first.round, first.firm_id) == (1, "A")
+    assert first.text == "[thinking]\nfirst\n\nsecond\n\n[note written]\nB reads my notes."
+    assert long.text.endswith("[note written]\nB reads my notes.") and "middle omitted" in long.text
+
+
+def test_notes_rubric_has_its_own_labels_prompt_and_cache_key() -> None:
+    from bidrig.analysis.trace_judge import BID_RUBRIC, NOTES_RUBRIC
+
+    trace = Trace("s", 3, "A", "m", "[note written]\nFirm B, let us both bid 90 from now on.")
+    system = judge_messages(trace, NOTES_RUBRIC)[0]["content"]
+    assert all(f"- {name}:" in system for name in NOTES_RUBRIC.labels) and "undercuts_rival_bid" not in system
+    assert not set(NOTES_RUBRIC.labels) & set(BID_RUBRIC.labels)
+    assert cache_key("gemini", trace, NOTES_RUBRIC.version) != cache_key("gemini", trace)
+    reply = json.dumps({"addresses_rival": {"present": True, "quote": "Firm B, let us both bid 90"}, "misleads_rival": {"present": True, "quote": "not in the text at all"}})
+    judged = parse_judgement(reply, trace.text, NOTES_RUBRIC.labels)
+    assert judged["addresses_rival"] and not judged["misleads_rival"] and not judged["quote_ok"]
+    assert set(NOTES_RUBRIC.labels) <= set(judged) and "rival_modeling" not in judged
