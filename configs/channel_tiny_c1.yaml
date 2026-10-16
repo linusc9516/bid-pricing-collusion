@@ -1,0 +1,15 @@
+# Smoke test of the open channel with GPT-6 Luna and DeepSeek: one 3-round session per model, two communication steps
+# per firm, with the settings of channel_c1.yaml. Read the message calls in calls.jsonl and messages.jsonl by hand, and
+# run check_logs.py, before channel_c1.yaml. Run id smoke_channel_c1.
+
+inherits: channel_c1.yaml
+
+auction:
+  n_rounds: 3
+
+session:
+  n_sessions: 1
+  base_seed: 980000       # disjoint from the declared seeds
+
+budget:
+  max_cost_usd: 0.5

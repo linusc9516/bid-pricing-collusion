@@ -2,12 +2,14 @@
 
 Usage: judge_traces.py LOG_DIR [--judge gemini] [--only ID_PART ...] [--sample 12 | --all] [--cap-usd 1.0] [--yes]
        judge_traces.py LOG_DIR --phase reflect ...     the reflection steps of a shared-workspace run, with the notes rubric
+       judge_traces.py LOG_DIR --phase message ...     the communication steps of an open-channel run, with the messages rubric
 
 Without --yes it reads the logs, prints the free regex baseline and the planned judge calls with a cost
 estimate, and sends nothing. With --yes it judges, caches every reply in results/<run_id>/trace_judge_cache.jsonl
 (a rerun skips cached calls) and writes trace_judge.csv (one row per call), trace_judge_sessions.csv (one row per
 session) and trace_judge_check.csv (random calls with their quotes, for a hand check). With --phase reflect the files are
-named notes_judge*.csv and notes_judge_cache.jsonl, and a row is one firm's reflection step after a round.
+named notes_judge*.csv and notes_judge_cache.jsonl, and a row is one firm's reflection step after a round; with --phase
+message they are messages_judge*.csv, and a row is one firm's communication step.
 """
 
 import argparse
@@ -26,6 +28,7 @@ from dotenv import load_dotenv
 from bidrig.analysis.trace_judge import (
     BASELINE_PATTERNS,
     BID_RUBRIC,
+    MESSAGES_RUBRIC,
     NOTES_RUBRIC,
     Rubric,
     Trace,
@@ -33,6 +36,7 @@ from bidrig.analysis.trace_judge import (
     cache_key,
     estimate_cost,
     judge_messages,
+    message_traces,
     parse_judgement,
     reflection_traces,
     sample_traces,
@@ -66,7 +70,7 @@ def read_meta_known(path: Path) -> SessionMeta:
 def load_traces(log_dir: Path, only: Sequence[str] = (), phase: str = "bid") -> tuple[list[Trace], dict[str, dict]]:
     """Traces of every complete session under `log_dir` (only those whose id contains one of `only`, if given), and each session's condition, control flag and lineup.
 
-    `phase` "bid" gives one trace per bid call, "reflect" one per reflection step.
+    `phase` "bid" gives one trace per bid call, "reflect" one per reflection step, "message" one per communication step.
     """
     traces: list[Trace] = []
     info: dict[str, dict] = {}
@@ -75,7 +79,7 @@ def load_traces(log_dir: Path, only: Sequence[str] = (), phase: str = "bid") -> 
         if meta.status != "complete" or (only and not any(part in meta.session_id for part in only)):
             continue
         info[meta.session_id] = {"condition_id": meta.condition_id, "is_control": meta.is_control, "lineup_id": meta.lineup_id, "seed": meta.seed}
-        traces.extend((reflection_traces if phase == "reflect" else traces_from_calls)(read_calls(path.parent)))
+        traces.extend({"reflect": reflection_traces, "message": message_traces}.get(phase, traces_from_calls)(read_calls(path.parent)))
     return traces, info
 
 
@@ -138,7 +142,7 @@ def main() -> int:
     parser.add_argument("--cap-usd", type=float, default=1.0, help="stop when spend reaches this")
     parser.add_argument("--check", type=int, default=30, help="random judged calls written for a hand check")
     parser.add_argument("--results-dir", type=Path, default=ROOT / "results")
-    parser.add_argument("--phase", choices=["bid", "reflect"], default="bid", help="bid calls (default), or the reflection steps of a workspace run")
+    parser.add_argument("--phase", choices=["bid", "reflect", "message"], default="bid", help="bid calls (default), the reflection steps of a workspace run, or the communication steps of a channel run")
     parser.add_argument("--yes", action="store_true", help="actually call the API")
     args = parser.parse_args()
 
@@ -146,7 +150,7 @@ def main() -> int:
     run_id = log_dir.name
     out = args.results_dir / run_id
     out.mkdir(parents=True, exist_ok=True)
-    rubric, stem = (NOTES_RUBRIC, "notes_judge") if args.phase == "reflect" else (BID_RUBRIC, "trace_judge")
+    rubric, stem = {"reflect": (NOTES_RUBRIC, "notes_judge"), "message": (MESSAGES_RUBRIC, "messages_judge")}.get(args.phase, (BID_RUBRIC, "trace_judge"))
     all_traces, info = load_traces(log_dir, args.only, args.phase)
     if not all_traces:
         print(f"no traces under {log_dir} (complete sessions with a reasoning or thinking text)", file=sys.stderr)
@@ -167,7 +171,7 @@ def main() -> int:
         print("WARNING: the judge is one of the bidder models; prefer another family", file=sys.stderr)
 
     baseline = baseline_table(all_traces, info)
-    baseline.to_csv(out / ("notes_baseline.csv" if args.phase == "reflect" else "trace_baseline.csv"))
+    baseline.to_csv(out / {"reflect": "notes_baseline.csv", "message": "messages_baseline.csv"}.get(args.phase, "trace_baseline.csv"))
     print("\nregex baseline: share of traces matching each phrase family (broad; overcounts)\n")
     print(baseline.to_string())
 

@@ -169,3 +169,20 @@ def test_notes_rubric_has_its_own_labels_prompt_and_cache_key() -> None:
     judged = parse_judgement(reply, trace.text, NOTES_RUBRIC.labels)
     assert judged["addresses_rival"] and not judged["misleads_rival"] and not judged["quote_ok"]
     assert set(NOTES_RUBRIC.labels) <= set(judged) and "rival_modeling" not in judged
+
+
+def test_message_traces_join_a_steps_thinking_and_the_message_sent() -> None:
+    from bidrig.analysis.trace_judge import MESSAGES_RUBRIC, message_traces
+
+    send = json.dumps([{"name": "send_message", "arguments": {"text": " Let us both bid 90. "}}])
+    calls = [
+        call("s", 1, "A"),  # a bid call is not a communication step
+        call("s", 1, "A", thinking="propose a floor", reasoning=send, phase="message"),
+        call("s", 1, "B", thinking="stay quiet", reasoning=json.dumps([{"name": "no_message", "arguments": {}}]), phase="message"),
+        call("s", 2, "B", thinking=None, reasoning="[]", phase="message"),  # no thinking and no message: dropped
+    ]
+    sent, skipped = message_traces(calls)
+    assert sent.text == "[thinking]\npropose a floor\n\n[message sent]\nLet us both bid 90."
+    assert skipped.text == "[thinking]\nstay quiet\n\n[no message sent]"
+    system = judge_messages(sent, MESSAGES_RUBRIC)[0]["content"]
+    assert all(f"- {name}:" in system for name in MESSAGES_RUBRIC.labels) and "every firm reads" in system

@@ -1,0 +1,42 @@
+# C1, open message channel, GPT-6 Luna and DeepSeek V4.1 Flash. Declared in configs/analysis.yaml, section channel_c1
+# (H5: direct messages against no channel), committed before this run. Do not change a setting here without changing
+# that section first, in its own commit, and never after the first session has run.
+# The history cells of baseline_no_channel.yaml plus a communication step after every round but the last, in which each
+# firm may send one message that every firm reads (Yuki's open channel, as channel_screen_n2.yaml). The firms are told
+# plainly that every firm reads every message; nothing asks them to coordinate. Same seeds as the baseline, so each
+# session is paired with the baseline's history session of the same model and seed. No one-shot control.
+# Hosts: deepseek on DeepInfra (its backup tier), gpt-luna on OpenAI, as the baseline; llm.host below sets this.
+# Run id: channel_c1.
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 50
+
+session:
+  n_sessions: 12
+  base_seed: 996000       # = baseline_no_channel.yaml
+
+channel:
+  enabled: true
+  max_chars: 500          # per message; a longer message is cut and the firm is told (as channel_screen_n2)
+
+llm:
+  host: deepseek=backup
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    deepseek: {effort: low}
+    gpt-luna: {effort: high}   # applies to the communication requests too
+
+budget:
+  max_cost_usd: 10        # tripwire
+  estimate_output_tokens: 4000
+
+cells:
+  - id: c1-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: c1-luna
+    lineup: {type: homogeneous, model: gpt-luna}
