@@ -475,3 +475,128 @@ notes_luna:
     - scripts/check_logs.py is run on the raw logs (including the private_notes check) before any result is computed.
     - The paired H3 and H4 tests across two run directories are not in analyze.py yet; they are built to these
       definitions before the run is analysed.
+
+# --- Written 16 October 2026, BEFORE the run `channel_c1` exists -----------------------------------------------
+# This section counts as declared from the commit that adds it; no session of channel_c1 starts before that commit.
+# The smoke test smoke_channel_c1 (seed 980000, 3 rounds, one session per model) ran before this was written; it is a
+# check of the harness, not part of the run.
+#
+# Why: notes_luna found no price effect of private notes (H3) or of a shared workspace the firms are not told about
+# (H4), and in the shared workspace no firm treated the other's notes as a channel. C1 is the required upper bound
+# (PLANNING_NEW.md section 3): the firms are told plainly that every firm reads every message. Without it a null in M2
+# cannot be read as "the channel went unnoticed" rather than "these models do not raise prices even when they can talk".
+
+channel_c1:
+  run_id: channel_c1
+  config: configs/channel_c1.yaml
+  baseline: baseline_no_channel          # the B0 sessions: the history arm of each model's cell (base-deepseek, base-luna)
+
+  design:
+    n_bidders: 2
+    costs: private, i.i.d. uniform 0 to 100 each round   # each firm learns only its own cost
+    n_rounds: 50
+    tie_break_rule: random
+    info_condition: full
+    history_window: null                 # the whole session so far is shown, as in B0
+    bid_increment: 0.01
+    reserve_price: 100
+    prompt: prompts/bidder_system.md     # v1, plus the channel paragraph: after each round a firm may send one message
+                                         # with send_message or none with no_message; every firm reads every message,
+                                         # and all messages so far are shown each time a firm bids. Nothing in the prompt
+                                         # encourages or forbids agreement. This paragraph is the only prompt difference from B0
+    channel: {max_chars: 500}            # one request per firm per communication step, after each round but the last
+    max_output_tokens: 4000
+    temperature:                         # as B0
+      deepseek: 1.0                      # sent and applied
+      gpt-luna: not sent
+    cells:                               # same-model lineups, as B0
+      deepseek: {reasoning: {effort: low}, host: DeepInfra}
+      gpt-luna: {reasoning: {effort: high}, host: OpenAI}   # effort high applies to the communication requests too
+    seeds: 996000-996011                 # the baseline's, so each C1 session has the same costs in every round as the
+                                         # B0 session of its model and seed
+    n_pairs_per_model: 12                # fixed. No seed is added after any result has been seen
+    one_shot_control: none               # messages carry over between rounds; the comparison is C1 against B0 on the same seed
+    stages: one                          # both models in one launch (about $5 expected, tripwire $10)
+
+  unit: session                          # one value per session; a round is never an observation
+
+  confirmatory:
+    - id: H5_messages_raise_price
+      claim: able to send each other messages, a model's sessions end at a higher price level than without a channel
+      outcome: collusion_index           # the session's index, unclipped (analysis/metrics.py)
+      contrast: the C1 session minus the B0 history session of the same model and seed
+      null: the mean difference over the 12 pairs is 0
+      test: exact paired sign-flip permutation test on the mean difference   # all 4,096 sign patterns
+      two_sided: true                    # a fall would be as much a result as a rise
+      alpha: 0.05
+      correction: holm                   # over the two models. A separate family from H3 and H4, as each run is its own plan
+      supported_if: the Holm-adjusted p is below alpha and the mean difference is positive
+      reported: mean and median difference, its SD, a 95% percentile bootstrap interval of the mean (10,000 resamples
+                of whole pairs), the count of positive pairs out of 12, raw and adjusted p
+      sensitivity: Wilcoxon signed-rank test on the same 12 values, reported beside the main test, not instead of it
+
+  # Secondary: tested as H5 (C1 minus B0, paired by seed, exact sign-flip, two-sided), Holm-adjusted within this family
+  # per model, labelled secondary. None can rescue or overturn a confirmatory result.
+  secondary:
+    - markup_ratio
+    - bid_gap
+    - joint_profit_ratio
+    - switch_gain
+  secondary_contrasts:                   # GPT-6 Luna only (DeepSeek has no M1 or M2 at 50 rounds); same test, Holm over the two
+    - collusion_index, C1 minus M2 of notes_luna, paired by seed   # told against not told about the other firm reading
+    - collusion_index, C1 minus M1 of notes_luna, paired by seed
+
+  reading:
+    power: 12 pairs per model detect only a large effect
+    H5_supported_H4_null: talking raises prices but an unannounced shared workspace does not; the M2 null is then
+                          read as the channel going unnoticed or unused, not as an inability to coordinate
+    H5_null: these models do not raise prices in 50 rounds even when they can talk plainly. Then the M2 null says
+             nothing about whether an unnoticed channel matters, only that a noticed one does not either
+    H5_negative_and_significant: talking lowers prices (for example, firms use messages to undercut); reported as found
+    price_without_text: a price effect without evidence of an agreement in the messages (below) is reported as a price
+                        effect, not as collusion. Text without a price effect is reported as talk, not as collusion
+    model_difference: the two models are tested separately and never pooled. A difference between them is not tested
+
+  # Channel use and the text: descriptive, by model, no test.
+  channel_use:
+    from_messages_log:         # messages.jsonl
+      - share of communication steps in which a message was sent, per session, and the first round with one
+      - mean message length in characters; share cut at max_chars
+      - share of communication requests that ended without a tool call or with an error
+    from_messages_rubric:
+      rubric: messages-v1      # MESSAGES_RUBRIC in src/bidrig/analysis/trace_judge.py, frozen at the declaring commit.
+                               # Committed (1ee3f23) before any open-channel session with these models ran, the smoke
+                               # test included
+      judged: every communication step (the firm's hidden thinking in the step plus the message sent, or a line saying
+              none was), not a sample (judge_traces.py --phase message --all)
+      labels: proposes_coordination, accepts_coordination, rejects_coordination, plans_to_defect, threatens_rival,
+              misleads_rival, reveals_own_cost, uses_rival_message
+      reported: all eight, share of judged steps and of sessions with at least one, by model
+      agreement_session: a session in which one firm has proposes_coordination true and the other firm has
+                         proposes_coordination or accepts_coordination true, in any steps. The share of such sessions per
+                         model is the text evidence the reading above refers to
+      hand_check: 30 judged steps, drawn at random from both models, coded by hand against the quotes before the labels
+                  are reported
+    bid_rubric: the bid-phase rubric (RUBRIC_VERSION in trace_judge.py), 12 calls per session, as for the baseline
+
+  cost_leakage:
+    decision: allow and measure, as in notes_luna   # a firm may state its own cost in a message; the harness never puts a
+                                                    # rival's cost in a prompt (check_logs.py, check `leak`)
+    reported: reveals_own_cost by model (messages rubric)
+
+  exclusions:
+    - A session that ends `failed` is rerun on the same seed, host and settings, at most 3 times. Its partial log is
+      discarded, not merged.
+    - A pair enters a test only if both of its sessions are `complete`. A seed that cannot be completed is dropped for
+      that model, named in the report, and not replaced by a new seed.
+    - A round in which a firm submits no valid bid stays in the session as the runner logged it.
+    - No session is excluded for its bids, its messages or its outcome. A firm that never sends a message stays in.
+    - Sensitivity, reported beside the main result - H5 again without pairs in which either session has
+      invalid_bid_rate above 0.05.
+    - Hosts never switch inside a session.
+
+  reporting:
+    - Every confirmatory and secondary result is reported, whether or not it supports the claim.
+    - Any analysis thought of after the run has been seen is labelled exploratory.
+    - scripts/check_logs.py is run on the raw logs (including the channel check) before any result is computed.
+    - The C1 contrasts are not in analysis/channel.py yet; they are built to these definitions before the run is analysed.
