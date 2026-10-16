@@ -8,7 +8,8 @@
 # session is paired with the baseline's DeepSeek history session (and the C1 session of channel_c1) on identical
 # costs. No one-shot control: the notes are themselves memory.
 # Host: deepseek on DeepInfra (its backup tier), as the baseline and channel_c1; effort low, temperature 1.0.
-# At most 6 sessions at once: channel_c1 lost 4 sessions to DeepInfra rate limits when 24 started together.
+# At most 2 sessions at once (6 in the first launch, which lost 22 of 24 sessions to DeepInfra rate limits; see
+# analysis.yaml, notes_deepseek, amendments).
 # Run id: notes_deepseek (both arms).
 
 inherits: base.yaml
@@ -30,7 +31,7 @@ workspace:
 
 llm:
   host: deepseek=backup
-  max_concurrency: 6
+  max_concurrency: 2
   max_output_tokens: 4000
   request_timeout_s: 300
   reasoning_overrides:

@@ -758,3 +758,13 @@ notes_deepseek:
     - scripts/check_logs.py is run on the raw logs (including the private_notes check) before any result is computed.
     - The tests are run by analyze.py logs/notes_deepseek (analysis/channel.py, CONTRASTS H9 and H10), committed in
       8df0d80 before this section.
+
+  amendments:                            # dated changes after the declaring commit f8f0c03; none touches a test, a seed or the prompt
+    - date: 2026-10-16
+      change: max_concurrency 6 -> 2 in both configs, and `launch` above no longer holds (at most 2 sessions at once)
+      reason: >-
+        the first launch lost 22 of 24 sessions (M1 10, M2 12) to HTTP 429 from DeepInfra, "rate limited upstream", on
+        requests in rounds 1 to 5 or at the 20-retry session cap; 2 sessions completed. The failure text was the only
+        thing looked at - no price, index or note
+      effect: failed sessions are rerun from scratch on the same seed, host and settings (exclusions, rerun 1 of at most 3);
+              concurrency changes timing only
