@@ -132,3 +132,18 @@ def test_message_use_counts_steps_messages_and_failed_requests() -> None:
 def test_channel_sessions_are_labelled_c1() -> None:
     judged = pd.DataFrame({"session_id": ["a"], "condition_id": ["x__msg"], "parse_ok": [True], "proposes_coordination": [True]})
     assert labels_by_arm(judged, ["proposes_coordination"]).iloc[0]["arm"] == "C1"
+
+
+def test_h9_and_h10_compare_each_notes_arm_with_b0_and_add_the_declared_secondary_contrasts() -> None:
+    rows = []
+    for seed in range(8):
+        for arm, index in (("B0", 0.0), ("M1", 0.05), ("M2", 0.3), ("C1", 0.9)):
+            rows.append({"model": "deepseek", "seed": seed, "arm": arm, "collusion_index": index + 0.01 * seed, "markup_ratio": 1.0,
+                         "cap_share": 0.0, "invalid_bid_rate": 0.0})  # fmt: skip
+    plan = {"confirmatory": [{"id": "H9_x", "outcome": "collusion_index", "alpha": 0.05}, {"id": "H10_x", "outcome": "collusion_index", "alpha": 0.05}],
+            "secondary": []}  # fmt: skip
+    out = channel_tests(pd.DataFrame(rows), plan, "confirmatory")
+    main = out[out["family"] == "confirmatory"].set_index("test_id")
+    assert main.loc["H9_x", "contrast"] == "M2 - B0" and main.loc["H10_x", "contrast"] == "M1 - B0"
+    assert main.loc["H9_x", "mean"] == pytest.approx(0.3) and bool(main.loc["H9_x", "supported"])
+    assert set(out.loc[out["family"] == "secondary_contrast", "contrast"]) == {"M2 - M1", "C1 - M2"}

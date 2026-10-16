@@ -58,8 +58,9 @@ HEADLINE = [
 ]  # fmt: skip
 
 
-# Runs a channel plan's secondary contrasts need beyond its baseline: C1 against M1 and M2 of notes_luna (configs/analysis.yaml).
-COMPARISON_RUNS = {"channel_c1": ("notes_luna",)}
+# Runs a channel plan's secondary contrasts need beyond its baseline (configs/analysis.yaml): C1 against M1 and M2 of
+# notes_luna, and C1 of channel_c1 against DeepSeek's M2.
+COMPARISON_RUNS = {"channel_c1": ("notes_luna",), "notes_deepseek": ("channel_c1",)}
 
 
 def _complete(run_dir: Path) -> list:

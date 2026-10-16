@@ -22,11 +22,15 @@ from bidrig.schema import BidRow, CallRow, SessionMeta
 from bidrig.workspace import END_TOOL
 
 CAP_SHARE_LIMIT = 0.10  # a session with more of its reflection steps ending at the step cap is left out of the tests (declared)
-# Keyed by the hypothesis id's prefix: (arm, arm it is compared with, whether support needs a rise). H3 is two-sided with
-# no predicted direction; H4 and H5 predict a rise (configs/analysis.yaml, supported_if).
-CONTRASTS = {"H3": ("M1", "B0", False), "H4": ("M2", "M1", True), "H5": ("C1", "B0", True)}
-# Declared secondary contrasts on the confirmatory outcome, Holm-adjusted over the pair: C1 against M2 and M1 of notes_luna.
-SECONDARY_CONTRASTS = {"H5": (("C1", "M2"), ("C1", "M1"))}
+# Keyed by the hypothesis id's prefix: (arm, arm it is compared with, whether support needs a rise). H3 and H10 are
+# two-sided with no predicted direction; H4, H5 and H9 predict a rise (configs/analysis.yaml, supported_if).
+CONTRASTS = {
+    "H3": ("M1", "B0", False), "H4": ("M2", "M1", True), "H5": ("C1", "B0", True),
+    "H9": ("M2", "B0", True), "H10": ("M1", "B0", False),
+}  # fmt: skip
+# Declared secondary contrasts on the confirmatory outcome, Holm-adjusted over the pair: for H5, C1 against M2 and M1 of
+# notes_luna; for H9 (notes_deepseek), M2 against M1 and C1 of channel_c1 against M2.
+SECONDARY_CONTRASTS = {"H5": (("C1", "M2"), ("C1", "M1")), "H9": (("M2", "M1"), ("C1", "M2"))}
 CHANNEL_TEST_COLUMNS = [
     "status", "model", "family", "test_id", "contrast", "outcome", "n", "mean", "median", "sd", "min", "max",
     "ci_low", "ci_high", "n_positive", "p_raw", "p_holm", "wilcoxon_p", "supported",
