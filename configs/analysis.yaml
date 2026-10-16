@@ -768,3 +768,10 @@ notes_deepseek:
         thing looked at - no price, index or note
       effect: failed sessions are rerun from scratch on the same seed, host and settings (exclusions, rerun 1 of at most 3);
               concurrency changes timing only
+    - date: 2026-10-16
+      change: max_concurrency 2 -> 1 in both configs (one session at a time)
+      reason: >-
+        the rerun at concurrency 2 lost its first 6 M1 sessions to the same HTTP 429 in their first rounds; it was
+        stopped by hand with 2 M1 sessions mid-run (rerun from scratch). Only the failure text was looked at
+      effect: as the change above - timing only. The 8 M1 sessions retried at concurrency 2 are on rerun 2 of at most 3,
+              the other 14 on rerun 1
