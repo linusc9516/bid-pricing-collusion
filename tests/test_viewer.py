@@ -5,17 +5,22 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
 from helpers import custom_session, fixed
 
+from bidrig.analysis.trace_judge import MESSAGES_LABELS
 from bidrig.schema import CallRow, write_session
 from bidrig.viewer import (
     MESSAGES_FILE,
     METRIC_KEYS,
     WORKSPACE_FILE,
+    label_messages,
+    messages_judge_table,
     read_events,
     session_bundle,
+    step_labels,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -248,3 +253,29 @@ def test_index_entry_summarises_a_workspace_and_omits_it_otherwise() -> None:
     assert index_entry(meta, rows, {}, events)["notes"] == {"kind": "workspace", "writes": {"A": 2}, "foreign_reads": 1, "first_foreign": 1}
     sent = index_entry(meta, rows, {}, messages=[events[0]])["notes"]
     assert sent == {"kind": "messages", "writes": {"A": 1}, "foreign_reads": None, "first_foreign": None}
+
+
+def _judged(rows: list[tuple[str, int, str, bool, bool]]) -> pd.DataFrame:
+    """Messages-judge rows (session, round, firm, proposes, accepts) with every other label false."""
+    frame = pd.DataFrame(rows, columns=["session_id", "round", "firm_id", "proposes_coordination", "accepts_coordination"])
+    for name in MESSAGES_LABELS[2:]:
+        frame[name] = False
+    return frame.assign(lineup_id="c1", model="m", parse_ok=True)
+
+
+def test_judged_labels_attach_to_the_message_of_their_step() -> None:
+    labels = step_labels(_judged([("s", 1, "A", True, False), ("s", 1, "B", False, False)]))
+    assert labels == {"s": {(1, "A"): ["proposes_coordination"], (1, "B"): []}}
+    events = [{"round": 1, "firm_id": "A", "op": "write", "text": "hi"}, {"round": 2, "firm_id": "A", "op": "write", "text": "x"}]
+    out = label_messages(events, labels["s"])
+    assert out[0]["labels"] == ["proposes_coordination"] and "labels" not in out[1] and "labels" not in events[0]
+
+
+def test_an_agreement_needs_a_proposal_and_the_other_firm_joining() -> None:
+    table = messages_judge_table(_judged([
+        ("agree", 1, "A", True, False), ("agree", 2, "B", False, True),
+        ("alone", 1, "A", True, False), ("alone", 1, "B", False, False),
+    ]))  # fmt: skip
+    row = table[0]
+    assert row["n_sessions"] == 2 and row["n_steps"] == 4 and row["agreement_share"] == 0.5
+    assert row["proposes_coordination"] == 0.5 and row["proposes_coordination_sessions"] == 1.0

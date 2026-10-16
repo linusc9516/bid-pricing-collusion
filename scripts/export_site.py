@@ -30,8 +30,11 @@ from bidrig.viewer import (
     WORKSPACE_FILE,
     findings_html,
     index_entry,
+    label_messages,
+    messages_judge_table,
     read_events,
     session_bundle,
+    step_labels,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,11 +44,16 @@ def dump(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def export_run(run_id: str, logs_root: Path, sessions_dir: Path, max_thinking: int, no_prompts: bool) -> tuple[dict, list] | None:
+def export_run(run_id: str, logs_root: Path, sessions_dir: Path, max_thinking: int, no_prompts: bool, results_root: Path) -> tuple[dict, list] | None:
     """Write one file per complete session of `run_id` into `sessions_dir` (emptied first); returns the run's index entry and its sessions, None if it has none.
 
     `max_thinking` 0 drops hidden thinking text; `no_prompts` drops the per-call user prompts and the system prompts.
+    When `results_root/<run_id>/messages_judge.csv` exists, each judged message carries its labels and the index entry
+    gets `messages_judge` (viewer.messages_judge_table).
     """
+    judged_path = results_root / run_id / "messages_judge.csv"
+    judged = pd.read_csv(judged_path) if judged_path.exists() else None
+    labels = step_labels(judged) if judged is not None else {}
     paths = sorted((logs_root / run_id).glob(f"*/*/{SESSION_FILE}"))
     loaded = [(read_session(p.parent), p.parent) for p in paths if read_meta(p.parent).status == "complete"]
     if not loaded:
@@ -60,6 +68,7 @@ def export_run(run_id: str, logs_root: Path, sessions_dir: Path, max_thinking: i
     for (meta, rows), path in loaded:
         metrics = table.loc[meta.session_id].to_dict()
         workspace, messages = read_events(path, WORKSPACE_FILE), read_events(path, MESSAGES_FILE)
+        messages = label_messages(messages, labels.get(meta.session_id, {}))
         entries.append(index_entry(meta, rows, metrics, workspace, messages))
         bundle = session_bundle(meta, rows, read_calls(path), metrics, max_thinking, workspace, messages)
         if no_prompts:
@@ -71,7 +80,10 @@ def export_run(run_id: str, logs_root: Path, sessions_dir: Path, max_thinking: i
         (sessions_dir / f"{meta.session_id}.js").write_text(
             f"(window.SESSIONS=window.SESSIONS||{{}})[{dump(meta.session_id)}]={dump(bundle)};\n"
         )
-    return {"id": run_id, "diff_bins": {"low": DIFF_LOW, "step": DIFF_STEP, "n": DIFF_BINS}, "sessions": entries}, pairs
+    run = {"id": run_id, "diff_bins": {"low": DIFF_LOW, "step": DIFF_STEP, "n": DIFF_BINS}, "sessions": entries}
+    if judged is not None:
+        run["messages_judge"] = messages_judge_table(judged)
+    return run, pairs
 
 
 def judge_table(results_dir: Path) -> list[dict]:
@@ -90,7 +102,7 @@ def publish(run_ids: list[str], logs_root: Path, out: Path, findings: Path | Non
     """Write the committed bundle: data/published/<run_id>/<session>.js and data/published.js."""
     runs, tables = [], {}
     for run_id in run_ids:
-        exported = export_run(run_id, logs_root, out / "published" / run_id, max_thinking=0, no_prompts=True)
+        exported = export_run(run_id, logs_root, out / "published" / run_id, max_thinking=0, no_prompts=True, results_root=results_root)
         if exported is None:
             print(f"{run_id}: no complete sessions under {logs_root}")
             return 1
@@ -123,7 +135,7 @@ def main() -> int:
     parser.add_argument("--no-prompts", action="store_true", help="drop the per-call user prompts and system prompts")
     parser.add_argument("--publish", action="store_true", help="write the committed bundle for the named runs instead of the local export")
     parser.add_argument("--findings", type=Path, default=ROOT / "BASELINE_FINDINGS.md", help="Markdown file shown as the findings page (with --publish)")
-    parser.add_argument("--results-root", type=Path, default=ROOT / "results", help="where a run's trace_judge.csv is read from (with --publish)")
+    parser.add_argument("--results-root", type=Path, default=ROOT / "results", help="where a run's trace_judge.csv (with --publish) and messages_judge.csv are read from")
     args = parser.parse_args()
 
     if args.publish:
@@ -134,7 +146,7 @@ def main() -> int:
     run_ids = args.runs or sorted(p.name for p in args.logs_root.iterdir() if p.is_dir())
     runs = []
     for run_id in run_ids:
-        exported = export_run(run_id, args.logs_root, args.out / "sessions" / run_id, 0 if args.no_thinking else args.max_thinking, args.no_prompts)
+        exported = export_run(run_id, args.logs_root, args.out / "sessions" / run_id, 0 if args.no_thinking else args.max_thinking, args.no_prompts, args.results_root)
         if exported is None:
             print(f"{run_id}: no complete sessions, skipped")
             continue
