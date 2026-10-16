@@ -10,9 +10,10 @@ the declared tests (analysis/stats.py), marked confirmatory only for the run the
 baseline_descriptives.csv: the declared descriptive measures per model and arm, no tests; and two exploratory tables,
 baseline_profit_checks.csv (joint profit, best reply, switching alone; analysis/profit.py) and
 baseline_round_blocks.csv (bid minus benchmark bid by round block and seed).
-For a plan that names a `baseline` run (the notes arms, analysis/channel.py), instead writes channel_sessions.csv (both
-runs' sessions by arm), channel_tests.csv (H3, H4 and their secondary and sensitivity rows), workspace_use.csv, and,
-when the judge has been run, notes_judge_by_arm.csv and trace_judge_by_arm.csv.
+For a plan that names a `baseline` run (the notes and open-channel arms, analysis/channel.py), instead writes
+channel_sessions.csv (the runs' sessions by arm), channel_tests.csv (H3 and H4, or H5, with their secondary and
+sensitivity rows), workspace_use.csv or message_use.csv, and, when the judge has been run, notes_judge_by_arm.csv,
+messages_judge_by_arm.csv and trace_judge_by_arm.csv.
 """
 
 import argparse
@@ -25,6 +26,7 @@ from bidrig.analysis.channel import (
     channel_table,
     channel_tests,
     labels_by_arm,
+    message_use,
     workspace_use,
 )
 from bidrig.analysis.metrics import (
@@ -39,9 +41,15 @@ from bidrig.analysis.metrics import (
 from bidrig.analysis.placebo import placebo_table, placebo_tests
 from bidrig.analysis.profit import profit_checks_table, round_block_gaps
 from bidrig.analysis.stats import baseline_tests, seed_rank_correlation
-from bidrig.analysis.trace_judge import LABELS, NOTES_LABELS
+from bidrig.analysis.trace_judge import LABELS, MESSAGES_LABELS, NOTES_LABELS
 from bidrig.bne import chance_tie_rate
-from bidrig.schema import SESSION_FILE, read_calls, read_session, read_workspace_events
+from bidrig.schema import (
+    MESSAGES_FILE,
+    SESSION_FILE,
+    read_calls,
+    read_session,
+    read_workspace_events,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 HEADLINE = [
@@ -50,30 +58,46 @@ HEADLINE = [
 ]  # fmt: skip
 
 
+# Runs a channel plan's secondary contrasts need beyond its baseline: C1 against M1 and M2 of notes_luna (configs/analysis.yaml).
+COMPARISON_RUNS = {"channel_c1": ("notes_luna",)}
+
+
+def _complete(run_dir: Path) -> list:
+    """Complete sessions of one run's log directory, as (meta, bid rows, calls)."""
+    return [(m, r, read_calls(p.parent)) for p in sorted(run_dir.glob(f"*/*/{SESSION_FILE}")) for m, r in [read_session(p.parent)] if m.status == "complete"]
+
+
 def report_channel(log_dir: Path, out: Path, plan: dict, status: str, loaded: list) -> None:
-    """The notes plan: this run's M1 and M2 sessions with the baseline run's history sessions, paired by model and seed."""
+    """A channel plan: this run's M1, M2 or C1 sessions with the baseline run's history sessions, paired by model and seed."""
     baseline_dir = log_dir.parent / plan["baseline"]
-    base = [(m, r, read_calls(p.parent)) for p in sorted(baseline_dir.glob(f"*/*/{SESSION_FILE}")) for m, r in [read_session(p.parent)] if m.status == "complete"]
+    base = _complete(baseline_dir)
     if not base:
         print(f"no complete sessions in {baseline_dir}; the paired tests need the baseline run's logs")
         return
-    sessions = channel_table([*loaded, *base])
+    extra = [s for run in COMPARISON_RUNS.get(plan["run_id"], ()) for s in _complete(log_dir.parent / run)]
+    sessions = channel_table([*loaded, *base, *extra])
     sessions.to_csv(out / "channel_sessions.csv", index=False)
     tests = channel_tests(sessions, plan, status)
     tests.to_csv(out / "channel_tests.csv", index=False)
-    print(f"{status} tests of the notes plan ({out}/channel_tests.csv): collusion index, paired by seed; B0 from {plan['baseline']}")
+    print(f"{status} tests of plan {plan['run_id']} ({out}/channel_tests.csv): collusion index, paired by seed; B0 from {plan['baseline']}")
     print(tests.drop(columns=["status"]).to_string(index=False, float_format=lambda v: f"{v:.4f}"))
     shown = ["collusion_index", "markup_ratio", "bid_gap", "joint_profit_ratio", "switch_gain", "invalid_bid_rate", "cap_share"]
     print("\nmean over sessions by arm (sessions paired with this run's seeds only)")
-    notes = sessions[sessions["arm"] != "B0"]
-    paired = sessions[sessions["model"].isin(notes["model"]) & sessions["seed"].isin(notes["seed"])]
+    arms = sessions[sessions["arm"] != "B0"]
+    paired = sessions[sessions["model"].isin(arms["model"]) & sessions["seed"].isin(arms["seed"])]
     print(paired.groupby(["model", "arm"])[shown].mean().to_string(float_format=lambda v: f"{v:.3f}"))
     paths = {m.session_id: p.parent for p in log_dir.glob(f"*/*/{SESSION_FILE}") for m, _ in [read_session(p.parent)]}
-    use = workspace_use((meta, read_workspace_events(paths[meta.session_id]), calls) for meta, _, calls in loaded)
-    use.to_csv(out / "workspace_use.csv", index=False)
-    print(f"\nchannel use, descriptive ({out}/workspace_use.csv): mean over sessions by arm")
-    print(use.drop(columns=["session_id", "seed"]).groupby(["model", "arm"]).mean().to_string(float_format=lambda v: f"{v:.3f}"))
-    for name, labels in (("notes_judge", NOTES_LABELS), ("trace_judge", LABELS)):
+    if any(meta.channel for meta, _, _ in loaded):
+        use = message_use((meta, read_workspace_events(paths[meta.session_id], MESSAGES_FILE), calls) for meta, _, calls in loaded)
+        name = "message_use"
+    else:
+        use = workspace_use((meta, read_workspace_events(paths[meta.session_id]), calls) for meta, _, calls in loaded)
+        name = "workspace_use"
+    use.to_csv(out / f"{name}.csv", index=False)
+    if not use.empty:
+        print(f"\nchannel use, descriptive ({out}/{name}.csv): mean over sessions by arm")
+        print(use.drop(columns=["session_id", "seed"]).groupby(["model", "arm"]).mean().to_string(float_format=lambda v: f"{v:.3f}"))
+    for name, labels in (("notes_judge", NOTES_LABELS), ("messages_judge", MESSAGES_LABELS), ("trace_judge", LABELS)):
         judged = out / f"{name}.csv"
         if judged.exists():
             by_arm = labels_by_arm(pd.read_csv(judged), labels)
@@ -81,7 +105,9 @@ def report_channel(log_dir: Path, out: Path, plan: dict, status: str, loaded: li
             print(f"\n{name} labels by arm ({out}/{name}_by_arm.csv): share of judged rows [share of sessions with one]")
             wide = by_arm.assign(cell=by_arm.apply(lambda r: f"{r.share_of_judged:.3f} [{r.share_of_sessions:.2f}]", axis=1))
             print(wide.pivot(index="label", columns="arm", values="cell").loc[list(labels)].to_string())
-    print("\nIn M1 uses_rival_notes, exploits_rival_notes and accepts_coordination are false by construction: their M1 rate is the judge's false-positive rate.\n")
+    if (sessions["arm"] == "M1").any() and (out / "notes_judge.csv").exists():
+        print("\nIn M1 uses_rival_notes, exploits_rival_notes and accepts_coordination are false by construction: their M1 rate is the judge's false-positive rate.")
+    print()
 
 
 def main() -> int:

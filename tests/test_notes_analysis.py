@@ -1,5 +1,6 @@
-"""Notes-arm analysis (analysis/channel.py): arms, reflection endings, the paired H3 and H4 tests, labels by arm."""
+"""Channel-arm analysis (analysis/channel.py): arms, reflection endings, the paired H3, H4 and H5 tests, channel use, labels by arm."""
 
+import dataclasses
 import json
 
 import numpy as np
@@ -11,6 +12,7 @@ from bidrig.analysis.channel import (
     arm_of,
     channel_tests,
     labels_by_arm,
+    message_use,
     reflection_endings,
 )
 from bidrig.schema import CallRow
@@ -34,6 +36,9 @@ def test_arms_follow_the_session_settings() -> None:
     meta.workspace_shared = False
     assert arm_of(meta) == "M1"
     assert arm_of(make_meta(["llm"] * 2, history_window=0)) is None
+    talking = make_meta(["llm"] * 2)
+    talking.channel = True
+    assert arm_of(talking) == "C1"
 
 
 def test_reflection_steps_are_counted_by_how_they_end() -> None:
@@ -80,3 +85,50 @@ def test_labels_are_split_by_arm_and_session() -> None:
     })  # fmt: skip
     out = labels_by_arm(judged, ["uses_rival_notes"]).set_index("arm")
     assert out.loc["M1", "share_of_judged"] == 0 and out.loc["M2", "judged"] == 1 and out.loc["M2", "share_of_sessions"] == 1
+
+
+PLAN_H5 = {"confirmatory": [{"id": "H5_x", "outcome": "collusion_index", "alpha": 0.05}], "secondary": ["markup_ratio"]}
+
+
+def _table_h5(rises: dict[str, list[float]]) -> pd.DataFrame:
+    rows = []
+    for model, diffs in rises.items():
+        for seed, d in enumerate(diffs):
+            for arm, index in (("B0", 0.1 * seed), ("C1", 0.1 * seed + d), ("M1", 0.1 * seed), ("M2", 0.1 * seed)):
+                if arm in ("M1", "M2") and model != "luna":
+                    continue
+                rows.append({"model": model, "seed": seed, "arm": arm, "collusion_index": index, "markup_ratio": 1 + index,
+                             "cap_share": 0.0, "invalid_bid_rate": 0.0})  # fmt: skip
+    return pd.DataFrame(rows)
+
+
+def test_h5_is_c1_minus_b0_with_holm_over_the_models() -> None:
+    out = channel_tests(_table_h5({"deepseek": [0.5] * 8, "luna": [-0.1] * 8}), PLAN_H5, "confirmatory")
+    main = out[out["family"] == "confirmatory"].set_index("model")
+    assert list(main["contrast"]) == ["C1 - B0", "C1 - B0"]
+    assert main.loc["deepseek", "p_raw"] == pytest.approx(2 / 256) and main.loc["deepseek", "p_holm"] == pytest.approx(4 / 256)
+    assert bool(main.loc["deepseek", "supported"]) and not bool(main.loc["luna", "supported"])  # H5 needs a rise
+    extra = out[out["family"] == "secondary_contrast"]
+    assert set(extra["contrast"]) == {"C1 - M2", "C1 - M1"} and set(extra["model"]) == {"luna"}
+
+
+def test_message_use_counts_steps_messages_and_failed_requests() -> None:
+    meta = make_meta(["llm"] * 2)
+    meta.channel = True
+    meta.lineup = [dataclasses.replace(entry, model="m") for entry in meta.lineup]
+    calls = [
+        CallRow("s", 1, "A", 1, "message", "m", "p", "[]", None, None, None, None, 1, 1, 1.0),
+        CallRow("s", 1, "B", 1, "message", "m", "p", "[]", None, None, None, "no tool call", 1, 1, 1.0),
+        CallRow("s", 2, "A", 1, "message", "m", "p", "[]", None, None, None, None, 1, 1, 1.0),
+        CallRow("s", 2, "B", 1, "message", "m", "p", "[]", None, None, None, None, 1, 1, 1.0),
+    ]  # fmt: skip
+    events = [{"round": 2, "firm_id": "A", "op": "write", "text": "abcd", "truncated": False}]
+    row = message_use([(meta, events, calls)]).iloc[0]
+    assert row["steps"] == 4 and row["share_steps_sent"] == 0.25 and row["first_message_round"] == 2
+    assert row["mean_message_chars"] == 4 and row["share_requests_failed"] == 0.25
+    assert message_use([(make_meta(["llm"] * 2), events, calls)]).empty
+
+
+def test_channel_sessions_are_labelled_c1() -> None:
+    judged = pd.DataFrame({"session_id": ["a"], "condition_id": ["x__msg"], "parse_ok": [True], "proposes_coordination": [True]})
+    assert labels_by_arm(judged, ["proposes_coordination"]).iloc[0]["arm"] == "C1"

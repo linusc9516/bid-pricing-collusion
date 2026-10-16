@@ -1,8 +1,10 @@
-"""Notes arms against the no-channel baseline (configs/analysis.yaml, section `notes_luna`): the declared H3 and H4 tests,
-the channel-use measures from workspace.jsonl and the reflection calls, and the judge's labels by arm.
+"""Channel arms against the no-channel baseline (configs/analysis.yaml, sections `notes_luna` and `channel_c1`): the
+declared H3, H4 and H5 tests, the channel-use measures from workspace.jsonl or messages.jsonl and the calls, and the
+judge's labels by arm.
 
 Arms: B0 is a history session of the baseline run, M1 a private-notes session (condition id `__pn`), M2 a shared-
-workspace session (`__ws`). Sessions are paired by model and seed; the seed fixes every round's costs.
+workspace session (`__ws`), C1 an open-channel session (`__msg`). Sessions are paired by model and seed; the seed fixes
+every round's costs.
 """
 
 import json
@@ -20,7 +22,11 @@ from bidrig.schema import BidRow, CallRow, SessionMeta
 from bidrig.workspace import END_TOOL
 
 CAP_SHARE_LIMIT = 0.10  # a session with more of its reflection steps ending at the step cap is left out of the tests (declared)
-CONTRASTS = (("H3", "M1", "B0"), ("H4", "M2", "M1"))  # (hypothesis, arm, arm it is compared with)
+# Keyed by the hypothesis id's prefix: (arm, arm it is compared with, whether support needs a rise). H3 is two-sided with
+# no predicted direction; H4 and H5 predict a rise (configs/analysis.yaml, supported_if).
+CONTRASTS = {"H3": ("M1", "B0", False), "H4": ("M2", "M1", True), "H5": ("C1", "B0", True)}
+# Declared secondary contrasts on the confirmatory outcome, Holm-adjusted over the pair: C1 against M2 and M1 of notes_luna.
+SECONDARY_CONTRASTS = {"H5": (("C1", "M2"), ("C1", "M1"))}
 CHANNEL_TEST_COLUMNS = [
     "status", "model", "family", "test_id", "contrast", "outcome", "n", "mean", "median", "sd", "min", "max",
     "ci_low", "ci_high", "n_positive", "p_raw", "p_holm", "wilcoxon_p", "supported",
@@ -28,9 +34,11 @@ CHANNEL_TEST_COLUMNS = [
 
 
 def arm_of(meta: SessionMeta) -> str | None:
-    """`M1` (private notes), `M2` (shared workspace) or `B0` (history session, no channel); None for a control or a channel session."""
-    if meta.is_control or meta.channel:
+    """`M1` (private notes), `M2` (shared workspace), `C1` (open channel) or `B0` (history session, no channel); None for a control."""
+    if meta.is_control:
         return None
+    if meta.channel:
+        return "C1"
     if meta.workspace:
         return "M2" if meta.workspace_shared else "M1"
     return "B0"
@@ -59,9 +67,9 @@ def reflection_endings(calls: Sequence[CallRow]) -> dict[str, int]:
 
 
 def channel_table(sessions: Iterable[tuple[SessionMeta, Sequence[BidRow], Sequence[CallRow]]]) -> pd.DataFrame:
-    """One row per session of arm B0, M1 or M2: arm, model, seed, the session metrics and profit checks, and `cap_share`.
+    """One row per session of arm B0, M1, M2 or C1: arm, model, seed, the session metrics and profit checks, and `cap_share`.
 
-    `cap_share` is the share of reflection steps that ended at the step cap (0 in B0, which has none).
+    `cap_share` is the share of reflection steps that ended at the step cap (0 in B0 and C1, which have none).
     """
     kept = [(meta, rows, calls) for meta, rows, calls in sessions if arm_of(meta)]
     if not kept:
@@ -94,19 +102,23 @@ def _contrast_row(frame: pd.DataFrame, metric: str, arm: str, other: str) -> dic
 
 
 def channel_tests(table: pd.DataFrame, plan: Mapping[str, Any], status: str) -> pd.DataFrame:
-    """The declared tests of the notes plan, one row per model, contrast and outcome; columns `CHANNEL_TEST_COLUMNS`.
+    """The declared tests of a channel plan, one row per model, contrast and outcome; columns `CHANNEL_TEST_COLUMNS`.
 
-    H3 is M1 minus B0, H4 is M2 minus M1, on `collusion_index`, paired by seed: exact sign-flip test, two-sided,
-    Holm over the two. Pairs enter only if neither session has `cap_share` above `CAP_SHARE_LIMIT`. Sensitivity rows,
-    when they change the pairs: with those sessions put back (`with_capped`), and without pairs above
-    `INVALID_RATE_LIMIT` (`valid_bids`). Secondary outcomes are Holm-adjusted within each contrast.
+    Each confirmatory hypothesis is the contrast `CONTRASTS` gives for its id's prefix (H3 M1 minus B0, H4 M2 minus M1,
+    H5 C1 minus B0), on `collusion_index`, paired by seed: exact sign-flip test, two-sided. Holm runs over the plan's
+    hypotheses within a model when it has several (H3 and H4), else over the models (H5). Pairs enter only if neither
+    session has `cap_share` above `CAP_SHARE_LIMIT`. Sensitivity rows, when they change the pairs: with those sessions
+    put back (`with_capped`), and without pairs above `INVALID_RATE_LIMIT` (`valid_bids`). Secondary outcomes are
+    Holm-adjusted within each model and contrast; `SECONDARY_CONTRASTS` (family `secondary_contrast`) within each model.
     """
-    h3, h4 = plan["confirmatory"]
-    alpha = float(h3["alpha"])
-    outcome = h3["outcome"]
+    hypotheses = plan["confirmatory"]
+    alpha = float(hypotheses[0]["alpha"])
+    outcome = hypotheses[0]["outcome"]
     rows: list[dict[str, Any]] = []
     for model, cell in table.groupby("model", sort=True):
-        for (test_id, arm, other), hypothesis in zip(CONTRASTS, (h3, h4), strict=True):
+        for hypothesis in hypotheses:
+            test_id = hypothesis["id"].split("_")[0]
+            arm, other, _ = CONTRASTS[test_id]
             base = {"model": model, "contrast": f"{arm} - {other}"}
 
             every = _pairs(cell, arm, other, outcome)
@@ -126,19 +138,27 @@ def channel_tests(table: pd.DataFrame, plan: Mapping[str, Any], status: str) -> 
                 keep = (frame[f"cap_share_{arm}"] <= CAP_SHARE_LIMIT) & (frame[f"cap_share_{other}"] <= CAP_SHARE_LIMIT)
                 if keep.any():
                     secondary.append(base | {"family": "secondary", "test_id": f"{metric}_{test_id}"} | _contrast_row(frame[keep], metric, arm, other))
-            for entry, adjusted in zip(secondary, holm([r["p_raw"] for r in secondary]), strict=True):
-                entry["p_holm"] = adjusted
-            rows.extend(secondary)
+            extra = []
+            for first, second in SECONDARY_CONTRASTS.get(test_id, ()):
+                frame = _pairs(cell, first, second, outcome)
+                keep = (frame[f"cap_share_{first}"] <= CAP_SHARE_LIMIT) & (frame[f"cap_share_{second}"] <= CAP_SHARE_LIMIT)
+                if keep.any():
+                    extra.append({"model": model, "contrast": f"{first} - {second}", "family": "secondary_contrast",
+                                  "test_id": f"{first}_{second}_{test_id}"} | _contrast_row(frame[keep], outcome, first, second))  # fmt: skip
+            for group in (secondary, extra):
+                for entry, adjusted in zip(group, holm([r["p_raw"] for r in group]), strict=True):
+                    entry["p_holm"] = adjusted
+                rows.extend(group)
     out = pd.DataFrame(rows, columns=CHANNEL_TEST_COLUMNS[1:]).astype({"supported": object})
+    per_model = len(hypotheses) > 1
     for family in ("confirmatory", "with_capped", "valid_bids"):
-        for model in out["model"].unique():
-            mask = (out["family"] == family) & (out["model"] == model)
+        for model in out["model"].unique() if per_model else [None]:
+            mask = (out["family"] == family) & ((out["model"] == model) if per_model else True)
             out.loc[mask, "p_holm"] = holm(out.loc[mask, "p_raw"].tolist())
-    confirmatory = out["family"] != "secondary"
-    significant = out["p_holm"] < alpha
-    h4_rows = out["test_id"] == h4["id"]
-    # H3 is two-sided with no predicted direction; H4 predicts a rise (configs/analysis.yaml, supported_if).
-    out.loc[confirmatory, "supported"] = significant[confirmatory] & (~h4_rows[confirmatory] | (out.loc[confirmatory, "mean"] > 0))
+    confirmatory = out["family"].isin(["confirmatory", "with_capped", "valid_bids"])
+    needs_rise = out["test_id"].map(lambda t: CONTRASTS.get(str(t).split("_")[0], (None, None, False))[2]).astype(bool)
+    rise_ok = ~needs_rise | (out["mean"] > 0)
+    out.loc[confirmatory, "supported"] = (out["p_holm"] < alpha)[confirmatory] & rise_ok[confirmatory]
     out.insert(0, "status", status)
     return out[CHANNEL_TEST_COLUMNS]
 
@@ -170,14 +190,40 @@ def workspace_use(sessions: Iterable[tuple[SessionMeta, Sequence[dict[str, Any]]
     return pd.DataFrame(records)
 
 
+def message_use(sessions: Iterable[tuple[SessionMeta, Sequence[dict[str, Any]], Sequence[CallRow]]]) -> pd.DataFrame:
+    """Channel use per C1 session, from its messages.jsonl rows and communication calls; descriptive only.
+
+    Columns: communication steps, share of steps in which a message was sent, the first round with one (NaN if never),
+    mean message length in characters, share of messages cut at `max_chars`, and share of communication requests that
+    ended without a tool call or with an error.
+    """
+    records = []
+    for meta, events, calls in sessions:
+        if arm_of(meta) != "C1":
+            continue
+        sent = [e for e in events if e["op"] == "write"]
+        requests = [c for c in calls if c.phase == "message"]
+        steps = {(c.round, c.firm_id) for c in requests}
+        records.append({
+            "session_id": meta.session_id, "arm": "C1", "model": _model(meta), "seed": meta.seed, "steps": len(steps),
+            "share_steps_sent": len({(e["round"], e["firm_id"]) for e in sent}) / len(steps) if steps else float("nan"),
+            "first_message_round": min((e["round"] for e in sent), default=float("nan")),
+            "mean_message_chars": float(np.mean([len(e["text"] or "") for e in sent])) if sent else float("nan"),
+            "share_truncated": float(np.mean([bool(e.get("truncated")) for e in sent])) if sent else float("nan"),
+            "share_requests_failed": sum(c.error is not None for c in requests) / len(requests) if requests else float("nan"),
+        })  # fmt: skip
+    return pd.DataFrame(records)
+
+
 def labels_by_arm(judged: pd.DataFrame, labels: Sequence[str]) -> pd.DataFrame:
     """Judge labels by arm from a judge CSV (one row per judged call or step): share of judged rows, and share of sessions with at least one.
 
-    Arm from the condition id: `__pn` is M1, `__ws` is M2, anything else B0. Rows that did not parse are left out.
-    Columns: arm, label, judged, share_of_judged, sessions, share_of_sessions.
+    Arm from the condition id: `__pn` is M1, `__ws` is M2, `__msg` is C1, anything else B0. Rows that did not parse are
+    left out. Columns: arm, label, judged, share_of_judged, sessions, share_of_sessions.
     """
     frame = judged[judged["parse_ok"].astype(bool)].copy()
-    frame["arm"] = np.select([frame["condition_id"].str.endswith("__pn"), frame["condition_id"].str.endswith("__ws")], ["M1", "M2"], "B0")
+    suffix = frame["condition_id"].str
+    frame["arm"] = np.select([suffix.endswith("__pn"), suffix.endswith("__ws"), suffix.endswith("__msg")], ["M1", "M2", "C1"], "B0")
     rows = []
     for arm, cell in frame.groupby("arm", sort=True):
         per_session = cell.groupby("session_id")[list(labels)].any()
