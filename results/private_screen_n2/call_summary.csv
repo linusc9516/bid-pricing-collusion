@@ -1,0 +1,2 @@
+condition_id,n_sessions,n_calls,n_rebid_calls,provider_retries,attempt_error_rate,sit_out_rate,below_cost_rate,mean_prompt_tokens,mean_completion_tokens,p95_completion_tokens,max_completion_tokens,cutoff_rate,mean_reasoning_tokens,p95_reasoning_tokens,free_text_rate
+tie-random__info-full__lineup-n2-deepseek__n2__pn,5,844,0,0,0.0035545023696682463,0.0,0.0,3491.845971563981,560.6836492890995,2425.0,4000.0,0.0035545023696682463,420.34123222748815,2400.0,0.02962085308056872
