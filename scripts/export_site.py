@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
+import yaml
 
 from bidrig.analysis.metrics import session_metrics_table
 from bidrig.analysis.profit import profit_checks_table, round_block_gaps
@@ -28,16 +29,19 @@ from bidrig.viewer import (
     MAX_THINKING_CHARS,
     MESSAGES_FILE,
     WORKSPACE_FILE,
+    config_header,
     findings_html,
     index_entry,
     label_messages,
     messages_judge_table,
     read_events,
+    run_setup,
     session_bundle,
     step_labels,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+RUN_DESCRIPTIONS = ROOT / "site" / "runs.yaml"  # run id -> configs it was started from and an optional one-line summary
 
 
 def dump(value: object) -> str:
@@ -80,10 +84,17 @@ def export_run(run_id: str, logs_root: Path, sessions_dir: Path, max_thinking: i
         (sessions_dir / f"{meta.session_id}.js").write_text(
             f"(window.SESSIONS=window.SESSIONS||{{}})[{dump(meta.session_id)}]={dump(bundle)};\n"
         )
-    run = {"id": run_id, "diff_bins": {"low": DIFF_LOW, "step": DIFF_STEP, "n": DIFF_BINS}, "sessions": entries}
+    run = {"id": run_id, "diff_bins": {"low": DIFF_LOW, "step": DIFF_STEP, "n": DIFF_BINS}, "sessions": entries} | describe(run_id, [meta for (meta, _), _ in loaded])
     if judged is not None:
         run["messages_judge"] = messages_judge_table(judged)
     return run, pairs
+
+
+def describe(run_id: str, metas: list) -> dict:
+    """`setup` (viewer.run_setup), plus `about` and `configs` (file and header comment) when site/runs.yaml lists the run."""
+    listed = (yaml.safe_load(RUN_DESCRIPTIONS.read_text()) or {}).get(run_id, {}) if RUN_DESCRIPTIONS.exists() else {}
+    configs = [{"file": name, "header": config_header((ROOT / "configs" / name).read_text())} for name in listed.get("configs", []) if (ROOT / "configs" / name).exists()]
+    return {"setup": run_setup(metas), "about": listed.get("about", ""), "configs": configs}
 
 
 def judge_table(results_dir: Path) -> list[dict]:

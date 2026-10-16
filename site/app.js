@@ -830,6 +830,20 @@ function messagesJudgeCard(run) {
     h("p", { class: "note" }, "A session has an agreement when one firm proposes coordination and the other firm proposes or accepts it, in any steps (configs/analysis.yaml, channel_c1). Descriptive, no test."));
 }
 
+// How the run was configured: the summary line, setup facts from the session metadata, and each config file's header comment.
+function setupCard(run) {
+  if (!run.setup && !run.about) return null;
+  return h("section", { class: "panel setup" },
+    h("h3", null, "How this run was set up"),
+    run.about ? h("p", null, run.about) : null,
+    run.setup ? h("dl", { class: "setupgrid" }, ...run.setup.flatMap(([k, v]) => [h("dt", null, k), h("dd", null, v)])) : null,
+    ...(run.configs || []).map((c) => h("details", { class: "confignote" },
+      h("summary", null, `Notes in configs/${c.file}`),
+      h("p", { class: "pre" }, c.header || "(no header comment)"))),
+    h("p", { class: "note" }, "Setup facts are read from the sessions' logs. Config notes are the file's header comment at the commit the viewer was exported from"
+      + (run.configs && run.configs.length ? "; reasoning effort and output cap are in the config file, not in the logs." : ".")));
+}
+
 function renderRun() {
   const run = state.run, root = document.getElementById("example");
   if (!run) { root.replaceChildren(h("p", null, "Unknown run. ", h("a", { href: "#/runs" }, "Back to all runs"))); return; }
@@ -883,6 +897,7 @@ function renderRun() {
     h("div", { class: "intro" }, h("h2", null, run.id),
       h("p", null, `${run.sessions.filter((e) => !e.control).length} repeated sessions and ${run.sessions.filter((e) => e.control).length} one-shot controls. `
         + "Strips show the winner of each round (striped = tie, dot = lowest-cost firm won). Click a seed to open the session. Means are descriptive: sessions are the unit, and there are few per cell.")),
+    setupCard(run),
     filters.length ? h("div", { class: "toggles filters" }, ...filters) : null,
     notesCard(run, sessions),
     messagesJudgeCard(run),

@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yaml
-from helpers import custom_session, fixed
+from helpers import custom_session, fixed, make_meta
 
 from bidrig.analysis.trace_judge import MESSAGES_LABELS
 from bidrig.schema import CallRow, write_session
@@ -16,9 +16,11 @@ from bidrig.viewer import (
     MESSAGES_FILE,
     METRIC_KEYS,
     WORKSPACE_FILE,
+    config_header,
     label_messages,
     messages_judge_table,
     read_events,
+    run_setup,
     session_bundle,
     step_labels,
 )
@@ -279,3 +281,18 @@ def test_an_agreement_needs_a_proposal_and_the_other_firm_joining() -> None:
     row = table[0]
     assert row["n_sessions"] == 2 and row["n_steps"] == 4 and row["agreement_share"] == 0.5
     assert row["proposes_coordination"] == 0.5 and row["proposes_coordination_sessions"] == 1.0
+
+
+def test_run_setup_reads_the_settings_from_the_sessions() -> None:
+    meta = replace(make_meta(["llm"] * 2, seed=7), channel=True, temperature=1.0, git_sha="abcdef123", started_at="2026-10-16T08:00:00+00:00")
+    meta = replace(meta, lineup=[replace(e, model="m") for e in meta.lineup], providers={"m": {"name": "Host"}})
+    control = replace(meta, condition_id="oneshot__" + meta.condition_id, history_window=0, channel=False)
+    rows = dict(run_setup([meta, control]))
+    assert rows["Firms and models"] == "m on Host" and rows["Sessions"].startswith("1 repeated, 1 one-shot")
+    assert rows["Communication"].startswith("open message channel") and rows["Communication"].endswith(", none")
+    assert rows["Temperature"] == "m 1" and rows["Seeds"] == "7 to 7" and rows["Code commit"] == "abcdef1"
+
+
+def test_config_header_is_the_leading_comment_block() -> None:
+    assert config_header("# One.\n#   indented\n#\ninherits: base.yaml\n# later") == "One.\n  indented"
+    assert config_header("inherits: base.yaml\n") == ""

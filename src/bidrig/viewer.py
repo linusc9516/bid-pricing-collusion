@@ -405,3 +405,67 @@ def messages_judge_table(judged: pd.DataFrame) -> list[dict[str, Any]]:
             **{f"{name}_sessions": float(per_session[name].mean()) for name in MESSAGES_LABELS},
         })  # fmt: skip
     return rows
+
+
+def _values(items: Sequence[Any]) -> str:
+    """Distinct values in first-seen order, joined with ', '."""
+    return ", ".join(str(v) for v in dict.fromkeys(items))
+
+
+def run_setup(metas: Sequence[SessionMeta]) -> list[list[str]]:
+    """Setup facts of a run read from its sessions' metadata, as [label, text] rows for the run page.
+
+    Covers firms and models with their hosts, session counts, rounds, tie rule, information, costs, increment and
+    reserve, communication, prompt version, temperature, seeds, dates and code commit. A setting that varies across
+    sessions lists every value.
+    """
+    models: dict[str, set[str]] = {}
+    for meta in metas:
+        for entry in meta.lineup:
+            name = entry.model or f"scripted ({entry.bidder_type})"
+            host = meta.providers.get(entry.model or "", {}).get("name")
+            models.setdefault(name, set()).update([host] if host else [])
+    controls = sum(m.is_control for m in metas)
+    costs = []
+    for m in metas:
+        text = f"private, uniform {m.cost_low:g} to {m.cost_high:g}" + (f", common draw with spread ±{m.cost_spread:g}" if m.cost_spread else "")
+        costs.append(text + ("; every firm is shown every cost" if m.reveal_costs else ""))
+    talk = []
+    for m in metas:
+        if m.channel:
+            talk.append("open message channel: one message per firm after each round, every firm reads every message")
+        elif m.workspace:
+            talk.append("shared notes workspace (firms not told it is shared)" if m.workspace_shared else "private notes, one per firm")
+        else:
+            talk.append("none")
+    temps = {(e.model, m.temperature) for m in metas for e in m.lineup if e.model}
+    dates = sorted(d[:10] for m in metas for d in (m.started_at, m.finished_at) if d)
+    shas = [m.git_sha[:7] for m in metas if m.git_sha]
+    seeds = sorted(m.seed for m in metas)
+    rows = [
+        ["Firms and models", "; ".join(f"{name}" + (f" on {_values(sorted(hosts))}" if hosts else "") for name, hosts in sorted(models.items()))],
+        ["Firms per session", _values(sorted(m.n_bidders for m in metas))],
+        ["Sessions", f"{len(metas) - controls} repeated" + (f", {controls} one-shot controls (same seed and costs, no history)" if controls else "")],
+        ["Rounds", _values(sorted(m.n_rounds for m in metas))],
+        ["Tie rule", _values(m.tie_break_rule for m in metas)],
+        ["Information shown", _values(m.info_condition for m in metas)],
+        ["Costs", _values(costs)],
+        ["Bid increment, reserve", _values(f"{m.bid_increment:g}, {m.reserve_price:g}" for m in metas)],
+        ["Communication", _values(talk)],
+        ["Prompt version", _values(m.prompt_version or "v0" for m in metas)],
+        ["Temperature", "; ".join(f"{model} {'not sent' if t is None else f'{t:g}'}" for model, t in sorted(temps, key=str)) or "–"],
+        ["Seeds", f"{seeds[0]} to {seeds[-1]}" if seeds else "–"],
+        ["Dates", f"{dates[0]} to {dates[-1]}" if dates and dates[0] != dates[-1] else (dates[0] if dates else "–")],
+        ["Code commit", _values(shas) or "–"],
+    ]  # fmt: skip
+    return rows
+
+
+def config_header(text: str) -> str:
+    """The leading comment block of a YAML config, without the `#` markers; empty if the file starts with no comment."""
+    lines = []
+    for line in text.splitlines():
+        if not line.startswith("#"):
+            break
+        lines.append(line[1:].removeprefix(" "))
+    return "\n".join(lines).strip()
