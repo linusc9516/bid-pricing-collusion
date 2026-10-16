@@ -1,0 +1,44 @@
+# M1, private notes, DeepSeek V4.1 Flash. Declared in configs/analysis.yaml, section notes_deepseek, committed
+# before this run. Do not change a setting here without changing that section first, in its own commit, and never
+# after the first session has run.
+# notes_luna_private.yaml with the DeepSeek history cell of baseline_no_channel.yaml in place of Luna: a reflection step
+# after every round but the last, in which each firm can read and add to its own notes; the other firm never sees them.
+# The only difference from notes_deepseek_shared.yaml is workspace.shared. Same seeds as the baseline, so each
+# session is paired with the baseline's DeepSeek history session (and the C1 session of channel_c1) on identical
+# costs. No one-shot control: the notes are themselves memory.
+# Host: deepseek on DeepInfra (its backup tier), as the baseline and channel_c1; effort low, temperature 1.0.
+# At most 6 sessions at once: channel_c1 lost 4 sessions to DeepInfra rate limits when 24 started together.
+# Run id: notes_deepseek (both arms).
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 50
+
+session:
+  n_sessions: 12
+  base_seed: 996000       # = baseline_no_channel.yaml
+
+workspace:
+  enabled: true
+  shared: false           # M1: each firm reads only its own notes
+  max_chars: 1000         # per note; a longer note is cut and the firm is told (as notes_luna)
+  reflection_steps: 4     # most requests per firm per reflection step (as notes_luna)
+
+llm:
+  host: deepseek=backup
+  max_concurrency: 6
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    deepseek: {effort: low}   # applies to the reflection requests too
+
+budget:
+  max_cost_usd: 10        # tripwire, set from the dry run below
+  estimate_output_tokens: 4000
+
+cells:
+  - id: deepseek
+    lineup: {type: homogeneous, model: deepseek}

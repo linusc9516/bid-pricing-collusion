@@ -1,0 +1,15 @@
+# Smoke test of DeepSeek with the reflection tools, private notes: one 3-round session, two reflection steps per
+# firm, with the settings of notes_deepseek_private.yaml. Read the reflect calls in calls.jsonl and workspace.jsonl by
+# hand, and run check_logs.py, before notes_deepseek_private.yaml. Run id smoke_notes_deepseek.
+
+inherits: notes_deepseek_private.yaml
+
+auction:
+  n_rounds: 3
+
+session:
+  n_sessions: 1
+  base_seed: 980000       # disjoint from the declared seeds
+
+budget:
+  max_cost_usd: 0.5
