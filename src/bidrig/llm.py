@@ -60,6 +60,7 @@ class ModelSpec:
     reasoning: dict[str, Any] | None = None  # OpenRouter `reasoning` object; None = use the config default
     send_temperature: bool = True  # False leaves `temperature` out of the request: the model samples at its own default
     send_seed: bool = True  # False leaves `seed` out: a pinned host that does not list it would be filtered out by require_parameters
+    cache_writes: bool = True  # False turns the host's automatic prompt caching off; billing only, the prompt is unchanged
 
     def host(self, role: str) -> Host | None:
         """The pinned host for `role`; a model with fewer tiers uses its last tier below `role`, None if none is pinned."""
@@ -106,7 +107,7 @@ def load_models(path: Path) -> dict[str, ModelSpec]:
     specs = {}
     for alias, entry in raw.items():
         hosts = {role: Host(role=role, **host) for role, host in (entry.get("providers") or {}).items()}
-        specs[alias] = ModelSpec(alias, entry["slug"], entry["price_in"], entry["price_out"], hosts, entry.get("reasoning"), entry.get("send_temperature", True), entry.get("send_seed", True))
+        specs[alias] = ModelSpec(alias, entry["slug"], entry["price_in"], entry["price_out"], hosts, entry.get("reasoning"), entry.get("send_temperature", True), entry.get("send_seed", True), entry.get("cache_writes", True))
     return specs
 
 
@@ -338,6 +339,9 @@ class OpenRouterClient:
             reasoning = {"effort": self.settings.reasoning_effort}
         if reasoning is not None:
             extra["reasoning"] = reasoning
+        if not spec.cache_writes:
+            # Explicit mode with no breakpoint caches nothing (OpenRouter prompt caching, OpenAI GPT-5.6 and later).
+            extra["prompt_cache_options"] = {"mode": "explicit"}
         if host is not None:
             # Never fall back to another host mid-session (PLANNING.md 5.5).
             extra["provider"] = {"only": [host.routing_slug], "allow_fallbacks": False, "require_parameters": True}

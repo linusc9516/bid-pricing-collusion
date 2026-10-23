@@ -50,6 +50,10 @@ models:
     # so it is not sent: gpt-luna samples at its own default, whatever llm.temperature says. The run costs_revealed
     # was unpinned and did send it; it was most likely dropped there without notice.
     send_temperature: false
+    # Automatic caching bills every prompt of 1,024 tokens or more as a cache write at 1.25 times the input price, and
+    # our prompts are never read back: each round inserts a history row mid-message, so no later prompt starts with an
+    # earlier one. Off from 2026-10-23 (runs channel_extensions and luna_long on); every earlier Luna run had it on.
+    cache_writes: false
     providers:
       # Pinned on 2026-10-10 so a session cannot move between OpenAI, Azure and Bedrock. The standard endpoint, not
       # openai/flex. quantization null sends no quantization filter: this endpoint matches none, not even `unknown`.
