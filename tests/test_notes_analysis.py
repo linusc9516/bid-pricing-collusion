@@ -147,3 +147,15 @@ def test_h9_and_h10_compare_each_notes_arm_with_b0_and_add_the_declared_secondar
     assert main.loc["H9_x", "contrast"] == "M2 - B0" and main.loc["H10_x", "contrast"] == "M1 - B0"
     assert main.loc["H9_x", "mean"] == pytest.approx(0.3) and bool(main.loc["H9_x", "supported"])
     assert set(out.loc[out["family"] == "secondary_contrast", "contrast"]) == {"M2 - M1", "C1 - M2"}
+
+
+def test_narrow_cost_sessions_are_their_own_arms_and_never_b0() -> None:
+    meta = make_meta(["llm"] * 2)
+    meta.cost_low, meta.cost_high, meta.reserve_price = 40, 60, 60
+    assert arm_of(meta) == "S2C"
+    meta.reserve_price = 100
+    assert arm_of(meta) == "S2A"
+    meta.cost_high = 70
+    assert arm_of(meta) is None
+    meta.cost_high, meta.workspace = 60, True
+    assert arm_of(meta) is None

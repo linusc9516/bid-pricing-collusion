@@ -1,0 +1,44 @@
+# S2-C, rescaled game, GPT-6 Luna and DeepSeek V4.1 Flash. Declared in configs/analysis.yaml, section narrow_costs
+# (H11); do not change a setting here without changing that section first, in its own commit, and never after the first
+# session has run.
+# baseline_no_channel.yaml with every number mapped by x -> 40 + 0.2x: costs U[40, 60] and reserve price 60. The bid
+# increment stays 0.01, not 0.002: prompts show money to two decimals, so a finer grid would be shown rounded. The grid is
+# then 5 times coarser relative to the range (chance tie rate 0.001 against 0.0002). Apart from that the game is
+# strategically the baseline's (same equilibrium markup ratio, same index scale), and on the same seed the costs are the baseline's costs mapped the same way (draw_costs uses the same uniform
+# draws), so each session is the rescaled twin of the baseline history session of its model and seed. Only the numbers
+# on the screen differ: the highest cost-driven bid is 60, not 100. History arm only; no one-shot control.
+# Hosts and thinking as the baseline: deepseek on DeepInfra (low effort), gpt-luna on OpenAI (high effort).
+# Run id: narrow_costs (with narrow_costs_reserve100.yaml). Check the logs with   check_logs.py logs/narrow_costs
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 50
+  cost_low: 40
+  cost_high: 60
+  reserve_price: 60
+  bid_increment: 0.01
+
+session:
+  n_sessions: 12
+  base_seed: 996000       # = baseline_no_channel.yaml
+
+llm:
+  host: deepseek=backup
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    deepseek: {effort: low}
+    gpt-luna: {effort: high}
+
+budget:
+  max_cost_usd: 4.63      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+  estimate_output_tokens: 4000
+
+cells:
+  - id: s2c-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: s2c-luna
+    lineup: {type: homogeneous, model: gpt-luna}

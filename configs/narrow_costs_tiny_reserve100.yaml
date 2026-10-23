@@ -1,0 +1,14 @@
+# Smoke test of narrow_costs_reserve100.yaml: one 3-round session per model, with its settings. Read the prompts by hand and
+# run check_logs.py before the full run. Run id smoke_narrow_costs.
+
+inherits: narrow_costs_reserve100.yaml
+
+auction:
+  n_rounds: 3
+
+session:
+  n_sessions: 1
+  base_seed: 980000       # disjoint from the declared seeds
+
+budget:
+  max_cost_usd: 0.5

@@ -1,0 +1,19 @@
+# S2-A, narrow costs under the baseline's reserve, GPT-6 Luna and DeepSeek V4.1 Flash. Declared in
+# configs/analysis.yaml, section narrow_costs (H12); do not change a setting here without changing that section first,
+# in its own commit, and never after the first session has run.
+# baseline_no_channel.yaml with costs U[40, 60] and everything else as the baseline (reserve price 100, bid increment
+# 0.01, the same as narrow_costs_rescaled.yaml). Costs are the baseline's mapped x -> 40 + 0.2x on the same seed. The game is not the baseline's: the equilibrium
+# profit is 0.2 as large while the profit from pricing at the reserve is unchanged, so the gain from collusion is five
+# times larger (7.5 against 1.5 times the equilibrium profit). History arm only; no one-shot control.
+# Run id: narrow_costs (with narrow_costs_rescaled.yaml). Check the logs with   check_logs.py logs/narrow_costs
+
+inherits: narrow_costs_rescaled.yaml
+
+auction:
+  reserve_price: 100
+
+cells:
+  - id: s2a-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: s2a-luna
+    lineup: {type: homogeneous, model: gpt-luna}

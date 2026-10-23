@@ -26,8 +26,9 @@ CAP_SHARE_LIMIT = 0.10  # a session with more of its reflection steps ending at 
 # two-sided with no predicted direction; H4, H5 and H9 predict a rise (configs/analysis.yaml, supported_if).
 CONTRASTS = {
     "H3": ("M1", "B0", False), "H4": ("M2", "M1", True), "H5": ("C1", "B0", True),
-    "H9": ("M2", "B0", True), "H10": ("M1", "B0", False),
+    "H9": ("M2", "B0", True), "H10": ("M1", "B0", False), "H11": ("S2C", "B0", False), "H12": ("S2A", "B0", True),
 }  # fmt: skip
+NARROW_COSTS = {(40.0, 60.0, 60.0): "S2C", (40.0, 60.0, 100.0): "S2A"}  # (cost_low, cost_high, reserve_price) of the narrow-cost arms
 # Declared secondary contrasts on the confirmatory outcome, Holm-adjusted over the pair: for H5, C1 against M2 and M1 of
 # notes_luna; for H9 (notes_deepseek), M2 against M1 and C1 of channel_c1 against M2.
 SECONDARY_CONTRASTS = {"H5": (("C1", "M2"), ("C1", "M1")), "H9": (("M2", "M1"), ("C1", "M2"))}
@@ -38,9 +39,14 @@ CHANNEL_TEST_COLUMNS = [
 
 
 def arm_of(meta: SessionMeta) -> str | None:
-    """`M1` (private notes), `M2` (shared workspace), `C1` (open channel) or `B0` (history session, no channel); None for a control."""
+    """`M1` (private notes), `M2` (shared workspace), `C1` (open channel), `S2C` (rescaled game), `S2A` (narrow costs, reserve 100) or `B0` (history session, no channel, costs 0 to 100); None for a control or an undeclared cost range."""
     if meta.is_control:
         return None
+    if meta.workspace or meta.channel:
+        if (meta.cost_low, meta.cost_high, meta.reserve_price) != (0, 100, 100):
+            return None
+    elif (meta.cost_low, meta.cost_high, meta.reserve_price) != (0, 100, 100):
+        return NARROW_COSTS.get((float(meta.cost_low), float(meta.cost_high), float(meta.reserve_price)))
     if meta.channel:
         return "C1"
     if meta.workspace:
@@ -222,12 +228,15 @@ def message_use(sessions: Iterable[tuple[SessionMeta, Sequence[dict[str, Any]], 
 def labels_by_arm(judged: pd.DataFrame, labels: Sequence[str]) -> pd.DataFrame:
     """Judge labels by arm from a judge CSV (one row per judged call or step): share of judged rows, and share of sessions with at least one.
 
-    Arm from the condition id: `__pn` is M1, `__ws` is M2, `__msg` is C1, anything else B0. Rows that did not parse are
+    Arm from the condition id: `__pn` is M1, `__ws` is M2, `__msg` is C1, a cell `s2c-` or `s2a-` is S2C or S2A, anything else B0. Rows that did not parse are
     left out. Columns: arm, label, judged, share_of_judged, sessions, share_of_sessions.
     """
     frame = judged[judged["parse_ok"].astype(bool)].copy()
     suffix = frame["condition_id"].str
-    frame["arm"] = np.select([suffix.endswith("__pn"), suffix.endswith("__ws"), suffix.endswith("__msg")], ["M1", "M2", "C1"], "B0")
+    frame["arm"] = np.select(
+        [suffix.endswith("__pn"), suffix.endswith("__ws"), suffix.endswith("__msg"), suffix.contains("lineup-s2c-"), suffix.contains("lineup-s2a-")],
+        ["M1", "M2", "C1", "S2C", "S2A"], "B0",
+    )
     rows = []
     for arm, cell in frame.groupby("arm", sort=True):
         per_session = cell.groupby("session_id")[list(labels)].any()
