@@ -30,8 +30,9 @@ CONTRASTS = {
 }  # fmt: skip
 NARROW_COSTS = {(40.0, 60.0, 60.0): "S2C", (40.0, 60.0, 100.0): "S2A"}  # (cost_low, cost_high, reserve_price) of the narrow-cost arms
 # Declared secondary contrasts on the confirmatory outcome, Holm-adjusted over the pair: for H5, C1 against M2 and M1 of
-# notes_luna; for H9 (notes_deepseek), M2 against M1 and C1 of channel_c1 against M2.
-SECONDARY_CONTRASTS = {"H5": (("C1", "M2"), ("C1", "M1")), "H9": (("M2", "M1"), ("C1", "M2"))}
+# notes_luna; for H9 (notes_deepseek), M2 against M1 and C1 of channel_c1 against M2; for H12 (narrow_costs), S2A against S2C, the
+# same costs with a reserve of 100 against 60.
+SECONDARY_CONTRASTS = {"H5": (("C1", "M2"), ("C1", "M1")), "H9": (("M2", "M1"), ("C1", "M2")), "H12": (("S2A", "S2C"),)}
 CHANNEL_TEST_COLUMNS = [
     "status", "model", "family", "test_id", "contrast", "outcome", "n", "mean", "median", "sd", "min", "max",
     "ci_low", "ci_high", "n_positive", "p_raw", "p_holm", "wilcoxon_p", "supported",
