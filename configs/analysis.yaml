@@ -1131,3 +1131,100 @@ channel_extensions:
       length limit) before any result is computed.
     - The tests are run by analyze.py logs/channel_extensions (analysis/channel.py, CONTRASTS H13-H18, the `cell` and
       `holm` keys above), committed before this section.
+
+# --- Written 23 October 2026, BEFORE the run `luna_long` exists ------------------------------------------------
+# This section counts as declared from the commit that adds it; no session of luna_long starts before that commit.
+# The smoke test smoke_luna_long (seed 980000, 3 rounds, one session per cell) is a check of the harness, not part of
+# the run. The results of channel_c1 had been seen when this was written; they are the reason for the run. The 100-round
+# length was decided on 23 October 2026 from the round-block curves of the paper's draft (paper_plan.md, round length),
+# before any of channel_extensions ran.
+#
+# Why: GPT-6 Luna's C1 effect is small (H5 +0.111, Holm p = 0.041), rests largely on two sessions, and its index is
+# still rising over the last blocks of 50 rounds, with proposals as late as round 48. A new batch of seeds at twice the
+# length asks whether the effect replicates and whether it grows with more rounds.
+
+luna_long:
+  run_id: luna_long
+  config: configs/luna_long.yaml
+  baseline: luna_long                    # the B0 sessions are in this run (cell b0-luna-100)
+
+  design:
+    n_bidders: 2
+    costs: private, i.i.d. uniform 0 to 100 each round   # each firm learns only its own cost
+    n_rounds: 100                        # the prompt does not announce the number of rounds, as before
+    tie_break_rule: random
+    info_condition: full
+    history_window: null                 # the whole session so far is shown
+    bid_increment: 0.01
+    reserve_price: 100
+    prompt: prompts/bidder_system.md     # v1; C1 adds channel_c1's channel paragraph, unchanged (500 characters)
+    max_output_tokens: 4000
+    cells:
+      gpt-luna: {reasoning: {effort: high}, host: OpenAI, temperature: not sent}
+    arms:
+      B0: no channel                     # as baseline_no_channel's history arm
+      C1: open channel                   # as channel_c1
+    seeds: 997000-997011                 # new; no earlier session uses them, so both arms are run here
+    n_pairs: 12                          # fixed. No seed is added after any result has been seen
+    one_shot_control: none
+    budget: about $5.7 expected (from the per-round spend of channel_c1 and baseline_no_channel), tripwire $15.24
+
+  unit: session                          # one value per session; a round is never an observation
+
+  confirmatory:
+    - id: H19_luna_messages_raise_price_100_rounds
+      claim: on new seeds and over 100 rounds, GPT-6 Luna able to send messages ends at a higher price level than without a channel
+      cell: gpt-luna
+      contrast: C1 minus B0, paired by seed
+      outcome: collusion_index           # over all 100 rounds, unclipped (analysis/metrics.py)
+      null: the mean difference over the 12 pairs is 0
+      test: exact paired sign-flip permutation test on the mean difference   # all 4,096 sign patterns
+      two_sided: true
+      alpha: 0.05
+      holm: H19                          # alone; reported separately from H5, never pooled with the 50-round batch
+      supported_if: the p is below alpha and the mean difference is positive
+      reported: mean and median difference, its SD, a 95% percentile bootstrap interval of the mean (10,000 resamples
+                of whole pairs), the count of positive pairs out of 12, raw p
+      sensitivity: Wilcoxon signed-rank test on the same 12 values, reported beside the main test, not instead of it
+
+  reading:
+    power: 12 pairs detect only a large effect; a non-significant test is not evidence of no effect
+    H19_supported: Luna's channel effect replicates on new seeds at a longer horizon. Read with H5; neither is pooled
+                   with the other
+    H19_null: the 50-round effect does not replicate here; reported beside H5, not as overturning it
+    horizon: whether the effect grows with more rounds is descriptive only (below), not tested
+    price_without_text: as channel_c1
+
+  secondary:                             # same test, C1 minus B0, Holm within this family
+    - markup_ratio
+    - bid_gap
+    - joint_profit_ratio
+    - switch_gain
+
+  descriptive:                           # no test
+    - the collusion index over rounds 1-50 alone, C1 minus B0 by seed, beside H5 of channel_c1 (a different set of seeds)
+    - the block index (analysis/channel.py block_index) by 10-round block, rounds 1-100, by arm, with 95% bootstrap
+      intervals over sessions
+    - the first round with a proposes_coordination message, per session
+    - channel use and the messages-v1 labels as channel_c1 (every communication step judged; agreement_session as there)
+
+  cost_leakage:
+    decision: allow and measure, as in channel_c1
+    reported: reveals_own_cost (messages rubric)
+
+  exclusions:
+    - A session that ends `failed` is rerun on the same seed, host and settings, at most 3 times. Its partial log is
+      discarded, not merged.
+    - A pair enters the test only if both of its sessions are `complete`. A seed that cannot be completed is dropped,
+      named in the report, and not replaced by a new seed.
+    - A round in which a firm submits no valid bid stays in the session as the runner logged it.
+    - No session is excluded for its bids, its messages or its outcome.
+    - Sensitivity, reported beside the main result - H19 again without pairs in which either session has
+      invalid_bid_rate above 0.05.
+    - Hosts never switch inside a session.
+
+  reporting:
+    - Every confirmatory and secondary result is reported, whether or not it supports the claim.
+    - Any analysis thought of after the run has been seen is labelled exploratory.
+    - scripts/check_logs.py is run on the raw logs before any result is computed.
+    - The test is run by analyze.py logs/luna_long (analysis/channel.py, CONTRASTS H19), committed before this section.
