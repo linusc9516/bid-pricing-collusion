@@ -1,0 +1,13 @@
+# Smoke test of luna_long.yaml: one 3-round session per cell, with its settings. Run id smoke_luna_long.
+
+inherits: luna_long.yaml
+
+auction:
+  n_rounds: 3
+
+session:
+  n_sessions: 1
+  base_seed: 980000       # disjoint from the declared seeds
+
+budget:
+  max_cost_usd: 0.5

@@ -1,0 +1,38 @@
+# R7: GPT-6 Luna at 100 rounds on new seeds, no channel (B0) and the open channel (C1). Declared in
+# configs/analysis.yaml, section luna_long (H19); do not change a setting here without changing that section first, in
+# its own commit, and never after the first session has run.
+# channel_c1's Luna cell and baseline_no_channel's Luna history arm, with 100 rounds instead of 50 and seeds
+# 997000-997011 (no earlier session uses them, so both arms are new). Host: OpenAI. Run id: luna_long.
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 100
+
+session:
+  n_sessions: 12
+  base_seed: 997000       # disjoint from every earlier run
+
+channel:
+  enabled: false
+  max_chars: 500
+
+llm:
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  max_concurrency: 12     # OpenAI only; 24 sessions at once drew no 429s from OpenAI (2026-10-10)
+  reasoning_overrides:
+    gpt-luna: {effort: high}
+
+budget:
+  max_cost_usd: 15.24     # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap); about $5.7 expected
+  estimate_output_tokens: 4000
+
+cells:
+  - id: b0-luna-100
+    lineup: {type: homogeneous, model: gpt-luna}
+  - id: c1-luna-100
+    lineup: {type: homogeneous, model: gpt-luna}
+    channel: {enabled: true}

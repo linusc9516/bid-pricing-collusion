@@ -36,7 +36,7 @@ CONTRASTS = {
     "H3": ("M1", "B0", 0), "H4": ("M2", "M1", 1), "H5": ("C1", "B0", 1),
     "H9": ("M2", "B0", 1), "H10": ("M1", "B0", 0), "H11": ("S2C", "B0", 0), "H12": ("S2A", "B0", 1),
     "H13": ("C1", "B0", 1), "H14": ("C1cap", "C1", -1), "H15": ("C1notice", "C1", -1),
-    "H16": ("C1", "B0", 1), "H17": ("C1", "B0", 1), "H18": ("C1", "B0", 1),
+    "H16": ("C1", "B0", 1), "H17": ("C1", "B0", 1), "H18": ("C1", "B0", 1), "H19": ("C1", "B0", 1),
 }  # fmt: skip
 NARROW_COSTS = {(40.0, 60.0, 60.0): "S2C", (40.0, 60.0, 100.0): "S2A"}  # (cost_low, cost_high, reserve_price) of the narrow-cost arms
 # Declared secondary contrasts on the confirmatory outcome, Holm-adjusted over the pair: for H5, C1 against M2 and M1 of
