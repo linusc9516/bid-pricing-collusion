@@ -1132,6 +1132,16 @@ channel_extensions:
     - The tests are run by analyze.py logs/channel_extensions (analysis/channel.py, CONTRASTS H13-H18, the `cell` and
       `holm` keys above), committed before this section.
 
+  amendments:                            # dated changes after the declaring commit 0d1ea86; none touches a test, a seed or the prompt
+    - date: 2026-10-23
+      change: gpt-luna requests set prompt_cache_options.mode to explicit, with no breakpoint (models.yaml, cache_writes false)
+      reason: >-
+        GPT-6 Luna's automatic caching bills every prompt of 1,024 tokens or more as a cache write at 1.25 times the
+        input price, and these prompts are never read back (each round inserts a history row mid-message). A probe on a
+        logged channel_c1 prompt (2,399 tokens) was served by OpenAI with no cache write, billed at $0.10 per million
+      effect: billing only; the model receives the same text. Made before any session of this run. Every earlier Luna
+              run (baseline_no_channel, channel_c1, notes_luna, placebo_replay, narrow_costs) had automatic caching on; this is stated with the result
+
 # --- Written 23 October 2026, BEFORE the run `luna_long` exists ------------------------------------------------
 # This section counts as declared from the commit that adds it; no session of luna_long starts before that commit.
 # The smoke test smoke_luna_long (seed 980000, 3 rounds, one session per cell) is a check of the harness, not part of
@@ -1228,3 +1238,13 @@ luna_long:
     - Any analysis thought of after the run has been seen is labelled exploratory.
     - scripts/check_logs.py is run on the raw logs before any result is computed.
     - The test is run by analyze.py logs/luna_long (analysis/channel.py, CONTRASTS H19), committed before this section.
+
+  amendments:                            # dated changes after the declaring commit ee044c5; none touches a test, a seed or the prompt
+    - date: 2026-10-23
+      change: gpt-luna requests set prompt_cache_options.mode to explicit, with no breakpoint (models.yaml, cache_writes false)
+      reason: >-
+        GPT-6 Luna's automatic caching bills every prompt of 1,024 tokens or more as a cache write at 1.25 times the
+        input price, and these prompts are never read back (each round inserts a history row mid-message). A probe on a
+        logged channel_c1 prompt (2,399 tokens) was served by OpenAI with no cache write, billed at $0.10 per million
+      effect: billing only; the model receives the same text. Made before any session of this run. Every earlier Luna
+              run (baseline_no_channel, channel_c1, notes_luna, placebo_replay, narrow_costs) had automatic caching on; this is stated with the result
