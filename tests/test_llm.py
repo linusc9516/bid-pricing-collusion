@@ -189,7 +189,8 @@ def test_call_seed_is_deterministic_and_distinct() -> None:
 
 def test_models_yaml_loads() -> None:
     specs = load_models(MODELS)
-    assert set(specs) == {"deepseek", "gpt-oss", "glm", "qwen", "gpt-luna", "gemini"}
+    assert set(specs) == {"deepseek", "gpt-oss", "glm", "qwen", "gpt-luna", "gemini", "haiku"}
+    assert not specs["haiku"].send_seed and not specs["haiku"].send_temperature and specs["deepseek"].send_seed
     assert specs["deepseek"].host("primary") == Host("InferenceNet", "fp8", 0.07, 0.60, "primary", "inference-net")
     assert specs["deepseek"].host("primary").routing_slug == "inference-net" and specs["deepseek"].host("backup").routing_slug == "deepinfra"
     assert specs["deepseek"].host("fallback").name == "CoreWeave" and specs["deepseek"].host("backup") == Host("DeepInfra", "fp8", 0.14, 0.42, "backup")

@@ -62,4 +62,16 @@ models:
       # The trace judge (scripts/judge_traces.py) calls this host. Flex is half the standard price; on 16 traces
       # judged on both (2026-10-10) it was as fast (3.3 s against 3.4 s median) and gave the same labels on all 16.
       primary: {name: Google AI Studio, slug: google-ai-studio/flex, quantization: unknown, price_in: 0.375, price_out: 1.875}
-  # claude: TBD. The Anthropic model is not chosen yet; add slug, price_in and price_out here once it is.
+  # Added 2026-10-23 as the third model family. Slug, prices and endpoint checked against the live OpenRouter list
+  # on 2026-10-23.
+  haiku:
+    slug: anthropic/claude-haiku-5.5     # Claude Haiku 5.5; endpoints: Anthropic, Google (Vertex), Azure, Amazon Bedrock
+    price_in: 0.10
+    price_out: 0.50
+    reasoning: {effort: high}
+    # The Anthropic endpoint lists neither `temperature` nor `seed`; require_parameters rejects a request carrying either
+    # (404, 2026-10-23), so neither is sent and Haiku samples at its own default.
+    send_temperature: false
+    send_seed: false
+    providers:
+      primary: {name: Anthropic, slug: anthropic, quantization: null, price_in: 0.10, price_out: 0.50}

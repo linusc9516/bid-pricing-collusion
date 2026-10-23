@@ -59,6 +59,7 @@ class ModelSpec:
     hosts: dict[str, Host] = field(default_factory=dict)
     reasoning: dict[str, Any] | None = None  # OpenRouter `reasoning` object; None = use the config default
     send_temperature: bool = True  # False leaves `temperature` out of the request: the model samples at its own default
+    send_seed: bool = True  # False leaves `seed` out: a pinned host that does not list it would be filtered out by require_parameters
 
     def host(self, role: str) -> Host | None:
         """The pinned host for `role`; a model with fewer tiers uses its last tier below `role`, None if none is pinned."""
@@ -105,7 +106,7 @@ def load_models(path: Path) -> dict[str, ModelSpec]:
     specs = {}
     for alias, entry in raw.items():
         hosts = {role: Host(role=role, **host) for role, host in (entry.get("providers") or {}).items()}
-        specs[alias] = ModelSpec(alias, entry["slug"], entry["price_in"], entry["price_out"], hosts, entry.get("reasoning"), entry.get("send_temperature", True))
+        specs[alias] = ModelSpec(alias, entry["slug"], entry["price_in"], entry["price_out"], hosts, entry.get("reasoning"), entry.get("send_temperature", True), entry.get("send_seed", True))
     return specs
 
 
@@ -349,9 +350,10 @@ class OpenRouterClient:
             # `forced` names submit_bid, so other tool sets always get auto.
             "tool_choice": "auto" if tools is not None else tool_choice_value(self.settings.tool_choice),
             "max_tokens": self.settings.max_output_tokens,
-            "seed": seed,
             "extra_body": extra,
         }
+        if spec.send_seed:
+            kwargs["seed"] = seed
         if spec.send_temperature:
             kwargs["temperature"] = self.settings.temperature
         return kwargs
