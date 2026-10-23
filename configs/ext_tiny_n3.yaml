@@ -1,0 +1,13 @@
+# Smoke test of R6 (ext_r6_n3.yaml): one 3-round session per cell, with its settings. Run id smoke_channel_extensions.
+
+inherits: ext_r6_n3.yaml
+
+auction:
+  n_rounds: 3
+
+session:
+  n_sessions: 1
+  base_seed: 980000       # disjoint from the declared seeds
+
+budget:
+  max_cost_usd: 0.5

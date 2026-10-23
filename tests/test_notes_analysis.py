@@ -10,7 +10,9 @@ from helpers import make_meta
 
 from bidrig.analysis.channel import (
     arm_of,
+    cell_label,
     channel_tests,
+    judge_arm,
     labels_by_arm,
     message_use,
     reflection_endings,
@@ -159,3 +161,42 @@ def test_narrow_cost_sessions_are_their_own_arms_and_never_b0() -> None:
     assert arm_of(meta) is None
     meta.cost_high, meta.workspace = 60, True
     assert arm_of(meta) is None
+
+
+def test_restricted_channels_are_their_own_arms_and_cells_pair_mixed_lineups_and_n3_apart() -> None:
+    meta = make_meta(["llm"] * 2)
+    meta.channel, meta.channel_max_chars = True, 50
+    assert arm_of(meta) == "C1cap"
+    meta.channel_notice = True
+    assert arm_of(meta) is None
+    meta.channel_max_chars = 500
+    assert arm_of(meta) == "C1notice"
+    meta.lineup = [dataclasses.replace(e, model=m) for e, m in zip(meta.lineup, ["haiku", "deepseek"], strict=True)]
+    assert cell_label(meta) == "deepseek x haiku"
+    three = make_meta(["llm"] * 3)
+    three.lineup = [dataclasses.replace(e, model="deepseek") for e in three.lineup]
+    assert cell_label(three) == "deepseek n3"
+    ids = pd.Series(["x__msg-cap50", "x__msg-notice", "x__msg", "x"])
+    assert list(judge_arm(ids)) == ["C1cap", "C1notice", "C1", "B0"]
+
+
+def test_cell_scoped_hypotheses_use_their_declared_holm_families_and_a_restriction_needs_a_fall() -> None:
+    rows = []
+    for seed in range(8):
+        for model, arm, index in (("deepseek", "B0", 0.0), ("deepseek", "C1", 0.9), ("deepseek", "C1cap", 0.2), ("deepseek", "C1notice", 0.95),
+                                  ("haiku", "B0", 0.0), ("haiku", "C1", 0.5)):  # fmt: skip
+            rows.append({"model": model, "seed": seed, "arm": arm, "collusion_index": index + 0.01 * seed, "markup_ratio": 1.0,
+                         "cap_share": 0.0, "invalid_bid_rate": 0.0})  # fmt: skip
+    plan = {"confirmatory": [
+        {"id": "H13_x", "cell": "haiku", "holm": "h13", "outcome": "collusion_index", "alpha": 0.05},
+        {"id": "H14_x", "cell": "deepseek", "holm": "restrictions", "outcome": "collusion_index", "alpha": 0.05},
+        {"id": "H15_x", "cell": "deepseek", "holm": "restrictions", "outcome": "collusion_index", "alpha": 0.05},
+    ], "secondary": []}  # fmt: skip
+    out = channel_tests(pd.DataFrame(rows), plan, "confirmatory")
+    main = out[out["family"] == "confirmatory"].set_index("test_id")
+    assert list(main.index) == ["H14_x", "H15_x", "H13_x"]  # each in its own cell only
+    assert main.loc["H14_x", "contrast"] == "C1cap - C1" and main.loc["H13_x", "model"] == "haiku"
+    assert main.loc["H13_x", "p_holm"] == pytest.approx(2 / 256)  # alone in its family
+    assert main.loc["H14_x", "p_holm"] == pytest.approx(4 / 256) == main.loc["H15_x", "p_holm"]
+    assert bool(main.loc["H14_x", "supported"]) and not bool(main.loc["H15_x", "supported"])  # H15 rose: no support
+    assert set(out.loc[out["family"] == "secondary_contrast", "contrast"]) == {"C1cap - B0", "C1notice - B0"}

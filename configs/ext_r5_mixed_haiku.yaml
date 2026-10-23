@@ -1,0 +1,13 @@
+# R5: mixed lineup, one Claude Haiku 5.5 firm and one DeepSeek firm, B0 and C1. Test H17. Slot assignment as R4.
+
+inherits: ext_common.yaml
+
+budget:
+  max_cost_usd: 6.90      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+
+cells:
+  - id: b0-deepseek-haiku
+    lineup: {type: heterogeneous, models: [deepseek, haiku]}
+  - id: c1-deepseek-haiku
+    lineup: {type: heterogeneous, models: [deepseek, haiku]}
+    channel: {enabled: true}

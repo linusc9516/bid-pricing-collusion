@@ -12,6 +12,7 @@ from bidrig.auction import run_session_sync
 from bidrig.bidders import BidRequest
 from bidrig.prompts import (
     ANNOUNCEMENTS,
+    CHANNEL_NOTICE,
     TIE_RULE_SENTENCES,
     build_messages,
     system_prompt,
@@ -274,3 +275,11 @@ def test_repeated_interaction_template_adds_one_sentence_only() -> None:
     assert variant.count(REPEAT_SENTENCE) == 1
     assert not [w for w in ["model", "same model", "identical", "copy", "AI", "LLM"] if w in variant]
     assert not [word for word in FORBIDDEN if word in variant]
+
+
+def test_channel_notice_snapshot() -> None:
+    """The oversight arm adds one sentence to the channel paragraph and changes nothing else."""
+    meta = replace(make_meta(["llm", "llm"], seed=3, n_rounds=4), channel=True, channel_notice=True)
+    text = system_prompt(meta, "A", "short", 4000)
+    check_snapshot("system_random_n2_channel_notice", text)
+    assert text == system_prompt(replace(meta, channel_notice=False), "A", "short", 4000) + " " + CHANNEL_NOTICE

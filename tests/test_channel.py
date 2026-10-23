@@ -108,3 +108,14 @@ def test_runner_writes_messages_and_the_checks_pass(tmp_path: Path) -> None:
     assert not (logs[0].path / "workspace.jsonl").exists()
     phases = [c.phase for c in logs[0].calls]
     assert phases.count("bid") == 6 and phases.count("message") == 4
+
+
+def test_cells_switch_the_channel_cap_and_notice_on_for_themselves_only() -> None:
+    _, _, plan = prepare(CONFIGS / "ext_tiny.yaml", "x")
+    by_cell = {p.meta.lineup_id: p.meta for p in plan}
+    assert not by_cell["b0-haiku"].channel and by_cell["b0-haiku"].condition_id.endswith("__n2")
+    assert by_cell["c1-haiku"].condition_id.endswith("__msg") and by_cell["c1-haiku"].channel_max_chars == 500
+    assert by_cell["cap-deepseek"].condition_id.endswith("__msg-cap50") and by_cell["cap-deepseek"].channel_max_chars == 50
+    assert by_cell["notice-deepseek"].condition_id.endswith("__msg-notice") and by_cell["notice-deepseek"].channel_notice
+    mixed = [p for p in plan if p.meta.lineup_id.endswith("deepseek-luna")]
+    assert mixed[0].models == mixed[1].models  # same seed, same firm-to-model assignment in B0 and C1

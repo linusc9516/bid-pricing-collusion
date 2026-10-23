@@ -1,0 +1,20 @@
+# R6: three DeepSeek firms, B0 and C1. Test H18. N = 3 changes the benchmark (b(c) = c + (100 - c) / 3) and the
+# chance tie rate, so these sessions are compared only with each other.
+
+inherits: ext_common.yaml
+
+auction:
+  n_bidders: 3
+
+llm:
+  max_concurrency: 4      # 12 DeepSeek requests in flight, as 6 sessions at N = 2 (DeepInfra 429s)
+
+budget:
+  max_cost_usd: 9.75      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+
+cells:
+  - id: b0-deepseek-n3
+    lineup: {type: homogeneous, model: deepseek}
+  - id: c1-deepseek-n3
+    lineup: {type: homogeneous, model: deepseek}
+    channel: {enabled: true}

@@ -451,7 +451,7 @@ def check_private_notes(log: SessionLog, report: CheckReport) -> None:
 
 
 def check_channel(log: SessionLog, report: CheckReport) -> None:
-    """Messages are numbered in order, at most one per firm per step, from the lineup's firms, each matched by a communication call."""
+    """Messages are numbered in order, at most one per firm per step, from the lineup's firms, each matched by a communication call and within the session's length limit."""
     meta, sid = log.meta, log.meta.session_id
     if not meta.channel:
         if log.messages:
@@ -473,6 +473,8 @@ def check_channel(log: SessionLog, report: CheckReport) -> None:
             report.fail("channel", sid, f"message {event.seq}: firm {event.firm_id} after round {event.round}")
         elif (event.round, event.firm_id) not in steps:
             report.fail("channel", sid, f"message {event.seq}: no communication call by firm {event.firm_id} after round {event.round}")
+        if len(event.text or "") > meta.channel_max_chars:
+            report.fail("channel", sid, f"message {event.seq}: {len(event.text or '')} characters, limit {meta.channel_max_chars}")
     expected = {(r, f) for r in range(1, meta.n_rounds) for f in firms}
     if steps != expected:
         report.fail("channel", sid, f"communication calls for {len(steps)} firm-rounds, expected {len(expected)}")

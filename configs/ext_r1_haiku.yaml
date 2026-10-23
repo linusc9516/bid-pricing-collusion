@@ -1,0 +1,14 @@
+# R1: Claude Haiku 5.5 as a third model family, no channel (B0) and the open channel (C1), as baseline_no_channel's
+# history arm and channel_c1. Test H13. Anthropic host, so it can run beside one DeepInfra run.
+
+inherits: ext_common.yaml
+
+budget:
+  max_cost_usd: 7.42      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+
+cells:
+  - id: b0-haiku
+    lineup: {type: homogeneous, model: haiku}
+  - id: c1-haiku
+    lineup: {type: homogeneous, model: haiku}
+    channel: {enabled: true}

@@ -1,0 +1,33 @@
+# Shared settings of the channel_extensions runs (R1-R6), declared in configs/analysis.yaml, section channel_extensions.
+# Do not change a setting here or in an ext_r*.yaml without changing that section first, in its own commit, and never
+# after the first session of the run has started.
+# As channel_c1.yaml: two firms, 50 rounds, the whole history shown, random tie-break, prompt v1, the baseline's seeds.
+# Each ext_r*.yaml sets its cells; a cell's `channel` block switches the open channel on for that cell only.
+# Hosts: deepseek on DeepInfra (its backup tier), gpt-luna on OpenAI, haiku on Anthropic. Run id: channel_extensions.
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 50
+
+session:
+  n_sessions: 12
+  base_seed: 996000       # = baseline_no_channel.yaml and channel_c1.yaml
+
+channel:
+  enabled: false
+  max_chars: 500
+
+llm:
+  host: deepseek=backup
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    deepseek: {effort: low}
+    gpt-luna: {effort: high}
+    haiku: {effort: high}
+
+budget:
+  estimate_output_tokens: 4000

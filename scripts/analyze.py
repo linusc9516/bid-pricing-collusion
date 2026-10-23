@@ -13,7 +13,8 @@ baseline_round_blocks.csv (bid minus benchmark bid by round block and seed).
 For a plan that names a `baseline` run (the notes and open-channel arms, analysis/channel.py), instead writes
 channel_sessions.csv (the runs' sessions by arm), channel_tests.csv (H3 and H4, or H5, with their secondary and
 sensitivity rows), workspace_use.csv or message_use.csv, and, when the judge has been run, notes_judge_by_arm.csv,
-messages_judge_by_arm.csv and trace_judge_by_arm.csv.
+messages_judge_by_arm.csv (with messages_judge_by_firm_model.csv) and trace_judge_by_arm.csv; for a plan with an
+`extension_rule`, extension_check.csv.
 """
 
 import argparse
@@ -25,7 +26,9 @@ import yaml
 from bidrig.analysis.channel import (
     channel_table,
     channel_tests,
+    extension_check,
     labels_by_arm,
+    labels_by_firm_model,
     message_use,
     workspace_use,
 )
@@ -59,7 +62,7 @@ HEADLINE = [
 
 
 # Runs a channel plan's secondary contrasts need beyond its baseline (configs/analysis.yaml): C1 against M1 and M2 of
-# notes_luna, and C1 of channel_c1 against DeepSeek's M2.
+# notes_luna, and C1 of channel_c1 against DeepSeek's M2. A later plan lists its own as `comparison_runs`.
 COMPARISON_RUNS = {"channel_c1": ("notes_luna",), "notes_deepseek": ("channel_c1",)}
 
 
@@ -75,8 +78,10 @@ def report_channel(log_dir: Path, out: Path, plan: dict, status: str, loaded: li
     if not base:
         print(f"no complete sessions in {baseline_dir}; the paired tests need the baseline run's logs")
         return
-    extra = [s for run in COMPARISON_RUNS.get(plan["run_id"], ()) for s in _complete(log_dir.parent / run)]
-    sessions = channel_table([*loaded, *base, *extra])
+    runs = plan.get("comparison_runs") or COMPARISON_RUNS.get(plan["run_id"], ())
+    extra = [s for run in runs for s in _complete(log_dir.parent / run)]
+    unique = {meta.session_id: (meta, rows, calls) for meta, rows, calls in [*loaded, *base, *extra]}
+    sessions = channel_table(unique.values())
     sessions.to_csv(out / "channel_sessions.csv", index=False)
     tests = channel_tests(sessions, plan, status)
     tests.to_csv(out / "channel_tests.csv", index=False)
@@ -106,6 +111,14 @@ def report_channel(log_dir: Path, out: Path, plan: dict, status: str, loaded: li
             print(f"\n{name} labels by arm ({out}/{name}_by_arm.csv): share of judged rows [share of sessions with one]")
             wide = by_arm.assign(cell=by_arm.apply(lambda r: f"{r.share_of_judged:.3f} [{r.share_of_sessions:.2f}]", axis=1))
             print(wide.pivot(index="label", columns="arm", values="cell").loc[list(labels)].to_string())
+            if name == "messages_judge":
+                labels_by_firm_model(pd.read_csv(judged), labels).to_csv(out / f"{name}_by_firm_model.csv", index=False)
+                print(f"by cell and the judged firm's model: {out}/{name}_by_firm_model.csv")
+    if plan.get("extension_rule"):
+        extension = extension_check((meta, rows) for meta, rows, _ in loaded)
+        extension.to_csv(out / "extension_check.csv", index=False)
+        print(f"\ndeclared 100-round extension rule ({out}/extension_check.csv): block index, rounds 21-30 against 41-50")
+        print(extension.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
     if (sessions["arm"] == "M1").any() and (out / "notes_judge.csv").exists():
         print("\nIn M1 uses_rival_notes, exploits_rival_notes and accepts_coordination are false by construction: their M1 rate is the judge's false-positive rate.")
     print()

@@ -58,6 +58,8 @@ class SessionMeta:
     workspace: bool = False  # shared notes workspace with a reflection step after each round but the last
     workspace_shared: bool = True  # with a workspace: True, every firm reads every note (M2); False, only its own (private notes, M1)
     channel: bool = False  # open message channel with a communication step after each round but the last
+    channel_max_chars: int = 500  # with a channel: a longer message is cut to this; 500 in every run before 2026-10-24
+    channel_notice: bool = False  # with a channel: the system prompt says a competition authority reviews the messages
     providers: dict[str, dict[str, str]] = field(default_factory=dict)
     replay: dict[str, Any] | None = None  # set when a firm replays recorded bids: {file, level, source_seed, firm_id}; None otherwise
     provider_retries: int = 0  # requests repeated after a transient provider error

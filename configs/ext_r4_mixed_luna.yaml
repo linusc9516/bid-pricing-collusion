@@ -1,0 +1,14 @@
+# R4: mixed lineup, one DeepSeek firm and one GPT-6 Luna firm, B0 and C1. Test H16. The seeded slot shuffle
+# (runner.slot_models) gives a seed the same firm-to-model assignment in both arms.
+
+inherits: ext_common.yaml
+
+budget:
+  max_cost_usd: 6.90      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+
+cells:
+  - id: b0-deepseek-luna
+    lineup: {type: heterogeneous, models: [deepseek, gpt-luna]}
+  - id: c1-deepseek-luna
+    lineup: {type: heterogeneous, models: [deepseek, gpt-luna]}
+    channel: {enabled: true}

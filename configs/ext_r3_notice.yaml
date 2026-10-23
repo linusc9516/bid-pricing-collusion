@@ -1,0 +1,12 @@
+# R3: DeepSeek with the open channel and one added sentence saying a competition authority reviews every message
+# (prompts.CHANNEL_NOTICE; no penalty stated), against channel_c1's DeepSeek cell. Test H15.
+
+inherits: ext_common.yaml
+
+budget:
+  max_cost_usd: 4.24      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+
+cells:
+  - id: notice-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+    channel: {enabled: true, notice: true}

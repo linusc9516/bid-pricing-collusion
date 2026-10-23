@@ -1,0 +1,38 @@
+# Smoke test of R1-R5 (ext_r1 to ext_r5): one 3-round session per cell, with their settings. Read the prompts and
+# messages by hand and run check_logs.py before the first full run. Run id smoke_channel_extensions.
+# Keep the cells in sync with ext_r1_haiku.yaml to ext_r5_mixed_haiku.yaml.
+
+inherits: ext_common.yaml
+
+auction:
+  n_rounds: 3
+
+session:
+  n_sessions: 1
+  base_seed: 980000       # disjoint from the declared seeds
+
+budget:
+  max_cost_usd: 0.5
+
+cells:
+  - id: b0-haiku
+    lineup: {type: homogeneous, model: haiku}
+  - id: c1-haiku
+    lineup: {type: homogeneous, model: haiku}
+    channel: {enabled: true}
+  - id: cap-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+    channel: {enabled: true, max_chars: 50}
+  - id: notice-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+    channel: {enabled: true, notice: true}
+  - id: b0-deepseek-luna
+    lineup: {type: heterogeneous, models: [deepseek, gpt-luna]}
+  - id: c1-deepseek-luna
+    lineup: {type: heterogeneous, models: [deepseek, gpt-luna]}
+    channel: {enabled: true}
+  - id: b0-deepseek-haiku
+    lineup: {type: heterogeneous, models: [deepseek, haiku]}
+  - id: c1-deepseek-haiku
+    lineup: {type: heterogeneous, models: [deepseek, haiku]}
+    channel: {enabled: true}
