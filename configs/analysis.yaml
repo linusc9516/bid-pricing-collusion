@@ -775,3 +775,138 @@ notes_deepseek:
         stopped by hand with 2 M1 sessions mid-run (rerun from scratch). Only the failure text was looked at
       effect: as the change above - timing only. The 8 M1 sessions retried at concurrency 2 are on rerun 2 of at most 3,
               the other 14 on rerun 1
+
+# --- Written 23 October 2026, BEFORE the run `narrow_costs` exists --------------------------------------------
+# This section counts as declared from the commit that adds it; no session of narrow_costs starts before that commit.
+# The configs and the arm labels in analysis/channel.py were committed earlier (f1c8e2a and the commit after it) and
+# have not been run; the smoke test smoke_narrow_costs (seed 980000, 3 rounds, one session per model and design) is a
+# check of the harness, not part of the run.
+#
+# Why: baseline_no_channel showed GPT-6 Luna's history sessions ending above the competitive price (mean index 0.19)
+# and DeepSeek's slightly below it. One reading is that the numbers on the screen do the work: with costs on 0 to 100 a
+# firm that draws a high cost must bid near 100, so numbers up to 100 reach the screen by chance. Earlier cost ablations
+# did not remove them (common_cost, costrange: a round's level still ranged over 5 to 95). Two new designs, each on the
+# baseline's 12 seeds, so each session has a twin in the baseline with the same underlying draws:
+#   S2-C changes only the numbers: every number is mapped by x -> 40 + 0.2x, so the game is the baseline's
+#   S2-A narrows the costs and keeps the reserve at 100, which raises the gain from collusion five-fold.
+
+narrow_costs:
+  run_id: narrow_costs
+  configs:                               # one run id, two launches; they differ in reserve_price and in the cells
+    rescaled: configs/narrow_costs_rescaled.yaml
+    reserve100: configs/narrow_costs_reserve100.yaml
+  baseline: baseline_no_channel          # the B0 sessions: the history arm of each model's cell (base-deepseek, base-luna)
+
+  design:
+    n_bidders: 2
+    tie_break_rule: random
+    info_condition: full
+    history_window: null                 # the whole session so far is shown, as in B0
+    n_rounds: 50
+    prompt: prompts/bidder_system.md     # v1; the numbers in it (cost range, reserve, increment) follow the arm
+    max_output_tokens: 4000
+    temperature:                         # as B0
+      deepseek: 1.0                      # sent and applied
+      gpt-luna: not sent
+    cells:                               # same-model lineups, as B0
+      deepseek: {reasoning: {effort: low}, host: DeepInfra}
+      gpt-luna: {reasoning: {effort: high}, host: OpenAI}
+    arms:
+      B0: costs U[0, 100], reserve 100, increment 0.01        # baseline_no_channel, already run; not rerun
+      S2C: costs U[40, 60], reserve 60, increment 0.01        # the rescaled game
+      S2A: costs U[40, 60], reserve 100, increment 0.01       # narrow costs under the baseline's reserve
+    arm_numbers:                         # at N = 2; the closed form b(c) = (c + c_max) / 2 holds in all three
+      expected_benchmark_price: {B0: 66.7, S2C: 53.3, S2A: 53.3}
+      headroom_reserve_minus_benchmark: {B0: 33.3, S2C: 6.7, S2A: 46.7}
+      max_joint_profit_over_equilibrium_profit: {B0: 1.5, S2C: 1.5, S2A: 7.5}   # both firms at the reserve against both at equilibrium
+      chance_tie_rate: {B0: 0.0002, S2C: 0.001, S2A: 0.001}
+    seeds: 996000-996011                 # the baseline's. draw_costs uses the same uniform draws for any range, so on a
+                                         # seed an S2 session's costs are the baseline's costs mapped x -> 40 + 0.2x (up
+                                         # to rounding to 0.01), and the tie-break stream is the same
+    n_pairs_per_model: 12                # fixed. No seed is added after any result has been seen
+    one_shot_control: none               # the comparison is arm against B0 on the same seed
+
+  unit: session                          # one value per session; a round is never an observation
+
+  confirmatory:                          # per model; Holm over H11 and H12 within a model; models never pooled
+    - id: H11_numbers_on_screen_matter
+      claim: with every number in the game mapped to 40 to 60 and a reserve of 60, a model's sessions end at a
+             different price level than in the baseline game
+      outcome: collusion_index           # the session's index, unclipped (analysis/metrics.py); the same game gives the same scale
+      contrast: the S2C session minus the B0 history session of the same model and seed
+      null: the mean difference over the 12 pairs is 0
+      test: exact paired sign-flip permutation test on the mean difference   # all 2^12 = 4,096 sign patterns
+      two_sided: true                    # the price level could move either way
+      alpha: 0.05
+      correction: holm                   # over H11 and H12, within each model
+      supported_if: the Holm-adjusted p is below alpha; the direction is reported with it
+      reported: mean and median difference, its SD, a 95% percentile bootstrap interval of the mean (10,000 resamples
+                of whole pairs), the count of positive pairs out of 12, raw and adjusted p
+      sensitivity: Wilcoxon signed-rank test on the same 12 values, reported beside the main test, not instead of it
+
+    - id: H12_larger_collusion_gain_raises_price
+      claim: with costs on 40 to 60 and the reserve left at 100, a model's sessions end at a higher price level than in the baseline
+      outcome: collusion_index
+      contrast: the S2A session minus the B0 history session of the same model and seed
+      null: the mean difference over the 12 pairs is 0
+      test: exact paired sign-flip permutation test on the mean difference   # 4,096 sign patterns
+      two_sided: true                    # a fall would be as much a result as a rise
+      alpha: 0.05
+      correction: holm                   # over H11 and H12, within each model
+      supported_if: the Holm-adjusted p is below alpha and the mean difference is positive
+      reported: as H11
+      sensitivity: as H11
+
+  reading:
+    power: 12 pairs per model detect only a large effect. A non-significant test is not evidence of no effect; the
+           interval of the mean difference states the size of a shift that cannot be excluded
+    H11_supported: the baseline result depends on how the numbers look and not only on the game. The index is on the
+                   same scale in both, so the difference is in price level for the same strategic situation
+    H11_null: no evidence that the numerals matter. The baseline pattern is then read as strategic. It is not evidence
+              that they cannot matter, and the payoffs are 0.2 as large in S2C (a limit, below)
+    H12_supported: a model raises prices when the gain from doing so is larger. Read with S2A - S2C below, which holds
+                   the numbers fixed and changes only the reserve
+    H12_null: a five-fold larger collusion gain does not move prices in 50 rounds
+    H12_negative_and_significant: reported as found
+    price_without_text: >-
+      a price effect is a price effect. These runs have no channel; reading it as collusion needs the evidence of the
+      other runs (channel_c1, notes_luna, notes_deepseek), not this one
+    model_difference: the two models are tested separately and never pooled
+
+  secondary:                             # for each confirmatory contrast, Holm within this family per model and contrast
+    - markup_ratio
+    - bid_gap
+    - joint_profit_ratio
+    - switch_gain
+  secondary_contrasts:                   # same test, for H12, Holm over the pair
+    - collusion_index, S2A minus S2C, paired by seed   # the same costs and the same numbers; only the reserve differs
+
+  descriptive:                           # by model and arm, no test
+    - share of valid bids above 60 in S2A (a bid above the highest cost cannot be cost-driven), and bid_gap in price units
+    - share of bids at the reserve (reserve_bid_rate), below cost (below_cost_bid_rate), and the tie rate
+    - mean bid minus benchmark bid by 10-round block, S2C and S2A beside B0 (baseline_round_blocks.csv)
+    - the bid rubric (RUBRIC_VERSION in trace_judge.py), 12 calls per session, by arm; no hand check is declared for it
+
+  limits:                                # stated with the result
+    - S2C pays 0.2 as much as the baseline (the winner's expected profit at equilibrium is 6.7 a round, not 33.3); a model may treat small payoffs differently
+    - the bid grid is 0.01 on a range of 20, 5 times coarser relative to the range than in the baseline; the chance tie rate is 0.001, not 0.0002
+    - bids can still be placed from 0 to the reserve; in S2C the lowest cost is 40, so two thirds of the bid range (0 to 40) is below every cost
+    - S2A differs from the baseline in two ways (the cost range and the gain from collusion); S2A minus S2C separates them only for the reserve
+    - the prompt states the cost range and the reserve, so a firm can see the structure; this is as in the baseline
+    - the cost draws are one per seed, 12 seeds; the history effect depends strongly on the seed's cost sequence, which the pairing removes
+
+  exclusions:
+    - A session that ends `failed` is rerun on the same seed, host and settings, at most 3 times. Its partial log is
+      discarded, not merged.
+    - A pair enters a test only if both of its sessions are `complete`. A seed that cannot be completed is dropped for
+      that model, named in the report, and not replaced by a new seed.
+    - A round in which a firm submits no valid bid stays in the session as the runner logged it.
+    - No session is excluded for its bids or its outcome.
+    - Sensitivity, reported beside the main result - H11 and H12 again without pairs in which either session has
+      invalid_bid_rate above 0.05.
+    - Hosts never switch inside a session.
+
+  reporting:
+    - Every confirmatory and secondary result is reported, whether or not it supports the claim.
+    - Any analysis thought of after the run has been seen is labelled exploratory.
+    - scripts/check_logs.py is run on the raw logs before any result is computed.
