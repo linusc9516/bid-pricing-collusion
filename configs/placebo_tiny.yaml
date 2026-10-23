@@ -1,0 +1,15 @@
+# Smoke test of the replay-rival placebo: one 3-round session per cell (both models, high and low replay), with the
+# settings of placebo_replay.yaml. Read firm A's prompts and the replayed bids by hand, and run check_logs.py, before
+# placebo_replay.yaml. Run id smoke_placebo.
+
+inherits: placebo_replay.yaml
+
+auction:
+  n_rounds: 3
+
+session:
+  n_sessions: 1
+  base_seed: 980000       # disjoint from the declared seeds
+
+budget:
+  max_cost_usd: 0.5
