@@ -140,7 +140,7 @@ Two further arms restrict C1 for \DS{}: \textbf{C1cap} cuts every message to 50 
 
 \para{Pairing and tests.} Each cell (a lineup of models) has 12 sessions per arm on seeds 996000--996011; the \LU{} replication at 100 rounds uses new seeds 997000--997011. A seed fixes every round's costs and tie-break draws, so sessions of two arms on one seed face the same costs, and the session is the unit of analysis. With three firms the benchmark is $b^*(c) = c + (100 - c)/3$, and three-firm sessions are compared only with each other. Each hypothesis is a paired contrast on $I$, tested with an exact sign-flip permutation test over all $2^{12}$ sign patterns, two-sided, $\alpha = 0.05$, Holm-corrected within its declared family. We report the mean difference, a 95\% percentile bootstrap interval over pairs (10{,}000 resamples) and the number of positive pairs. Descriptive intervals in figures and Table~\ref{tab:summary} are bootstraps over the 12 sessions of a cell.
 
-\para{Pre-registration.} Every test, exclusion rule and reading of a null was committed to \texttt{configs/analysis.yaml} before the run it covers; every run started from a clean checkout of that commit, and a consistency check of the raw logs (auction rules, every prompt, cost leakage into prompts, message length, serving hosts) passed for every run before any result was computed. Sessions that failed on a provider error were rerun from scratch on the same seed under the declared rule (14 sessions of the rescaled-game run, after a ten-minute connection drop); no session was excluded, and every reported pair is complete.
+\para{Pre-registration.} Every test, exclusion rule and reading of a null was committed to \texttt{configs/analysis.yaml} before the run it covers. Hypotheses keep their declared numbers (H1, H2, \dots); Appendix~\ref{app:hyp} names each and gives its result. Every run started from a clean checkout of the commit that declared it, and a consistency check of the raw logs (auction rules, every prompt, cost leakage into prompts, message length, serving hosts) passed for every run before any result was computed. Sessions that failed on a provider error were rerun from scratch on the same seed, as declared (14 in the rescaled-game run, after a connection drop); none was excluded.
 
 \para{Conduct labels.} \model{Gemini-3.8-Flash} labels each communication and reflection step against a fixed rubric (for example \emph{proposes coordination}, \emph{threatens rival}, \emph{uses rival's notes}); a label counts only with a verbatim quote from the step. A step with neither hidden reasoning nor a message has no text to judge and is left out, so \LU's shares are over 869 of its 1{,}176 C1 steps, 433 of 588 in the mixed lineup and 1{,}855 of 2{,}376 at 100 rounds; every other model's steps are all judged. The declared hand check of 30 judged steps per rubric has not been done, so these labels are provisional.
 
@@ -182,7 +182,7 @@ Model & Arm & Index $\uparrow$ & Markup & Profit & Low-cost win \% & Ties \% \\
 \label{fig:contrasts}
 \end{figure}
 
-Table~\ref{tab:summary} and Figures~\ref{fig:rounds} and~\ref{fig:contrasts} show the results. Without a channel, \DS{} bids just below the benchmark ($I = -0.05$) and \LU{} above it ($0.19$, range $-0.19$ to $0.67$ over sessions). The one-shot sessions of the baseline, which show no history, put \DS{} at the benchmark ($-0.03$, interval $[-0.04, -0.01]$) and \LU{} below it ($-0.16$); History alone does not move \DS{} above the benchmark: its history sessions are $0.03$ below its one-shot sessions on the same costs ($[-0.09, 0.04]$, Holm $p = 0.47$), so repeated play without a channel produces no tacit collusion in this model. \LU's history sessions are $0.35$ above its one-shot sessions ($[0.20, 0.50]$, Holm $p = 0.002$); Section~\ref{sec:placebo} tests whether that needs coordination.
+Table~\ref{tab:summary} and Figures~\ref{fig:rounds} and~\ref{fig:contrasts} show the results. Without a channel, \DS{} bids just below the benchmark ($I = -0.05$) and \LU{} above it ($0.19$, range $-0.19$ to $0.67$ over sessions). The one-shot sessions of the baseline, which show no history, put \DS{} at the benchmark (H2: $-0.03$, interval $[-0.04, -0.01]$) and \LU{} below it ($-0.16$); History alone does not move \DS{} above the benchmark: its history sessions are $0.03$ below its one-shot sessions on the same costs (H1: $[-0.09, 0.04]$, Holm $p = 0.47$), so repeated play without a channel produces no tacit collusion in this model. \LU's history sessions are $0.35$ above its one-shot sessions ($[0.20, 0.50]$, Holm $p = 0.002$); Section~\ref{sec:placebo} tests whether that needs coordination.
 
 \para{An open channel raises prices.} Every \DS{} pair ends at a higher price with messages than without (H5: $+0.885$, $[0.737, 1.017]$, 12/12, Holm $p = 0.001$). The rise starts in the first five rounds and the index stays above 0.75 from round 6 to the end (Figure~\ref{fig:rounds}). Ten of twelve \DS{} sessions have a winning price of 99 or more in at least 29 of the 50 rounds, and the firms earn 1.45 times the joint profit of benchmark play, against 0.88 without a channel. For \LU{} the rise is smaller (H5: $+0.111$, $[0.025, 0.210]$, 9/12, $p = 0.041$) and comes mainly from two sessions (seeds 996004 and 996008) with a winning price of 99 or more in 41 and 38 rounds; the other ten have at most two such rounds. On new seeds this effect does not replicate (Section~\ref{sec:general}).
 
@@ -315,6 +315,25 @@ $I_s = 0$ at benchmark prices, $I_s = 1$ when every contract is won at the reser
 p = \frac{1}{2^K} \sum_{\sigma \in \{-1, 1\}^K} \mathbb{1}\Big[\Big|\tfrac{1}{K}\textstyle\sum_k \sigma_k d_k\Big| \ge \Big|\bar d\Big|\Big],
 \]
 Holm-adjusted within each declared family: with $m$ p-values sorted $p_{(1)} \le \dots \le p_{(m)}$, $\tilde p_{(j)} = \max_{r \le j} \min\{1, (m - r + 1)\, p_{(r)}\}$. Intervals are 95\% percentile bootstraps of $\bar d$ over whole pairs (10{,}000 resamples); descriptive intervals resample the 12 sessions of a cell.
+
+\section{Hypothesis Index}
+\label{app:hyp}
+Every confirmatory hypothesis reported in this paper, in the order it was declared. Numbers H7 and H8 were never used, and H20 onward belong to runs declared after this report's results. The outcome is the collusion index $I$ unless stated; intervals are 95\% bootstrap intervals over seed pairs; $p$ is Holm-adjusted within the declared family (H2 is an interval test with no $p$). A hypothesis is supported only if its $p$ is below 0.05 and the difference has the declared sign.
+
+\begin{table}[h]
+\centering\small
+\caption{Hypothesis index, from the result tables in \texttt{results/}.}
+\label{tab:hyp}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllllll}
+\toprule
+ID & Short name & Cell & Contrast & Mean [95\% CI] & Holm $p$ & Result \\
+\midrule
+\csname @@input\endcsname tables/hypotheses.tex
+\bottomrule
+\end{tabular}}
+\end{table}
 
 \section{Extension Cells}
 \label{app:ext}

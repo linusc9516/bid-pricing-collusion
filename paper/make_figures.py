@@ -93,7 +93,8 @@ def figure_contrasts() -> None:
             ax.plot(r["mean"], yi, "o", ms=5.5, color=color, mec="white", mew=1)
             star = "*" if confirmatory and r["supported"] is True else ""
             ax.annotate(f"{r['mean']:+.2f}{star}", (r["ci_high"], yi), xytext=(4, -2.5), textcoords="offset points", fontsize=7, color=INK)
-        ax.set_yticks(y, [c.replace(" - ", " $-$ ") + ("" if cell.loc[c, "family"] == "confirmatory" else " (sec.)") for c in cell.index], fontsize=7.5)
+        tags = [f" ({cell.loc[c, 'test_id'].split('_')[0]})" if cell.loc[c, "family"] == "confirmatory" else " (sec.)" for c in cell.index]
+        ax.set_yticks(y, [c.replace(" - ", " $-$ ") + tag for c, tag in zip(cell.index, tags, strict=True)], fontsize=7.5)
         ax.axvline(0, color=MUTED, lw=0.7, ls=(0, (3, 3)))
         ax.set_title(NAMES[model], fontsize=8.5, color=INK, fontfamily="monospace")
         ax.set_xlabel("Paired difference in collusion index")
@@ -235,6 +236,49 @@ def table_extensions() -> None:
     (TABLES / "extensions.tex").write_text("\n".join(lines) + "\n")
 
 
+HYPOTHESES = [  # (id, short name, run, test file, contrast as printed); one table row per model or cell tested
+    ("H1", "History lowers price", "baseline_no_channel", "baseline_tests", "history $-$ one-shot, $\\Delta I$"),
+    ("H2", "One-shot bids at equilibrium", "baseline_no_channel", "baseline_tests", "one-shot $I$ within $\\pm 0.05$"),
+    ("H3", "Private notes change price", "notes_luna", "channel_tests", "M1 $-$ B0"),
+    ("H4", "Sharing notes raises price", "notes_luna", "channel_tests", "M2 $-$ M1"),
+    ("H5", "Messages raise price", "channel_c1", "channel_tests", "C1 $-$ B0"),
+    ("H6", "Displayed bids move bids", "placebo_replay", "placebo_tests", "high $-$ low replay, markup"),
+    ("H9", "Shared notes raise price", "notes_deepseek", "channel_tests", "M2 $-$ B0"),
+    ("H10", "Private notes change price", "notes_deepseek", "channel_tests", "M1 $-$ B0"),
+    ("H11", "Displayed numbers matter", "narrow_costs", "channel_tests", "rescaled $-$ B0"),
+    ("H12", "Larger collusion gain raises price", "narrow_costs", "channel_tests", "reserve 100 $-$ B0"),
+    ("H13", "Third model: messages raise price", "channel_extensions", "channel_tests", "C1 $-$ B0"),
+    ("H14", "Length cap lowers price", "channel_extensions", "channel_tests", "50-char cap $-$ C1"),
+    ("H15", "Oversight notice lowers price", "channel_extensions", "channel_tests", "notice $-$ C1"),
+    ("H16", "Mixed lineup: messages raise price", "channel_extensions", "channel_tests", "C1 $-$ B0"),
+    ("H17", "Mixed lineup: messages raise price", "channel_extensions", "channel_tests", "C1 $-$ B0"),
+    ("H18", "Three firms: messages raise price", "channel_extensions", "channel_tests", "C1 $-$ B0"),
+    ("H19", "Replication at 100 rounds", "luna_long", "channel_tests", "C1 $-$ B0"),
+]
+CELL_NAMES = {"deepseek": "DeepSeek", "base-deepseek": "DeepSeek", "gpt-luna": "Luna", "base-luna": "Luna", "haiku": "Haiku",
+              "deepseek x gpt-luna": "DeepSeek x Luna", "deepseek x haiku": "DeepSeek x Haiku", "deepseek n3": "DeepSeek, 3 firms"}  # fmt: skip
+
+
+def table_hypotheses() -> None:
+    """LaTeX body of the hypothesis index: one row per declared hypothesis and model or cell, from the result CSVs."""
+    lines = []
+    for hid, name, run, stem, contrast in HYPOTHESES:
+        tests = pd.read_csv(ROOT / f"results/{run}/{stem}.csv")
+        if stem == "placebo_tests":
+            rows = tests[(tests["family"] == "confirmatory") & (tests["outcome"] == "markup_ratio")].rename(columns={"mean_diff": "mean"})
+        else:
+            rows = tests[tests["test_id"].str.startswith(f"{hid}_")]
+            rows = rows[rows["family"] == "confirmatory"] if "family" in rows else rows
+        for k, r in enumerate(rows.itertuples()):
+            p = "--" if pd.isna(r.p_holm) else f"{r.p_holm:.3f}" if round(r.p_holm, 3) > 0 else "$<$0.001"
+            verdict = "supported" if r.supported in (True, "True") else "not supported"
+            lines.append(" & ".join([
+                hid if k == 0 else "", name if k == 0 else "", CELL_NAMES.get(r.model, r.model), contrast,
+                f"${r.mean:+.3f}$ {{\\scriptsize [{r.ci_low:+.2f}, {r.ci_high:+.2f}]}}", p, verdict,
+            ]) + r" \\")  # fmt: skip
+    (TABLES / "hypotheses.tex").write_text("\n".join(lines) + "\n")
+
+
 def fmt_ci(values: np.ndarray, scale: float = 1.0, digits: int = 2) -> str:
     mean, lo, hi = (round(v * scale, digits) + 0 for v in boot(values))
     return f"${mean:.{digits}f}$ {{\\scriptsize [{lo:.{digits}f}, {hi:.{digits}f}]}}"
@@ -269,3 +313,4 @@ if __name__ == "__main__":
     figure_conduct()
     figure_extensions()
     table_extensions()
+    table_hypotheses()
