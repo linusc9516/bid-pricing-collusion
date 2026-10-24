@@ -52,3 +52,16 @@ paper/*.aux
 paper/*.fdb_latexmk
 paper/*.fls
 paper/*.out
+
+# working notes and slides: kept local, not published
+HANDOFF*.md
+PLANNING_NEW.md
+paper_plan.md
+slides/
+
+# draft config never declared or run
+configs/long_grid1.yaml
+
+# published viewer bundles too large to commit; kept local
+site/data/published/channel_c1/
+site/data/published/notes_luna/
