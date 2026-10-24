@@ -44,6 +44,16 @@ def arm_of(session_id: str) -> str:
     return next((name for key, name in ARMS if key in session_id), "repeated")
 
 
+def earlier_messages(logs_root: Path, run: str, session_id: str, before: int, rounds: int = 2) -> list[dict]:
+    """Messages both firms sent after the `rounds` rounds before round `before`: what a firm had read in that step."""
+    path = next((logs_root / run).glob(f"*/{session_id}/messages.jsonl"), None)
+    if path is None:
+        return []
+    events = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    return [{"round": e["round"], "firm": e["firm_id"], "text": e.get("text") or ""} for e in events
+            if e.get("op") == "write" and before - rounds <= e["round"] < before]
+
+
 def page_data(run: str, stem: str, logs_root: Path, results_root: Path) -> dict | None:
     """Rows of one check file with their full trace text; None if the run's logs are missing."""
     phase, rubric = PHASES[stem]
@@ -74,6 +84,7 @@ def page_data(run: str, stem: str, logs_root: Path, results_root: Path) -> dict 
             "model": model, "arm": arm_of(r.session_id), "seed": info.get(r.session_id, {}).get("seed"), "text": body,
             "quotes": {k: (v if isinstance(v, str) and v.strip() else None) for k, v in quotes.items()},
             "first_proposal": first_proposal.get(r.session_id, {}),
+            "earlier": earlier_messages(logs_root, run, r.session_id, int(r.round)) if phase == "message" else [],
         })  # fmt: skip
     return {"run": run, "stem": stem, "rubric": version, "phase": phase, "labels": labels, "primary": primary, "definitions": rubric.definitions, "rows": rows}
 
@@ -161,6 +172,8 @@ function render() {
   const otherLabels = D.labels.filter((l) => !isPrimary(l));
   const fp = Object.entries(r.first_proposal || {}).sort().map(([f, rd]) => `firm ${esc(f)} round ${rd}`).join(", ");
   const proposalLine = r.first_proposal ? `<p class="def">First step the judge labels <i>proposes coordination</i>, per firm, anywhere in this session: ${fp || "none"}. Use it for accepts_coordination: accepting means following the other firm's proposal.</p>` : "";
+  const earlierCard = (r.earlier || []).length ? `<div class="card"><b>Messages already read in this step</b> <span class="def">(both firms, the two rounds before; the judge did not see these)</span>
+      ${r.earlier.map((m) => `<p><b>round ${m.round} · firm ${esc(m.firm)}${m.firm === r.firm ? " (this firm)" : ""}:</b> ${esc(m.text) || '<span class="def">(empty)</span>'}</p>`).join("")}</div>` : "";
   const otherCard = otherLabels.length ? `<div class="card"><b>Other labels</b> <span class="def">(not reported in the paper; code only those the judge marks true)</span>
       <table>${head}<tbody>${otherLabels.map(labelRow).join("")}</tbody></table></div>` : "";
   document.getElementById("main").innerHTML = `
@@ -170,6 +183,7 @@ function render() {
     <div class="card"><b>Labels used in the paper</b><table>${head}<tbody>${primaryRows}</tbody></table>${proposalLine}
       <p><button id="allright">All shown right</button></p>
       <textarea id="note" placeholder="Note for this row">${esc(c._note || "")}</textarea></div>
+    ${earlierCard}
     ${otherCard}
     <div class="card"><pre id="text">${highlighted(r.text, r.quotes, selected)}</pre></div>`;
   document.querySelectorAll("button[data-v]").forEach((b) => b.onclick = () => { c[b.dataset.l] = c[b.dataset.l] === b.dataset.v ? undefined : b.dataset.v; save(); render(); });
