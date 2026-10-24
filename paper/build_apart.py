@@ -1,47 +1,16 @@
 """Build paper/main_apart.tex (the Apart submission template layout) from paper/main.tex: same content, template heading order and styles. Run from the repo root, then compile with xelatex."""
-import re
+import sys
 from pathlib import Path
 
-src = Path("paper/main.tex").read_text()
+sys.path.insert(0, str(Path(__file__).parent))
+from paper_parts import load
 
-def between(a, b):
-    i = src.index(a); j = src.index(b, i + len(a))
-    return src[i + len(a):j]
-
-body_start = src.index(r"\begin{document}")
-pre = src[:body_start]
-# keep macro/colour/box definitions, drop font, page and heading set-up
-keep = []
-for line in pre.splitlines():
-    if line.startswith(("\\documentclass", "\\usepackage[T1]", "\\usepackage[utf8]", "\\usepackage{newtx", "\\usepackage[letterpaper", "\\pagestyle", "\\renewcommand{\\headrulewidth", "\\titleformat", "\\titlespacing")):
-        continue
-    keep.append(line)
-pre_keep = "\n".join(keep)
-
-title_fn = re.search(r"When Allowed To Talk(\\footnote\{.*?\})\}\n", src).group(1)
-abstract = between("\\begin{quote}\n", "\\end{quote}")
-intro = between("\\section{Introduction}\n", "\\section{Setting up the Auction}")
-setup = between("\\section{Setting up the Auction}\n", "\\section{Evaluation Framework}")
-evalf = between("\\section{Evaluation Framework}\n", "\\section{Experiments and Analysis}")
-results = between("\\section{Experiments and Analysis}\n", "\\section{Discussion and Limitations}")
-disc = between("\\section{Discussion and Limitations}\n", "\\section{Conclusion}")
-concl = between("\\section{Conclusion}\n", "\\section*{Author Contributions}")
-contrib = between("\\section*{Author Contributions}\n", "\\begin{thebibliography}")
-bib = "\\begin{thebibliography}" + between("\\begin{thebibliography}", "\\end{thebibliography}") + "\\end{thebibliography}\n"
-related = between("\\section{Related Work}\n", "\\section{Metric Definitions and Tests}")
-app_rest = between("\\section{Metric Definitions and Tests}", "\\section{Code and Data}")
-code = between("\\section{Code and Data}\n", "\\section{LLM Usage Statement}")
-llm = between("\\section{LLM Usage Statement}\n", "\\end{document}")
-
-lim_i = disc.index("\\para{Limitations.} "); fut_i = disc.index("\\para{Future work.} ")
-disc_main = disc[:lim_i]
-limitations = disc[lim_i + len("\\para{Limitations.} "):fut_i]
-future = disc[fut_i + len("\\para{Future work.} "):]
-
-# results subsections and methods parts become level-3 headings
-results = results.replace("\\subsection{", "\\subsection{")
-app = "\\subsection{Metric Definitions and Tests}" + app_rest
-app = app.replace("\\section{", "\\subsection{")
+P = load()
+pre_keep, title_fn, abstract = P["preamble"], P["title_fn"], P["abstract"]
+intro, setup, evalf, results = P["intro"], P["setup"], P["evalf"], P["results"]
+disc_main, limitations, future, concl = P["disc_main"], P["limitations"], P["future"], P["concl"]
+contrib, bib, related, code, llm = P["contrib"], P["bib"], P["related"], P["code"], P["llm"]
+app = P["appendix"].replace("\\section{", "\\subsection{")
 
 preamble = r"""\documentclass[10pt]{article}
 \usepackage[letterpaper,margin=1in]{geometry}
@@ -80,7 +49,7 @@ Linus C.\\ {[Affiliation]}\\ \texttt{[email]}
 
 \begin{center}{\fontsize{14}{17}\selectfont\bfseries Abstract}\end{center}
 \begin{list}{}{\setlength{\leftmargin}{0.375in}\setlength{\rightmargin}{0.03in}}\item[]
-""" + abstract.strip() + r"""
+""" + abstract + r"""
 \end{list}
 
 \section{Introduction}
