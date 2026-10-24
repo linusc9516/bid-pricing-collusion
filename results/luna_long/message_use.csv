@@ -1,0 +1,13 @@
+session_id,arm,model,seed,steps,share_steps_sent,first_message_round,mean_message_chars,share_truncated,share_requests_failed
+tie-random__info-full__lineup-c1-luna-100__n2__msg__seed997000,C1,gpt-luna,997000,198,0.6868686868686869,6,145.23529411764707,0.0,0.0
+tie-random__info-full__lineup-c1-luna-100__n2__msg__seed997001,C1,gpt-luna,997001,198,0.5555555555555556,39,174.74545454545455,0.0,0.0
+tie-random__info-full__lineup-c1-luna-100__n2__msg__seed997002,C1,gpt-luna,997002,198,0.4090909090909091,40,194.49382716049382,0.0,0.0
+tie-random__info-full__lineup-c1-luna-100__n2__msg__seed997003,C1,gpt-luna,997003,198,0.5858585858585859,25,178.19827586206895,0.0,0.0
+tie-random__info-full__lineup-c1-luna-100__n2__msg__seed997004,C1,gpt-luna,997004,198,0.7727272727272727,13,171.58823529411765,0.0,0.0
+tie-random__info-full__lineup-c1-luna-100__n2__msg__seed997005,C1,gpt-luna,997005,198,0.06565656565656566,31,186.30769230769232,0.0,0.0
+tie-random__info-full__lineup-c1-luna-100__n2__msg__seed997006,C1,gpt-luna,997006,198,0.7575757575757576,12,178.58666666666667,0.0,0.0
+tie-random__info-full__lineup-c1-luna-100__n2__msg__seed997007,C1,gpt-luna,997007,198,0.4090909090909091,32,190.34567901234567,0.0,0.0
+tie-random__info-full__lineup-c1-luna-100__n2__msg__seed997008,C1,gpt-luna,997008,198,0.6161616161616161,3,182.51639344262296,0.0,0.0
+tie-random__info-full__lineup-c1-luna-100__n2__msg__seed997009,C1,gpt-luna,997009,198,0.6262626262626263,34,167.06451612903226,0.0,0.0
+tie-random__info-full__lineup-c1-luna-100__n2__msg__seed997010,C1,gpt-luna,997010,198,0.025252525252525252,31,164.0,0.0,0.0
+tie-random__info-full__lineup-c1-luna-100__n2__msg__seed997011,C1,gpt-luna,997011,198,0.3434343434343434,60,175.16176470588235,0.0,0.0
