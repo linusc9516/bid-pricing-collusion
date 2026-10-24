@@ -3,7 +3,7 @@
 One directory per run id, written by `scripts/analyze.py` from `logs/<run_id>/` (raw logs are gitignored). Each
 holds the generated CSVs and a hand-written findings file. Column definitions: `PLANNING.md` section 3.
 
-**Cells have 3 to 12 sessions (5 in the pilot and the screen). All numbers are descriptive, with no tests and no intervals, except for `baseline_no_channel`, whose tests were declared in `configs/analysis.yaml` before the run.**
+**Runs up to `costs_revealed` are exploratory: cells have 3 to 12 sessions (5 in the pilot and the screen), and all numbers are descriptive, with no tests and no intervals. From `baseline_no_channel` on, every run's tests were declared in `configs/analysis.yaml` before the run, and the declared tests are in `baseline_tests.csv`, `channel_tests.csv` or `placebo_tests.csv`. The paper (`paper/main.pdf`) reports those runs.**
 
 | Run | Date | What | Sessions | Spend | Findings |
 |---|---|---|---|---|---|
@@ -13,7 +13,19 @@ holds the generated CSVs and a hand-written findings file. Column definitions: `
 | `common_cost_check` | 2026-10-09 | Harness check of the common-cost draw (spread 5): N = 2, DeepSeek, 12 rounds | 6 | $0.16 | tables only |
 | `costrange` | 2026-10-09 | Common costs (a round's costs within 10 of each other): N = 2, DeepSeek, 25 rounds | 10 | $0.55 | tables only; `PLANNING.md` 7.4 |
 | `costs_revealed` | 2026-10-09 | Complete information (every firm sees every cost): N = 2, 50 rounds, DeepSeek and GPT-6 Luna | 16 | $0.76 | tables only; `PLANNING.md` 7.4 |
-| `baseline_no_channel` | 2026-10-10 | Declared no-channel baseline: N = 2, private costs, 50 rounds, DeepSeek and GPT-6 Luna, 12 matched pairs each on the same seeds | 48 | $3.34 | `baseline_tests.csv`, `baseline_descriptives.csv`, judge output; summary in the top-level `README.md` |
+| `workspace_screen_n2` | 2026-10-09 | First shared-notes screen, exploratory | 10 | | notes judge |
+| `baseline_no_channel` | 2026-10-10 | Declared no-channel baseline: N = 2, private costs, 50 rounds, DeepSeek and GPT-6 Luna, 12 matched pairs each on the same seeds | 48 | $3.34 | `baseline_tests.csv`, `baseline_descriptives.csv`, judge output; reported in the paper |
+| `private_screen_n2` | 2026-10-15 | First private-notes screen, DeepSeek, exploratory | 5 | | tables only |
+| `notes_luna` | 2026-10-15 | Declared: private (M1) and shared (M2) notes, Luna; H3, H4 | 24 | | `channel_tests.csv`, notes judge |
+| `channel_c1` | 2026-10-16 | Declared: open message channel (C1), DeepSeek and Luna; H5 | 24 | | `channel_tests.csv`, messages judge |
+| `notes_deepseek` | 2026-10-16 to 18 | Declared: M1 and M2, DeepSeek; H9, H10 | 24 | | `channel_tests.csv`, notes judge |
+| `placebo_replay` | 2026-10-23 | Declared: one model against a firm replaying recorded high or low bids; H6 | 48 | $1.85 | `placebo_tests.csv`, trace judge |
+| `narrow_costs` | 2026-10-23 | Declared: costs U[40, 60], reserve 60 (rescaled) or 100; H11, H12 | 48 | $3.98 | `channel_tests.csv`, trace judge |
+| `channel_extensions` | 2026-10-23 to 24 | Declared: Haiku, 50-character cap, oversight notice, two mixed lineups, three firms; H13-H18 | 120 | $22.13 | `channel_tests.csv`, `channel_use_declared.csv`, messages judge |
+| `luna_long` | 2026-10-23 to 24 | Declared: Luna B0 and C1, 100 rounds, new seeds; H19 | 24 | $4.84 | `channel_tests.csv`, `block_index_descriptive.csv`, messages judge |
+| `luna_replication` | 2026-10-24 | Declared: Luna B0 and C1, 50 rounds, 24 new seeds; H25 | 48 | $3.73 | `channel_tests.csv`, `block_index_descriptive.csv`, messages judge |
+| `channel_ablations` | 2026-10-24 | Declared: five levers on DeepSeek's channel (A1-A5); H20-H24 | in progress | | |
+| `notice_checks` | 2026-10-24 | Declared: the notice on new seeds and in DeepSeek x Luna; H27, H28 | in progress | | |
 
 ## In brief
 
