@@ -286,33 +286,40 @@ L.C.\ designed the study, built the harness and analysis, ran the experiments an
 \section{Metric Definitions and Tests}
 \label{app:metrics}
 
-\para{Notation.} A session has rounds $t = 1, \dots, T$ ($T = 50$; 100 in the \LU{} replication) and firms $i \in \{1, \dots, n\}$ ($n = 2$; 3 in the three-firm cells). Firm $i$'s cost in round $t$ is $c_{it} \sim U[0, \bar c]$ with $\bar c = 100$, its bid $b_{it}$, the reserve $R = 100$. The round's winner is $w_t$ and the winning bid $p_t = b_{w_t t}$; $\underline{c}_t = \min_i c_{it}$ is the lowest cost. $V_s$ is the set of valid bids of session $s$ (every bid was valid in the runs reported).
+\para{Notation.} A session has $T$ rounds (50; 100 in the \LU{} replication) and $n$ firms (2; 3 in the three-firm cells). In round $t$, firm $i$ has cost $c_{it}$, drawn uniformly from 0 to $\bar c = 100$, and bids $b_{it}$; the reserve is $R = 100$. The winning bid of round $t$ is $p_t$, the winner's cost is $c^w_t$, and the lowest cost among the firms is $\underline{c}_t$. Every bid in the reported runs was valid.
 
-\para{Benchmark.} With $n$ symmetric bidders, independent costs on $[0, \bar c]$ and lowest-bid-wins pricing, the Bayes-Nash bid is
+\para{Benchmark.} With $n$ symmetric bidders, independent costs from 0 to $\bar c$ and lowest-bid-wins pricing, the Bayes-Nash bid is
 \[
 b^*(c) = c + \frac{\bar c - c}{n}, \qquad b^*(c) = \frac{c + 100}{2} \text{ at } n = 2,
 \]
-computed once per bidder count. Under benchmark play the lowest-cost firm wins round $t$ at $b^*(\underline{c}_t)$.
+computed once per bidder count. Under benchmark play the lowest-cost firm wins each round at $b^*(\underline{c}_t)$.
 
-\para{Collusion index (primary).}
+\para{Collusion index (primary).} With $\bar p$ the session's mean winning bid and $\bar b^*$ the mean of $b^*(\underline{c}_t)$ over its rounds,
 \[
-I_s = \frac{\frac{1}{T}\sum_t p_t - \frac{1}{T}\sum_t b^*(\underline{c}_t)}{R - \frac{1}{T}\sum_t b^*(\underline{c}_t)} \in (-\infty, 1].
+I = \frac{\bar p - \bar b^*}{R - \bar b^*}.
 \]
-$I_s = 0$ at benchmark prices, $I_s = 1$ when every contract is won at the reserve; it is never clipped. Figure~\ref{fig:rounds} applies the same formula to the rounds of each 5-round block.
+$I = 0$ at benchmark prices and $I = 1$ when every contract is won at the reserve; it is negative below the benchmark and never clipped. Figure~\ref{fig:rounds} applies the same formula to the rounds of each 5-round block.
 
-\para{Markup ratio.} $M_s = \sum_{(i,t) \in V_s} (b_{it} - c_{it}) \big/ \sum_{(i,t) \in V_s} (b^*(c_{it}) - c_{it})$: 1 at the benchmark, 0 at cost. It is a ratio of sums, so high-cost bids with small benchmark margins do not dominate. In the placebo it is computed over firm A's bids only.
-
-\para{Joint profit ratio.} $J_s = \sum_t (p_t - c_{w_t t}) \big/ \sum_t (b^*(\underline{c}_t) - \underline{c}_t)$, the firms' total profit over their profit under benchmark play on the same costs.
-
-\para{Allocation and ties.} Lowest-cost win share $L_s = \frac{1}{T}\sum_t \mathbb{1}[c_{w_t t} = \underline{c}_t]$; tie rate $\tau_s = \frac{1}{T}\sum_t \mathbb{1}[\,|\{i : b_{it} = p_t\}| \ge 2\,]$; high-price rounds $H_s = \sum_t \mathbb{1}[p_t \ge 99]$ (descriptive, not declared).
-
-\para{Conduct labels.} For a label $\ell$ and the judged steps $J_s$ of session $s$, the session share is $S_{\ell s} = \frac{1}{|J_s|}\sum_{j \in J_s} \mathbb{1}[\ell_j]$, and the proposal onset is $t^\star_s = \min\{t : \text{a step after round } t \text{ proposes coordination}\}$ (Figure~\ref{fig:conduct}).
-
-\para{Paired test.} For a contrast of arm $A$ against arm $B$, the difference on seed $k$ is $d_k = Y^A_k - Y^B_k$ for $k = 1, \dots, K$ ($K = 12$). The exact sign-flip p-value is
+\para{Markup ratio.} The sum of every bid's margin over cost, divided by the same sum at benchmark bids:
 \[
-p = \frac{1}{2^K} \sum_{\sigma \in \{-1, 1\}^K} \mathbb{1}\Big[\Big|\tfrac{1}{K}\textstyle\sum_k \sigma_k d_k\Big| \ge \Big|\bar d\Big|\Big],
+M = \frac{\sum_{i,t} (b_{it} - c_{it})}{\sum_{i,t} \big(b^*(c_{it}) - c_{it}\big)}.
 \]
-Holm-adjusted within each declared family: with $m$ p-values sorted $p_{(1)} \le \dots \le p_{(m)}$, $\tilde p_{(j)} = \max_{r \le j} \min\{1, (m - r + 1)\, p_{(r)}\}$. Intervals are 95\% percentile bootstraps of $\bar d$ over whole pairs (10{,}000 resamples); descriptive intervals resample the 12 sessions of a cell.
+It is 1 at the benchmark and 0 at cost. As a ratio of sums, it is not dominated by high-cost bids with small benchmark margins. In the placebo it is computed over firm A's bids only.
+
+\para{Joint profit ratio.} The firms' total profit over their total profit under benchmark play on the same costs:
+\[
+P = \frac{\sum_t (p_t - c^w_t)}{\sum_t \big(b^*(\underline{c}_t) - \underline{c}_t\big)}.
+\]
+
+\para{Allocation and ties.} The lowest-cost win share is the share of rounds won by the firm with the lowest cost. The tie rate is the share of rounds in which two or more firms submit the winning bid. High-price rounds are the rounds with a winning bid of 99 or more (descriptive, not declared).
+
+\para{Conduct labels.} A label's session share is the share of the session's judged steps that carry the label. The proposal onset is the first round after which a step proposes coordination (Figure~\ref{fig:conduct}).
+
+\para{Paired test.} For a contrast of arm A against arm B, $d_k$ is the difference in the outcome between the two arms' sessions on seed $k$, for $K$ seeds (12; 24 in H25), and $\bar d$ is its mean. The sign-flip test flips the sign of each $d_k$ at random, and the p-value is the share of sign patterns whose mean is at least as far from 0 as $\bar d$:
+\[
+p = \frac{1}{2^K} \sum_{\sigma \in \{-1, 1\}^K} \mathbb{1}\Big[\Big|\tfrac{1}{K}\textstyle\sum_k \sigma_k d_k\Big| \ge |\bar d|\Big].
+\]
+With 12 pairs all $2^{12}$ patterns are used; with 24 pairs, 100{,}000 random patterns. p-values are adjusted with Holm's step-down method within each declared family. Intervals are 95\% percentile bootstraps of $\bar d$ over whole pairs (10{,}000 resamples); descriptive intervals resample the sessions of a cell.
 
 \section{Hypothesis Index}
 \label{app:hyp}
