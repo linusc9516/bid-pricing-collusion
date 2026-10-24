@@ -1,0 +1,3 @@
+condition_id,n_sessions,n_calls,n_rebid_calls,provider_retries,attempt_error_rate,sit_out_rate,below_cost_rate,mean_prompt_tokens,mean_completion_tokens,p95_completion_tokens,max_completion_tokens,cutoff_rate,mean_reasoning_tokens,p95_reasoning_tokens,free_text_rate
+tie-random__info-full__lineup-b0-luna-rep__n2,24,2408,0,0,0.0033222591362126247,0.0,0.0,1496.3230897009967,942.3546511627907,1858.9500000000003,4000.0,0.0016611295681063123,858.5070598006645,1778.3000000000002,0.0
+tie-random__info-full__lineup-c1-luna-rep__n2__msg,24,4761,0,1,0.0027305187985717286,0.0,0.0004166666666666667,2308.986347406007,477.4383532871245,1365.0,4000.0,0.00021003990758244065,419.00672127704263,1279.0,0.0
