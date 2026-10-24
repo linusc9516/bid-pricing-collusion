@@ -63,7 +63,7 @@ doc = r"""\documentclass[11pt]{article}
 # Two columns: floats sized to the full text width span both columns; the placebo plot and the stacked
 # (_col) versions of the rounds and forest plots fit one column, so text runs beside them.
 doc = doc.replace("\\includegraphics[width=0.62\\textwidth]{figures/fig_placebo.pdf}", "\\includegraphics[width=\\columnwidth]{figures/fig_placebo.pdf}")
-for name in ("fig_rounds", "fig_contrasts", "fig_extensions"):
+for name in ("fig_rounds", "fig_contrasts", "fig_extensions", "fig_ablations", "fig_ablation_rounds"):
     doc = re.sub(r"\\includegraphics\[width=[^\]]*\]\{figures/" + name + r"\.pdf\}", r"\\includegraphics[width=\\columnwidth]{figures/" + name + "_col.pdf}", doc)
 
 def _span(m: re.Match) -> str:

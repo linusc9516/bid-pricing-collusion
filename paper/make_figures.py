@@ -42,13 +42,13 @@ def channel_sessions() -> pd.DataFrame:
     return pd.concat(frames).drop_duplicates(["model", "arm", "seed"]).reset_index(drop=True)
 
 
-def block_index(session_id: str, condition_id: str) -> np.ndarray:
-    """Collusion index of each 5-round block of one session: block means of the winning bid against the benchmark price."""
+def block_index(session_id: str, condition_id: str, block: int = BLOCK) -> np.ndarray:
+    """Collusion index of each `block`-round block of one session: block means of the winning bid against the benchmark price."""
     path = next(ROOT.glob(f"logs/*/{condition_id}/{session_id}/bids.jsonl"))
     rows = pd.DataFrame(json.loads(line) for line in path.open())
     rounds = rows.groupby("round").agg(winning_bid=("winning_bid", "first"), min_cost=("cost", "min"))
     rounds["benchmark"] = (rounds["min_cost"] + 100) / 2  # b*(c) = c + (c_max - c) / n at n = 2, c_max = 100
-    rounds["block"] = (rounds.index - 1) // BLOCK
+    rounds["block"] = (rounds.index - 1) // block
     means = rounds.groupby("block")[["winning_bid", "benchmark"]].mean()
     return ((means["winning_bid"] - means["benchmark"]) / (100 - means["benchmark"])).to_numpy()
 
@@ -309,6 +309,184 @@ def table_hypotheses() -> None:
     (TABLES / "hypotheses.tex").write_text("\n".join(lines) + "\n")
 
 
+NOTICE_COLOR = "#7a5bc9"
+ABLATION_PANELS = [  # (title, rows); rows are (run, model column, contrast, row label) for figure_ablations
+    ("Buyer-side levers and channel ablations (DeepSeek)", [
+        ("channel_ablations", "deepseek", "C1bafo - C1", "rebid on ties (BAFO) $-$ C1 (H20)"),
+        ("channel_ablations", "deepseek", "C1hidden - C1", "winner only announced $-$ C1 (H21)"),
+        ("channel_ablations", "deepseek", "C1nodigits - C1", "digits removed $-$ C1 (H23)"),
+        ("channel_ablations", "deepseek", "C1undelivered - C1", "messages undelivered $-$ C1 (H22)"),
+        ("channel_ablations", "deepseek", "C1hidden - B0hidden", "winner only: C1 $-$ B0 (sec.)"),
+        ("channel_ablations", "deepseek", "B0hidden - B0", "winner only B0 $-$ B0 (sec.)"),
+        ("channel_ablations", "deepseek", "C1undelivered - B0", "messages undelivered $-$ B0 (sec.)"),
+    ]),
+    ("Reworded prompt (DeepSeek)", [
+        ("channel_ablations", "deepseek", "C1v2 - B0v2", "reworded: C1 $-$ B0 (H24)"),
+        ("channel_ablations", "deepseek", "C1v2 - C1", "reworded C1 $-$ C1 (sec.)"),
+        ("channel_ablations", "deepseek", "B0v2 - B0", "reworded B0 $-$ B0 (sec.)"),
+    ]),
+    ("Oversight notice: replication and mixed lineup", [
+        ("channel_extensions", "deepseek", "C1notice - C1", "DeepSeek: notice $-$ C1 (H15)"),
+        ("notice_checks", "deepseek", "C1notice - C1", "DeepSeek, new seeds: notice $-$ C1 (H27)"),
+        ("notice_checks", "deepseek", "C1 - B0", "DeepSeek, new seeds: C1 $-$ B0 (sec.)"),
+        ("notice_checks", "deepseek", "C1notice - B0", "DeepSeek, new seeds: notice $-$ B0 (sec.)"),
+        ("notice_checks", "deepseek x gpt-luna", "C1notice - C1", "DeepSeek x Luna: notice $-$ C1 (H28)"),
+        ("notice_checks", "deepseek x gpt-luna", "C1notice - B0", "DeepSeek x Luna: notice $-$ B0 (sec.)"),
+    ]),
+]
+
+
+def figure_ablations(column: bool = False) -> None:
+    """Forest plot of the channel_ablations and notice_checks contrasts (H20-H24, H27, H28, with H15 for reference)."""
+    tests = {run: pd.read_csv(ROOT / f"results/{run}/channel_tests.csv") for run in ("channel_extensions", "channel_ablations", "notice_checks")}
+    heights = [len(rows) for _, rows in ABLATION_PANELS]
+    fig, axes = plt.subplots(3, 1, figsize=(3.35, 5.0) if column else (5.6, 4.4), sharex=True, gridspec_kw={"height_ratios": heights})
+    for ax, (title, rows) in zip(axes, ABLATION_PANELS, strict=True):
+        y = np.arange(len(rows))[::-1]
+        for yi, (run, model, contrast, label) in zip(y, rows, strict=True):
+            t = tests[run]
+            r = t[(t["model"] == model) & (t["contrast"] == contrast) & (t["outcome"] == "collusion_index")].iloc[0]
+            confirmatory = r["family"] == "confirmatory"
+            color = (NOTICE_COLOR if "notice" in contrast else ARM_COLORS["C1"]) if confirmatory else "#a3a29b"
+            ax.plot([r["ci_low"], r["ci_high"]], [yi, yi], color=color, lw=1.6, solid_capstyle="round")
+            ax.plot(r["mean"], yi, "o", ms=5.5, color=color, mec="white", mew=1)
+            star = "*" if confirmatory and r["supported"] is True else ""
+            ax.annotate(f"{r['mean']:+.2f}{star}", (r["ci_high"], yi), xytext=(4, -2.5), textcoords="offset points", fontsize=7, color=INK)
+        ax.set_yticks(y, [row[3] for row in rows], fontsize=7)
+        ax.axvline(0, color=MUTED, lw=0.7, ls=(0, (3, 3)))
+        ax.set_title(title, fontsize=8.5, color=INK, loc="left")
+        ax.set_xlim(-1.2, 1.4)
+        ax.grid(axis="y", visible=False)
+    axes[-1].set_xlabel("Paired difference in collusion index")
+    fig.tight_layout()
+    fig.savefig(FIGURES / ("fig_ablations_col.pdf" if column else "fig_ablations.pdf"), bbox_inches="tight")
+    plt.close(fig)
+
+
+ROUNDS_PANELS = [  # (title, [(run, lineup_id, label, color, dashed)]) for figure_ablation_rounds; 10-round blocks (declared)
+    ("DeepSeek, seeds 996000-011", [
+        ("channel_ablations", "base-deepseek", "B0", ARM_COLORS["B0"], False),
+        ("channel_ablations", "c1-deepseek", "C1", ARM_COLORS["C1"], False),
+        ("channel_ablations", "undelivered-deepseek", "C1 undelivered", "#52514e", False),
+        ("channel_ablations", "b0v2-deepseek", "B0 reworded", ARM_COLORS["B0"], True),
+        ("channel_ablations", "c1v2-deepseek", "C1 reworded", ARM_COLORS["C1"], True),
+    ]),
+    ("DeepSeek, new seeds 998100-111", [
+        ("notice_checks", "b0-deepseek-new", "B0", ARM_COLORS["B0"], False),
+        ("notice_checks", "c1-deepseek-new", "C1", ARM_COLORS["C1"], False),
+        ("notice_checks", "notice-deepseek-new", "C1 notice", NOTICE_COLOR, False),
+    ]),
+    ("DeepSeek x Luna, seeds 996000-011", [
+        ("notice_checks", "b0-deepseek-luna", "B0", ARM_COLORS["B0"], False),
+        ("notice_checks", "c1-deepseek-luna", "C1", ARM_COLORS["C1"], False),
+        ("notice_checks", "notice-deepseek-luna", "C1 notice", NOTICE_COLOR, False),
+    ]),
+]
+
+
+def figure_ablation_rounds(column: bool = False) -> None:
+    """Block index by 10-round block for the arms behind H22, H24, H27 and H28, mean and 95% bootstrap band over 12 sessions."""
+    sessions = {run: pd.read_csv(ROOT / f"results/{run}/channel_sessions.csv") for run in ("channel_ablations", "notice_checks")}
+    block = 10
+    x = np.arange(1, 50 // block + 1) * block
+    fig, axes = plt.subplots(3, 1, figsize=(3.35, 5.6), sharey=True) if column else plt.subplots(1, 3, figsize=(6.6, 2.4), sharey=True)
+    for ax, (title, lines) in zip(axes, ROUNDS_PANELS, strict=True):
+        for run, lineup, label, color, dashed in lines:
+            cell = sessions[run][sessions[run]["lineup_id"] == lineup]
+            assert len(cell) == 12, (run, lineup, len(cell))
+            blocks = np.vstack([block_index(r.session_id, r.condition_id, block) for r in cell.itertuples()])
+            st = np.array([boot(blocks[:, k]) for k in range(blocks.shape[1])])
+            ax.fill_between(x, st[:, 1], st[:, 2], color=color, alpha=0.12, lw=0)
+            ax.plot(x, st[:, 0], color=color, lw=1.5, marker="o", ms=3, ls=(0, (4, 2)) if dashed else "-", label=label)
+        ax.axhline(0, color=MUTED, lw=0.7, ls=(0, (3, 3)))
+        ax.set_title(title, fontsize=8, color=INK)
+        ax.set_xticks(x, [f"{k - block + 1}-{k}" for k in x], fontsize=6.5)
+        ax.set_xlabel("Rounds")
+    axes[0].set_ylabel("Collusion index\n(0 = equilibrium, 1 = reserve)")
+    if column:
+        for ax in axes[1:]:
+            ax.set_ylabel("Collusion index")
+    handles = {}
+    for ax in axes:
+        for h, label in zip(*ax.get_legend_handles_labels(), strict=True):
+            handles.setdefault(label, h)
+    fig.legend(handles.values(), handles.keys(), loc="upper center", ncol=3 if column else 6, fontsize=7, handlelength=2.4,
+               bbox_to_anchor=(0.5, 1.0 if column else 1.03))
+    fig.tight_layout(rect=(0, 0, 1, 0.95 if column else 0.92))
+    fig.savefig(FIGURES / ("fig_ablation_rounds_col.pdf" if column else "fig_ablation_rounds.pdf"), bbox_inches="tight")
+    plt.close(fig)
+
+
+ABLATION_CELLS = [  # (run, lineup_id, cell label, arm label) for table_ablations
+    ("channel_ablations", "bafo-deepseek", "DeepSeek, seeds 996000-011", "C1, rebid on ties (BAFO)"),
+    ("channel_ablations", "hidden-b0-deepseek", "", "B0, winner only announced"),
+    ("channel_ablations", "hidden-c1-deepseek", "", "C1, winner only announced"),
+    ("channel_ablations", "undelivered-deepseek", "", "C1, messages undelivered"),
+    ("channel_ablations", "nodigits-deepseek", "", "C1, digits removed"),
+    ("channel_ablations", "b0v2-deepseek", "", "B0, reworded prompt"),
+    ("channel_ablations", "c1v2-deepseek", "", "C1, reworded prompt"),
+    ("notice_checks", "b0-deepseek-new", "DeepSeek, new seeds", "B0"),
+    ("notice_checks", "c1-deepseek-new", "", "C1"),
+    ("notice_checks", "notice-deepseek-new", "", "C1, oversight notice"),
+    ("notice_checks", "notice-deepseek-luna", "DeepSeek x Luna", "C1, oversight notice"),
+]
+
+
+def table_ablations() -> None:
+    """LaTeX body of the ablation and notice-check outcomes table, in the summary table's columns."""
+    sessions = {run: pd.read_csv(ROOT / f"results/{run}/channel_sessions.csv") for run in ("channel_ablations", "notice_checks")}
+    lines = []
+    for k, (run, lineup, cell_label, arm_label) in enumerate(ABLATION_CELLS):
+        cell = sessions[run][sessions[run]["lineup_id"] == lineup]
+        assert len(cell) == 12, (run, lineup, len(cell))
+        if k and cell_label:
+            lines.append(r"\midrule")
+        lines.append(" & ".join([
+            cell_label, arm_label,
+            fmt_ci(cell["collusion_index"].to_numpy()), fmt_ci(cell["markup_ratio"].to_numpy()),
+            fmt_ci(cell["joint_profit_ratio"].to_numpy()), fmt_ci(cell["lowest_cost_win_share"].to_numpy(), 100, 0),
+            fmt_ci(cell["tie_rate"].to_numpy(), 100, 0),
+        ]) + r" \\")  # fmt: skip
+    (TABLES / "ablations.tex").write_text("\n".join(lines) + "\n")
+
+
+CONDUCT_CELLS = [  # (run, lineup tag in the session id, firm model or None for both firms, cell label, arm label)
+    ("channel_ablations", "lineup-bafo-deepseek", None, "DeepSeek", "C1, BAFO"),
+    ("channel_ablations", "lineup-hidden-c1-deepseek", None, "", "C1, winner only"),
+    ("channel_ablations", "lineup-undelivered-deepseek", None, "", "C1, undelivered"),
+    ("channel_ablations", "lineup-nodigits-deepseek", None, "", "C1, no digits"),
+    ("channel_ablations", "lineup-c1v2-deepseek", None, "", "C1, reworded"),
+    ("notice_checks", "lineup-c1-deepseek-new", None, "DeepSeek, new seeds", "C1"),
+    ("notice_checks", "lineup-notice-deepseek-new", None, "", "C1, notice"),
+    ("notice_checks", "lineup-notice-deepseek-luna", "deepseek", "DeepSeek x Luna", "C1, notice: DeepSeek firm"),
+    ("notice_checks", "lineup-notice-deepseek-luna", "gpt-luna", "", "C1, notice: Luna firm"),
+]
+CONDUCT_LABELS = ["proposes_coordination", "accepts_coordination", "rejects_coordination", "threatens_rival", "reveals_own_cost"]
+
+
+def table_ablation_conduct() -> None:
+    """LaTeX body of the conduct table: messages sent, judged steps, sessions with each label (of 12) and agreements."""
+    judged = {run: pd.read_csv(ROOT / f"results/{run}/messages_judge.csv") for run in ("channel_ablations", "notice_checks")}
+    use = {run: pd.read_csv(ROOT / f"results/{run}/message_use.csv") for run in ("channel_ablations", "notice_checks")}
+    desc = {run: pd.read_csv(ROOT / f"results/{run}/declared_descriptives.csv") for run in ("channel_ablations", "notice_checks")}
+    lines = []
+    for k, (run, tag, firm_model, cell_label, arm_label) in enumerate(CONDUCT_CELLS):
+        j = judged[run][judged[run]["session_id"].str.contains(f"{tag}__") & judged[run]["parse_ok"].astype(bool)]
+        if firm_model:
+            j = j[j["model"] == firm_model]
+        u = use[run][use[run]["session_id"].str.contains(f"{tag}__")]
+        d = desc[run][desc[run]["session_id"].str.contains(f"{tag}__")]
+        assert len(u) == 12 and len(d) == 12, (run, tag, len(u), len(d))
+        counts = [str(int(j.groupby("session_id")[label].any().sum())) for label in CONDUCT_LABELS]
+        agree = "--" if firm_model == "gpt-luna" or d["agreement"].isna().all() else str(int(d["agreement"].sum()))
+        sent = "--" if firm_model else f"{u['share_steps_sent'].mean() * 100:.0f}"
+        if k and cell_label:
+            lines.append(r"\midrule")
+        lines.append(" & ".join([cell_label, arm_label, sent, f"{len(j):,}".replace(",", "{,}"),
+                                 f"{j['proposes_coordination'].astype(bool).mean() * 100:.0f}", *counts, agree]) + r" \\")
+    (TABLES / "ablation_conduct.tex").write_text("\n".join(lines) + "\n")
+
+
 def fmt_ci(values: np.ndarray, scale: float = 1.0, digits: int = 2) -> str:
     mean, lo, hi = (round(v * scale, digits) + 0 for v in boot(values))
     return f"${mean:.{digits}f}$ {{\\scriptsize [{lo:.{digits}f}, {hi:.{digits}f}]}}"
@@ -346,3 +524,9 @@ if __name__ == "__main__":
     figure_extensions(column=True)
     table_extensions()
     table_hypotheses()
+    figure_ablations()
+    figure_ablations(column=True)
+    figure_ablation_rounds()
+    figure_ablation_rounds(column=True)
+    table_ablations()
+    table_ablation_conduct()
