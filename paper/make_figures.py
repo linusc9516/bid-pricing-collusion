@@ -164,6 +164,7 @@ LINEUP_ROWS = [  # (run, model column, contrast, row label); first panel of figu
     ("channel_c1", "deepseek", "C1 - B0", "DeepSeek (H5)"),
     ("channel_c1", "gpt-luna", "C1 - B0", "Luna (H5)"),
     ("luna_long", "gpt-luna", "C1 - B0", "Luna, 100 rounds, new seeds (H19)"),
+    ("luna_replication", "gpt-luna", "C1 - B0", "Luna, 24 new seeds (H25)"),
     ("channel_extensions", "haiku", "C1 - B0", "Haiku (H13)"),
     ("channel_extensions", "deepseek x gpt-luna", "C1 - B0", "DeepSeek x Luna (H16)"),
     ("channel_extensions", "deepseek x haiku", "C1 - B0", "DeepSeek x Haiku (H17)"),
@@ -179,7 +180,7 @@ RESTRICTION_ROWS = [
 
 def figure_extensions() -> None:
     """Forest plot: C1 - B0 by lineup (left) and the restrictions on DeepSeek's channel (right)."""
-    tests = {run: pd.read_csv(ROOT / f"results/{run}/channel_tests.csv") for run in ("channel_c1", "channel_extensions", "luna_long")}
+    tests = {run: pd.read_csv(ROOT / f"results/{run}/channel_tests.csv") for run in ("channel_c1", "channel_extensions", "luna_long", "luna_replication")}
     fig, axes = plt.subplots(2, 1, figsize=(5.4, 3.7), sharex=True, gridspec_kw={"height_ratios": [len(LINEUP_ROWS), len(RESTRICTION_ROWS)]})
     for ax, rows, title in zip(axes, (LINEUP_ROWS, RESTRICTION_ROWS), ("Open channel, C1 $-$ B0, by lineup", "Restrictions on DeepSeek's channel"), strict=True):
         y = np.arange(len(rows))[::-1]
@@ -215,16 +216,18 @@ EXTENSION_CELLS = [  # (run, model column, arm, cell label, arm label) for table
     ("channel_extensions", "deepseek", "C1notice", "", "C1, oversight notice"),
     ("luna_long", "gpt-luna", "B0", "Luna, 100 rounds", "B0"),
     ("luna_long", "gpt-luna", "C1", "", "C1"),
+    ("luna_replication", "gpt-luna", "B0", "Luna, 24 new seeds", "B0"),
+    ("luna_replication", "gpt-luna", "C1", "", "C1"),
 ]
 
 
 def table_extensions() -> None:
     """LaTeX body of the extensions table, one row per cell and arm, in the summary table's columns."""
-    sessions = {run: pd.read_csv(ROOT / f"results/{run}/channel_sessions.csv") for run in ("channel_extensions", "luna_long")}
+    sessions = {run: pd.read_csv(ROOT / f"results/{run}/channel_sessions.csv") for run in ("channel_extensions", "luna_long", "luna_replication")}
     lines = []
     for k, (run, model, arm, cell_label, arm_label) in enumerate(EXTENSION_CELLS):
         cell = sessions[run][(sessions[run]["model"] == model) & (sessions[run]["arm"] == arm)]
-        assert len(cell) == 12, (run, model, arm, len(cell))
+        assert len(cell) == (24 if run == "luna_replication" else 12), (run, model, arm, len(cell))
         if k and cell_label:
             lines.append(r"\midrule")
         lines.append(" & ".join([
