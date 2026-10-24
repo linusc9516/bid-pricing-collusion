@@ -35,7 +35,8 @@ PHASES: dict[str, tuple[str, Rubric]] = {"trace_judge": ("bid", BID_RUBRIC), "no
 # declare none of their own and rely on channel_c1's messages check.
 REQUIRED = (("channel_c1", "messages_judge"), ("notes_deepseek", "notes_judge"), ("notes_luna", "notes_judge"))
 # Labels the paper reports; the other labels are coded only where the judge marks them true.
-PRIMARY = {"messages_judge": ("proposes_coordination", "accepts_coordination", "rejects_coordination", "threatens_rival", "reveals_own_cost")}
+PRIMARY = {"messages_judge": ("proposes_coordination", "accepts_coordination", "rejects_coordination", "threatens_rival", "reveals_own_cost"),
+           "notes_judge": ("uses_rival_notes", "aware_rival_reads", "proposes_coordination", "reveals_own_cost")}
 ARMS = (("__pn", "M1 private notes"), ("__ws", "M2 shared notes"), ("__msg", "C1 messages"), ("oneshot__", "one-shot control"))
 
 
@@ -54,10 +55,10 @@ def earlier_messages(logs_root: Path, run: str, session_id: str, before: int, ro
             if e.get("op") == "write" and before - rounds <= e["round"] < before]
 
 
-def page_data(run: str, stem: str, logs_root: Path, results_root: Path) -> dict | None:
-    """Rows of one check file with their full trace text; None if the run's logs are missing."""
+def page_data(run: str, stem: str, logs_root: Path, results_root: Path, check_root: Path | None = None) -> dict | None:
+    """Rows of one check file (under `check_root`, default `results_root`) with their full trace text; None if the run's logs are missing."""
     phase, rubric = PHASES[stem]
-    check = pd.read_csv(results_root / run / f"{stem}_check.csv")
+    check = pd.read_csv((check_root or results_root) / run / f"{stem}_check.csv")
     if not (logs_root / run).is_dir():
         return None
     wanted = set(check["session_id"])
@@ -211,11 +212,11 @@ render();
 """
 
 
-def write_page(data: dict, out: Path) -> Path:
+def write_page(data: dict, out: Path, suffix: str = "") -> Path:
     """Render one check file's page into `out`; returns its path."""
-    title = f"{data['run']} · {data['stem'].replace('_', ' ')}"
+    title = f"{data['run']} · {data['stem'].replace('_', ' ')}" + (f" · {suffix}" if suffix else "")
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    path = out / f"{data['run']}__{data['stem']}.html"
+    path = out / f"{data['run']}__{data['stem']}{'__' + suffix if suffix else ''}.html"
     path.write_text(TEMPLATE.replace("__TITLE__", html.escape(title)).replace("__DATA__", payload))
     return path
 
@@ -226,6 +227,8 @@ def main() -> int:
     parser.add_argument("--all", action="store_true", help="every run with a *_check.csv in results/")
     parser.add_argument("--logs-root", type=Path, default=ROOT / "logs")
     parser.add_argument("--results-root", type=Path, default=ROOT / "results")
+    parser.add_argument("--check-root", type=Path, help="read the check files from here instead (a subsample); judged files still come from --results-root")
+    parser.add_argument("--suffix", default="", help="added to the page file names, so a subsample page does not replace a full one")
     parser.add_argument("--open", action="store_true", help="open the index page in the browser")
     args = parser.parse_args()
 
@@ -240,16 +243,18 @@ def main() -> int:
         wanted = list(REQUIRED)
     pages = []
     for run, stem in wanted:
-        if not (args.results_root / run / f"{stem}_check.csv").exists():
+        if not ((args.check_root or args.results_root) / run / f"{stem}_check.csv").exists():
             continue
-        data = page_data(run, stem, args.logs_root, args.results_root)
+        data = page_data(run, stem, args.logs_root, args.results_root, args.check_root)
         if data is None:
             print(f"{run} {stem}: no logs under {args.logs_root / run}, skipped")
             continue
         missing = sum(r["text"] == "(trace not found in the logs)" for r in data["rows"])
-        pages.append((run, stem, write_page(data, out), len(data["rows"]), missing))
-        print(f"{run} {stem}: {len(data['rows'])} rows" + (f", {missing} without a trace" if missing else ""))
-    items = "".join(f'<li><a href="{html.escape(p.name)}">{html.escape(run)} · {html.escape(stem)}</a> ({n} rows{f", {m} without a trace" if m else ""})</li>' for run, stem, p, n, m in pages)
+        path = write_page(data, out, args.suffix)
+        pages.append(path)
+        print(f"{path.name}: {len(data['rows'])} rows" + (f", {missing} without a trace" if missing else ""))
+    listed = sorted(p for p in out.glob("*.html") if p.name != "index.html")
+    items = "".join(f'<li><a href="{html.escape(p.name)}">{html.escape(p.stem.replace("__", " · "))}</a></li>' for p in listed)
     index = out / "index.html"
     index.write_text(f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
                      f'<title>Hand checks</title><style>body{{font:15px/1.6 -apple-system,system-ui,sans-serif;max-width:720px;margin:32px auto;padding:0 16px}}'
