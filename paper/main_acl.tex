@@ -21,6 +21,14 @@
 \newcommand{\LU}{\model{GPT-6-Luna}}
 \newcommand{\para}[1]{\textbf{#1}\hspace{0.4em}}
 
+\makeatletter
+\def\section{\@startsection{section}{1}{\z@}{-1.4ex plus -0.4ex minus -.2ex}{0.9ex plus 0.2ex minus .2ex}{\large\bfseries\raggedright}}
+\def\subsection{\@startsection{subsection}{2}{\z@}{-1.2ex plus -0.4ex minus -.2ex}{0.5ex plus .2ex}{\normalsize\bfseries\raggedright}}
+\makeatother
+\linespread{0.97}
+\DeclareCaptionFont{ninept}{\fontsize{9pt}{10.5pt}\selectfont}\captionsetup{font=ninept,skip=4pt}
+\setlength{\textfloatsep}{9pt plus 2pt minus 2pt}\setlength{\dbltextfloatsep}{9pt plus 2pt minus 2pt}
+\setlength{\floatsep}{7pt plus 2pt minus 2pt}\setlength{\dblfloatsep}{7pt plus 2pt minus 2pt}\setlength{\intextsep}{7pt plus 2pt minus 2pt}
 \title{Channeling Collusion: LLM Bidders Rig Auctions When Allowed To Talk\thanks{Research conducted at the \href{https://apartresearch.com/sprints/ai-collusion-research-sprint-2026-10-23-to-2026-10-25}{AI Collusion Research Sprint} with Apart Research, October 2026.}}
 \author{Linus C. \\ {[Affiliation]} \\ \texttt{[email]}}
 
@@ -134,19 +142,19 @@ Model & Arm & Index $\uparrow$ & Markup & Profit & Low-cost win \% & Ties \% \\
 \end{tabular}}
 \end{table*}
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{figures/fig_rounds.pdf}
+\includegraphics[width=\columnwidth]{figures/fig_rounds_col.pdf}
 \caption{\emph{Block index}: the collusion index computed over each 5-round block. Lines are means over 12 sessions; bands are 95\% bootstrap intervals over sessions. With messages, \DS{} is above 0.75 from round 6 on.}
 \label{fig:rounds}
-\end{figure*}
+\end{figure}
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{figures/fig_contrasts.pdf}
+\includegraphics[width=\columnwidth]{figures/fig_contrasts_col.pdf}
 \caption{Declared paired contrasts on the collusion index, with 95\% bootstrap intervals over 12 seed pairs. Coloured rows are confirmatory (H3, H4, H5, H9, H10); grey rows are declared secondary contrasts. $*$: confirmatory test supported after Holm correction.}
 \label{fig:contrasts}
-\end{figure*}
+\end{figure}
 
 Table~\ref{tab:summary} and Figures~\ref{fig:rounds} and~\ref{fig:contrasts} show the results. Without a channel, \DS{} bids just below the benchmark ($I = -0.05$) and \LU{} above it ($0.19$, range $-0.19$ to $0.67$ over sessions). The one-shot sessions of the baseline, which show no history, put \DS{} at the benchmark (H2: $-0.03$, interval $[-0.04, -0.01]$) and \LU{} below it ($-0.16$); History alone does not move \DS{} above the benchmark: its history sessions are $0.03$ below its one-shot sessions on the same costs (H1: $[-0.09, 0.04]$, Holm $p = 0.47$), so repeated play without a channel produces no tacit collusion in this model. \LU's history sessions are $0.35$ above its one-shot sessions ($[0.20, 0.50]$, Holm $p = 0.002$); Section~\ref{sec:placebo} tests whether that needs coordination.
 
@@ -159,12 +167,12 @@ Table~\ref{tab:summary} and Figures~\ref{fig:rounds} and~\ref{fig:contrasts} sho
 \subsection{Other models, mixed lineups and three firms}
 \label{sec:general}
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.86\textwidth]{figures/fig_extensions.pdf}
+\includegraphics[width=\columnwidth]{figures/fig_extensions_col.pdf}
 \caption{Declared paired contrasts on the collusion index, with 95\% bootstrap intervals over 12 seed pairs (24 for H25). Top: the open channel against no channel in each lineup (H19 on new seeds and 100 rounds, H25 on 24 further new seeds). Bottom: the two restrictions on \DS's channel, against unrestricted C1 (confirmatory) and against no channel (grey, declared secondary). $*$: supported after Holm correction within its declared family.}
 \label{fig:extensions}
-\end{figure*}
+\end{figure}
 
 
 The channel effect holds wherever a \DS{} firm is in the market (Figure~\ref{fig:extensions}; outcomes by cell in Appendix~\ref{app:ext}, Table~\ref{tab:ext}). With three \DS{} firms the index rises by 0.85 (H18: $[0.66, 1.02]$, 12/12, $p = 0.0005$), and the judge finds all three firms joining a written scheme in every session. Paired with \LU, \DS{} raises it by 0.43 (H16: $[0.26, 0.61]$, 11/12, Holm $p = 0.003$); paired with \model{Claude-Haiku-5.5}, by 0.19 (H17: $[0.07, 0.31]$, 11/12, Holm $p = 0.008$). Shared priors from two copies of one model are therefore not needed.

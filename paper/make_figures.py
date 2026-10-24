@@ -54,27 +54,37 @@ def block_index(session_id: str, condition_id: str) -> np.ndarray:
 
 
 def figure_rounds(table: pd.DataFrame) -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(6.4, 2.35), sharey=True)
+    """Block index by model and arm: fig_rounds.pdf (panels side by side) and fig_rounds_col.pdf (stacked, one column)."""
     x = np.arange(1, 50 // BLOCK + 1) * BLOCK
-    for ax, model in zip(axes, MODELS, strict=True):
+    stats = {}
+    for model in MODELS:
         for arm in ARMS:
             cell = table[(table["model"] == model) & (table["arm"] == arm)]
             blocks = np.vstack([block_index(r.session_id, r.condition_id) for r in cell.itertuples()])
-            stats = np.array([boot(blocks[:, k]) for k in range(blocks.shape[1])])
-            ax.fill_between(x, stats[:, 1], stats[:, 2], color=ARM_COLORS[arm], alpha=0.15, lw=0)
-            ax.plot(x, stats[:, 0], color=ARM_COLORS[arm], lw=1.6, marker="o", ms=3.2, label=ARM_NAMES[arm])
-        ax.axhline(0, color=MUTED, lw=0.7, ls=(0, (3, 3)))
-        ax.set_title(NAMES[model], fontsize=8.5, color=INK, fontfamily="monospace")
-        ax.set_xticks(x, [f"{k - BLOCK + 1}-{k}" for k in x], fontsize=6.5, rotation=0)
-        ax.set_xlabel("Rounds")
-    axes[0].set_ylabel("Collusion index\n(0 = equilibrium, 1 = reserve)")
-    handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=4, bbox_to_anchor=(0.5, 1.04), fontsize=7.5)
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
-    fig.savefig(FIGURES / "fig_rounds.pdf", bbox_inches="tight")
+            stats[model, arm] = np.array([boot(blocks[:, k]) for k in range(blocks.shape[1])])
+    for name, shape, size, ncol in (("fig_rounds", (1, 2), (6.4, 2.35), 4), ("fig_rounds_col", (2, 1), (3.35, 3.9), 2)):
+        fig, axes = plt.subplots(*shape, figsize=size, sharey=True)
+        for ax, model in zip(axes, MODELS, strict=True):
+            for arm in ARMS:
+                st = stats[model, arm]
+                ax.fill_between(x, st[:, 1], st[:, 2], color=ARM_COLORS[arm], alpha=0.15, lw=0)
+                ax.plot(x, st[:, 0], color=ARM_COLORS[arm], lw=1.6, marker="o", ms=3.2, label=ARM_NAMES[arm])
+            ax.axhline(0, color=MUTED, lw=0.7, ls=(0, (3, 3)))
+            ax.set_title(NAMES[model], fontsize=8.5, color=INK, fontfamily="monospace")
+            ax.set_xticks(x, [f"{k - BLOCK + 1}-{k}" for k in x], fontsize=6.5, rotation=0)
+            ax.set_xlabel("Rounds")
+        axes[0].set_ylabel("Collusion index\n(0 = equilibrium, 1 = reserve)")
+        if shape == (2, 1):
+            axes[1].set_ylabel("Collusion index\n(0 = equilibrium, 1 = reserve)")
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.legend(handles, labels, loc="upper center", ncol=ncol, bbox_to_anchor=(0.5, 1.04 if ncol == 4 else 1.01), fontsize=7.5)
+        fig.tight_layout(rect=(0, 0, 1, 0.93 if ncol == 4 else 0.94))
+        fig.savefig(FIGURES / f"{name}.pdf", bbox_inches="tight")
+        plt.close(fig)
 
 
-def figure_contrasts() -> None:
+def figure_contrasts(column: bool = False) -> None:
+    """Forest plot of the declared channel and notes contrasts; `column` stacks the two models for a one-column figure."""
     rows = []
     for run in ("notes_luna", "channel_c1", "notes_deepseek"):
         tests = pd.read_csv(ROOT / f"results/{run}/channel_tests.csv")
@@ -82,7 +92,7 @@ def figure_contrasts() -> None:
     tests = pd.concat(rows).drop_duplicates(["model", "contrast"])
     tests = tests[tests["outcome"] == "collusion_index"]
     order = ["M1 - B0", "M2 - B0", "M2 - M1", "C1 - B0", "C1 - M1", "C1 - M2"]
-    fig, axes = plt.subplots(1, 2, figsize=(6.4, 2.2), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(3.35, 3.6), sharex=True) if column else plt.subplots(1, 2, figsize=(6.4, 2.2), sharex=True)
     for ax, model in zip(axes, MODELS, strict=True):
         cell = tests[tests["model"] == model].set_index("contrast").reindex([c for c in order if c in set(tests.loc[tests["model"] == model, "contrast"])])
         y = np.arange(len(cell))[::-1]
@@ -97,11 +107,13 @@ def figure_contrasts() -> None:
         ax.set_yticks(y, [c.replace(" - ", " $-$ ") + tag for c, tag in zip(cell.index, tags, strict=True)], fontsize=7.5)
         ax.axvline(0, color=MUTED, lw=0.7, ls=(0, (3, 3)))
         ax.set_title(NAMES[model], fontsize=8.5, color=INK, fontfamily="monospace")
-        ax.set_xlabel("Paired difference in collusion index")
         ax.set_xlim(-0.3, 1.25)
         ax.grid(axis="y", visible=False)
+    for ax in axes[-1:] if column else axes:
+        ax.set_xlabel("Paired difference in collusion index")
     fig.tight_layout()
-    fig.savefig(FIGURES / "fig_contrasts.pdf", bbox_inches="tight")
+    fig.savefig(FIGURES / ("fig_contrasts_col.pdf" if column else "fig_contrasts.pdf"), bbox_inches="tight")
+    plt.close(fig)
 
 
 def figure_placebo() -> None:
@@ -178,10 +190,10 @@ RESTRICTION_ROWS = [
 ]
 
 
-def figure_extensions() -> None:
-    """Forest plot: C1 - B0 by lineup (left) and the restrictions on DeepSeek's channel (right)."""
+def figure_extensions(column: bool = False) -> None:
+    """Forest plot: C1 - B0 by lineup (top) and the restrictions on DeepSeek's channel (bottom); `column` sizes it for one column."""
     tests = {run: pd.read_csv(ROOT / f"results/{run}/channel_tests.csv") for run in ("channel_c1", "channel_extensions", "luna_long", "luna_replication")}
-    fig, axes = plt.subplots(2, 1, figsize=(5.4, 3.7), sharex=True, gridspec_kw={"height_ratios": [len(LINEUP_ROWS), len(RESTRICTION_ROWS)]})
+    fig, axes = plt.subplots(2, 1, figsize=(3.35, 3.9) if column else (5.4, 3.7), sharex=True, gridspec_kw={"height_ratios": [len(LINEUP_ROWS), len(RESTRICTION_ROWS)]})
     for ax, rows, title in zip(axes, (LINEUP_ROWS, RESTRICTION_ROWS), ("Open channel, C1 $-$ B0, by lineup", "Restrictions on DeepSeek's channel"), strict=True):
         y = np.arange(len(rows))[::-1]
         for yi, (run, model, contrast, label) in zip(y, rows, strict=True):
@@ -200,7 +212,8 @@ def figure_extensions() -> None:
         ax.grid(axis="y", visible=False)
     axes[-1].set_xlabel("Paired difference in collusion index")
     fig.tight_layout()
-    fig.savefig(FIGURES / "fig_extensions.pdf", bbox_inches="tight")
+    fig.savefig(FIGURES / ("fig_extensions_col.pdf" if column else "fig_extensions.pdf"), bbox_inches="tight")
+    plt.close(fig)
 
 
 EXTENSION_CELLS = [  # (run, model column, arm, cell label, arm label) for table_extensions
@@ -326,8 +339,10 @@ if __name__ == "__main__":
     table_summary(sessions)
     figure_rounds(sessions)
     figure_contrasts()
+    figure_contrasts(column=True)
     figure_placebo()
     figure_conduct()
     figure_extensions()
+    figure_extensions(column=True)
     table_extensions()
     table_hypotheses()

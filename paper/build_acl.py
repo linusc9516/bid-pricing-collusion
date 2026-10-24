@@ -23,6 +23,14 @@ doc = r"""\documentclass[11pt]{article}
 \usepackage{inconsolata}
 \usepackage{latexsym}
 """ + P["preamble"] + r"""
+\makeatletter
+\def\section{\@startsection{section}{1}{\z@}{-1.4ex plus -0.4ex minus -.2ex}{0.9ex plus 0.2ex minus .2ex}{\large\bfseries\raggedright}}
+\def\subsection{\@startsection{subsection}{2}{\z@}{-1.2ex plus -0.4ex minus -.2ex}{0.5ex plus .2ex}{\normalsize\bfseries\raggedright}}
+\makeatother
+\linespread{0.97}
+\DeclareCaptionFont{ninept}{\fontsize{9pt}{10.5pt}\selectfont}\captionsetup{font=ninept,skip=4pt}
+\setlength{\textfloatsep}{9pt plus 2pt minus 2pt}\setlength{\dbltextfloatsep}{9pt plus 2pt minus 2pt}
+\setlength{\floatsep}{7pt plus 2pt minus 2pt}\setlength{\dblfloatsep}{7pt plus 2pt minus 2pt}\setlength{\intextsep}{7pt plus 2pt minus 2pt}
 \title{""" + title + thanks + r"""}
 \author{Linus C. \\ {[Affiliation]} \\ \texttt{[email]}}
 
@@ -52,8 +60,11 @@ doc = r"""\documentclass[11pt]{article}
 """ + appendix + r"""\section*{LLM Usage Statement}
 """ + P["llm"] + "\\end{document}\n"
 
-# Two columns: floats sized to the full text width span both columns; the placebo plot fits one column.
+# Two columns: floats sized to the full text width span both columns; the placebo plot and the stacked
+# (_col) versions of the rounds and forest plots fit one column, so text runs beside them.
 doc = doc.replace("\\includegraphics[width=0.62\\textwidth]{figures/fig_placebo.pdf}", "\\includegraphics[width=\\columnwidth]{figures/fig_placebo.pdf}")
+for name in ("fig_rounds", "fig_contrasts", "fig_extensions"):
+    doc = re.sub(r"\\includegraphics\[width=[^\]]*\]\{figures/" + name + r"\.pdf\}", r"\\includegraphics[width=\\columnwidth]{figures/" + name + "_col.pdf}", doc)
 
 def _span(m: re.Match) -> str:
     body = m.group(2)
