@@ -43,13 +43,13 @@ results = results.replace("\\subsection{", "\\subsection{")
 app = "\\subsection{Metric Definitions and Tests}" + app_rest
 app = app.replace("\\section{", "\\subsection{")
 
-preamble = r"""\documentclass[12pt]{article}
+preamble = r"""\documentclass[10pt]{article}
 \usepackage[letterpaper,margin=1in]{geometry}
 \usepackage{graphicx,booktabs,amsmath,xcolor,enumitem,caption,microtype,tikz,colortbl,multirow,float}
 \usepackage{newtxmath}
 \usepackage[no-math]{fontspec}
 \setmainfont{Times New Roman}
-\usepackage{setspace}\setstretch{1.15}
+\usepackage{setspace}\setstretch{1.08}
 \usepackage{titlesec,needspace}
 \usepackage[section,above]{placeins}
 \usepackage{flafter}
@@ -59,8 +59,10 @@ preamble = r"""\documentclass[12pt]{article}
 \titlespacing*{\section}{0pt}{10pt}{2pt}
 \titlespacing*{\subsection}{0pt}{10pt}{2pt}
 \pagestyle{plain}
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}\setlength{\floatsep}{6pt plus 2pt minus 2pt}\setlength{\intextsep}{6pt plus 2pt minus 2pt}
 """
 doc = preamble + pre_keep.replace("\\documentclass[10pt]{article}", "") + r"""
+\DeclareCaptionFont{ninept}{\fontsize{9pt}{10.5pt}\selectfont}\captionsetup{font=ninept,skip=3pt}
 \begin{document}
 
 \noindent\rule{\textwidth}{1pt}
@@ -104,5 +106,7 @@ Linus C.\\ {[Affiliation]}\\ \texttt{[email]}
 \titleformat{\subsection}{\fontsize{13}{16}\selectfont\bfseries\color{headthree}}{\thesubsection.}{0.5em}{}
 """ + app + r"""\section*{LLM Usage Statement}
 """ + llm + "\\end{document}\n"
+# Top-of-page floats can land above the heading of the section they belong to; prefer placing them in place.
+doc = doc.replace("\\begin{figure}[t]", "\\begin{figure}[!htb]").replace("\\begin{table}[t]", "\\begin{table}[!htb]")
 Path("paper/main_apart.tex").write_text(doc)
 print("written", len(doc))

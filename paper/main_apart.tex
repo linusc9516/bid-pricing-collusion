@@ -1,10 +1,10 @@
-\documentclass[12pt]{article}
+\documentclass[10pt]{article}
 \usepackage[letterpaper,margin=1in]{geometry}
 \usepackage{graphicx,booktabs,amsmath,xcolor,enumitem,caption,microtype,tikz,colortbl,multirow,float}
 \usepackage{newtxmath}
 \usepackage[no-math]{fontspec}
 \setmainfont{Times New Roman}
-\usepackage{setspace}\setstretch{1.15}
+\usepackage{setspace}\setstretch{1.08}
 \usepackage{titlesec,needspace}
 \usepackage[section,above]{placeins}
 \usepackage{flafter}
@@ -14,6 +14,7 @@
 \titlespacing*{\section}{0pt}{10pt}{2pt}
 \titlespacing*{\subsection}{0pt}{10pt}{2pt}
 \pagestyle{plain}
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}\setlength{\floatsep}{6pt plus 2pt minus 2pt}\setlength{\intextsep}{6pt plus 2pt minus 2pt}
 \usepackage{graphicx,booktabs,amsmath,xcolor,enumitem,caption,microtype,fancyhdr,tikz,colortbl,multirow,float}
 \usetikzlibrary{positioning,arrows.meta,shapes.callouts,calc,fit,backgrounds}
 \usepackage[authoryear,round]{natbib}
@@ -36,6 +37,7 @@
 \newcommand{\LU}{\model{GPT-6-Luna}}
 \newcommand{\para}[1]{\textbf{#1}\hspace{0.4em}}
 
+\DeclareCaptionFont{ninept}{\fontsize{9pt}{10.5pt}\selectfont}\captionsetup{font=ninept,skip=3pt}
 \begin{document}
 
 \noindent\rule{\textwidth}{1pt}
@@ -120,7 +122,7 @@ Our main contributions are:
 \subsection{Setting up the Auction}
 \label{sec:setup}
 
-\begin{figure}[t]
+\begin{figure}[!htb]
 \centering
 \begin{tikzpicture}[font=\scriptsize, node distance=0.28cm,
   stage/.style={draw=muted, rounded corners=4pt, fill=pale, align=center, minimum height=1.35cm, text width=2.05cm, inner sep=3pt},
@@ -169,7 +171,7 @@ Two further arms restrict C1 for \DS{}: \textbf{C1cap} cuts every message to 50 
 \subsection{Main results}
 \label{sec:main}
 
-\begin{table}[t]
+\begin{table}[!htb]
 \centering\small
 \caption{Outcomes by model and arm (12 sessions each; mean and 95\% bootstrap interval over sessions). \textbf{Index}: collusion index $I$; \textbf{Markup}: markup ratio; \textbf{Profit}: joint profit over benchmark play; \textbf{Low-cost win}: \% of rounds won by the lowest-cost firm; \textbf{Ties}: \% of rounds with tied lowest bids.}
 \label{tab:summary}
@@ -184,14 +186,14 @@ Model & Arm & Index $\uparrow$ & Markup & Profit & Low-cost win \% & Ties \% \\
 \end{tabular}}
 \end{table}
 
-\begin{figure}[t]
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=\textwidth]{figures/fig_rounds.pdf}
 \caption{\emph{Block index}: the collusion index computed over each 5-round block. Lines are means over 12 sessions; bands are 95\% bootstrap intervals over sessions. With messages, \DS{} is above 0.75 from round 6 on.}
 \label{fig:rounds}
 \end{figure}
 
-\begin{figure}[t]
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=\textwidth]{figures/fig_contrasts.pdf}
 \caption{Declared paired contrasts on the collusion index, with 95\% bootstrap intervals over 12 seed pairs. Coloured rows are confirmatory (H3, H4, H5, H9, H10); grey rows are declared secondary contrasts. $*$: confirmatory test supported after Holm correction.}
@@ -209,7 +211,7 @@ Table~\ref{tab:summary} and Figures~\ref{fig:rounds} and~\ref{fig:contrasts} sho
 \subsection{Other models, mixed lineups and three firms}
 \label{sec:general}
 
-\begin{figure}[t]
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=0.86\textwidth]{figures/fig_extensions.pdf}
 \caption{Declared paired contrasts on the collusion index, with 95\% bootstrap intervals over 12 seed pairs (24 for H25). Top: the open channel against no channel in each lineup (H19 on new seeds and 100 rounds, H25 on 24 further new seeds). Bottom: the two restrictions on \DS's channel, against unrestricted C1 (confirmatory) and against no channel (grey, declared secondary). $*$: supported after Holm correction within its declared family.}
@@ -229,7 +231,7 @@ Limiting \DS's messages to 50 characters changes nothing measurable (H14: C1cap$
 \subsection{What the firms do with each channel}
 \label{sec:conduct}
 
-\begin{figure}[t]
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=\textwidth]{figures/fig_conduct.pdf}
 \caption{Conduct in the open channel, from the judge's labels (provisional). Left: share of a session's judged message steps with each label, mean over 12 sessions with 95\% bootstrap intervals. Right: share of sessions in which a firm has proposed coordination by each round.}
@@ -245,7 +247,7 @@ Limiting \DS's messages to 50 characters changes nothing measurable (H14: C1cap$
 \subsection{Displayed numbers move bids with no one responding}
 \label{sec:placebo}
 
-\begin{figure}[t]
+\begin{figure}[!htb]
 \centering
 \includegraphics[width=0.62\textwidth]{figures/fig_placebo.pdf}
 \caption{Replay placebo. The model firm bids against a rival that replays recorded bids and responds to nothing. Grey lines join the high and low sessions of one seed, which share the model firm's costs; points and bars are means and 95\% bootstrap intervals over 12 sessions.}
