@@ -2,14 +2,18 @@
 # Each run id lists the config files it was started from; the page shows each file's header comment as of the
 # current commit. `about` is an optional one-line summary shown first (from results/README.md where it has one).
 # A run not listed here still gets the setup facts the export reads from its session metadata.
+# `hidden: true` leaves a run out of the default export (harness checks, and small arms not part of the study as
+# presented); naming the run on the command line exports it anyway.
 
 pilot:
   about: "Phase A pilot: 3 models x 3 tie-break rules, N = 3, 25 rounds, repeated and one-shot control."
   configs: [pilot.yaml]
 pilot_tiny:
+  hidden: true
   about: "Harness check before the pilot: 18 sessions of 3 rounds, thinking off at a 500-token cap. Not comparable with the pilot."
   configs: [pilot_tiny.yaml]
 pilot_tiny_rerun:
+  hidden: true
   about: "Second harness check with the pilot_tiny settings. Not comparable with the pilot."
   configs: [pilot_tiny.yaml]
 rotation_screen:
@@ -27,26 +31,43 @@ n2_replicate:
   about: "Does the screen's one high DeepSeek session recur? Same N = 2 cell, 50 rounds, 12 new seeds."
   configs: [supporting_n2_replicate.yaml]
 common_cost_check:
+  hidden: true
   about: "Harness check of the common-cost draw (spread 5): N = 2, DeepSeek, 12 rounds."
   configs: [common_cost_check.yaml]
 costrange:
+  hidden: true
   about: "Common costs (a round's costs within 10 of each other): N = 2, DeepSeek, 25 rounds."
   configs: [supporting_costrange.yaml]
 costs_revealed:
+  hidden: true
   about: "Complete information (every firm sees every cost): N = 2, 50 rounds, DeepSeek and GPT-6 Luna."
   configs: [supporting_costs_revealed.yaml]
 baseline_no_channel:
   about: "Declared no-channel baseline: N = 2, private costs, 50 rounds, DeepSeek and GPT-6 Luna, 12 matched pairs each on the same seeds."
   configs: [baseline_no_channel.yaml]
 workspace_screen_n2:
+  hidden: true
   configs: [workspace_screen_n2.yaml]
 private_screen_n2:
+  hidden: true
   configs: [workspace_screen_n2_private.yaml]
 notes_luna:
   configs: [notes_luna_private.yaml, notes_luna_shared.yaml]
 smoke_notes_luna:
+  hidden: true
   configs: [workspace_tiny_luna_private.yaml, workspace_tiny_luna_shared.yaml]
 channel_c1:
   configs: [channel_c1.yaml]
 smoke_channel_c1:
+  hidden: true
   configs: [channel_tiny_c1.yaml]
+smoke:
+  hidden: true
+rotation_tiny:
+  hidden: true
+sanity_grid_0.01:
+  hidden: true
+sanity_grid_1.0:
+  hidden: true
+sanity_grid_5.0:
+  hidden: true

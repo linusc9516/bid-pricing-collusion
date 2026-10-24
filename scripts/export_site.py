@@ -1,6 +1,7 @@
 """Export runs under logs/ to site/data/ for the static viewer: a run index plus one file per session.
 
-Usage: export_site.py [RUN ...] [--no-thinking] [--no-prompts]        local export, gitignored (data/runs.js, data/sessions/)
+Usage: export_site.py [RUN ...] [--no-thinking] [--no-prompts]        local export, gitignored (data/runs.js, data/sessions/);
+                                                                       with no RUN, every run not hidden in site/runs.yaml
        export_site.py --publish RUN [RUN ...] [--findings FILE]        committed bundle (data/published.js, data/published/)
 
 The published bundle is what a fresh clone shows: the named runs without hidden thinking or per-call prompts, the
@@ -138,7 +139,7 @@ def publish(run_ids: list[str], logs_root: Path, out: Path, findings: Path | Non
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("runs", nargs="*", help="run ids under --logs-root (default: every run)")
+    parser.add_argument("runs", nargs="*", help="run ids under --logs-root (default: every run not marked hidden in site/runs.yaml)")
     parser.add_argument("--logs-root", type=Path, default=ROOT / "logs")
     parser.add_argument("--out", type=Path, default=ROOT / "site" / "data")
     parser.add_argument("--max-thinking", type=int, default=MAX_THINKING_CHARS, help="characters of hidden thinking kept per call")
@@ -154,7 +155,13 @@ def main() -> int:
             parser.error("--publish needs at least one run id")
         return publish(args.runs, args.logs_root, args.out, args.findings, args.results_root)
 
-    run_ids = args.runs or sorted(p.name for p in args.logs_root.iterdir() if p.is_dir())
+    listed = (yaml.safe_load(RUN_DESCRIPTIONS.read_text()) or {}) if RUN_DESCRIPTIONS.exists() else {}
+    hidden = {run for run, entry in listed.items() if (entry or {}).get("hidden")}
+    run_ids = args.runs or sorted(p.name for p in args.logs_root.iterdir() if p.is_dir() and p.name not in hidden)
+    if not args.runs:
+        for run in hidden:
+            if (args.out / "sessions" / run).is_dir():
+                shutil.rmtree(args.out / "sessions" / run)  # a hidden run's earlier export would otherwise stay on disk
     runs = []
     for run_id in run_ids:
         exported = export_run(run_id, args.logs_root, args.out / "sessions" / run_id, 0 if args.no_thinking else args.max_thinking, args.no_prompts, args.results_root)
