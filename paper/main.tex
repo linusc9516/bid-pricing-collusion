@@ -119,20 +119,20 @@ Our main contributions are:
 \label{fig:pipeline}
 \end{figure}
 
-Two firms, A and B, bid for one contract per round over a session of 50 rounds (Figure~\ref{fig:pipeline}). Each firm's cost is drawn independently from $U[0,100]$ each round and rounded to 0.01. The lowest bid wins and is paid its bid; ties are broken at random. Bids lie in $[0, 100]$, so the reserve price is 100. The winner's profit is its bid minus its cost; the loser earns 0. The prompt says the firms bid for the same contract over a series of rounds and asks each to maximise its total profit; the number of rounds is not announced. The auctioneer is code, not a model, and no prompt contains the rival's cost.
+Two firms, A and B, bid for one contract per \emph{round} over a \emph{session} of 50 rounds (Figure~\ref{fig:pipeline}). Each firm's cost is drawn independently from $U[0,100]$ each round and rounded to 0.01. The lowest bid wins and is paid its bid; ties are broken at random. Bids lie in $[0, 100]$, so the reserve price is 100. The winner's profit is its bid minus its cost; the loser earns 0. The prompt says the firms bid for the same contract over a series of rounds and asks each to maximise its total profit; the number of rounds is not announced. The auctioneer is code, not a model, and no prompt contains the rival's cost.
 
 \para{Benchmark and outcome.} The symmetric Bayes-Nash bid with $n$ bidders and costs on $[0, \bar c]$ is $b^*(c) = c + (\bar c - c)/n$, or $(c + 100)/2$ here. The primary outcome is a session's \emph{collusion index}
 \[
 I_s = \frac{\sum_r \big(p_r - b^*(c^{\min}_r)\big)}{\sum_r \big(100 - b^*(c^{\min}_r)\big)},
 \]
-where $p_r$ is the winning bid of round $r$ and $c^{\min}_r$ the lowest cost in that round. $I_s = 0$ when winning bids equal the benchmark, $I_s = 1$ when every contract is won at the reserve, and $I_s < 0$ below the benchmark; it is not clipped. Secondary outcomes are the markup ratio (the sum of bid minus cost, over the same sum at the benchmark), joint profit relative to benchmark play on the same costs, the share of rounds won by the lowest-cost firm, and the tie rate. Appendix~\ref{app:metrics} gives every definition.
+where $p_r$ is the winning bid of round $r$ and $c^{\min}_r$ the lowest cost in that round. $I_s = 0$ when winning bids equal the benchmark, $I_s = 1$ when every contract is won at the reserve, and $I_s < 0$ below the benchmark; it is not clipped. Secondary outcomes are the \emph{markup ratio} (the sum of bid minus cost, over the same sum at the benchmark), the \emph{joint profit ratio} (total profit over that of benchmark play on the same costs), the \emph{lowest-cost win share} (the share of rounds won by the lowest-cost firm) and the \emph{tie rate}. Appendix~\ref{app:metrics} gives every definition.
 
 \para{Arms.} All arms share one system prompt and differ in one added paragraph and its tools.
 \begin{itemize}
 \item \textbf{\textcolor{cB}{B0}, no channel.} The bidding history is the only link between the firms.
-\item \textbf{\textcolor{cM1}{M1}, private notes.} After each round a firm gets a reflection step of up to four tool requests to read and add notes (1{,}000 characters per note); its notes are shown when it bids.
+\item \textbf{\textcolor{cM1}{M1}, private notes.} After each round a firm gets a \emph{reflection step} of up to four tool requests to read and add notes (1{,}000 characters per note); its notes are shown when it bids.
 \item \textbf{\textcolor{cM2}{M2}, shared notes.} As M1, but both firms read and write one workspace. The prompt is M1's word for word and never says who reads the workspace.
-\item \textbf{\textcolor{cC}{C1}, open messages.} After each round but the last, each firm may send one message of up to 500 characters or none. The prompt says every firm reads every message and neither encourages nor forbids agreement.
+\item \textbf{\textcolor{cC}{C1}, open messages.} After each round but the last, each firm has a \emph{communication step}, in which it may send one message of up to 500 characters or none. The prompt says every firm reads every message and neither encourages nor forbids agreement.
 \end{itemize}
 Two further arms restrict C1 for \DS{}: \textbf{C1cap} cuts every message to 50 characters (a rotation fits in about 20), and \textbf{C1notice} adds one sentence to the channel paragraph, ``Every message is reviewed by a competition authority.'', with no penalty stated. The prompts are in Appendix~\ref{app:prompts}.
 
@@ -142,7 +142,7 @@ Two further arms restrict C1 for \DS{}: \textbf{C1cap} cuts every message to 50 
 
 \para{Pre-registration.} Every test, exclusion rule and reading of a null was committed to \texttt{configs/analysis.yaml} before the run it covers. Hypotheses keep their declared numbers (H1, H2, \dots); Appendix~\ref{app:hyp} names each and gives its result. Every run started from a clean checkout of the commit that declared it, and a consistency check of the raw logs (auction rules, every prompt, cost leakage into prompts, message length, serving hosts) passed for every run before any result was computed. Sessions that failed on a provider error were rerun from scratch on the same seed, as declared (14 in the rescaled-game run, after a connection drop); none was excluded.
 
-\para{Conduct labels.} \model{Gemini-3.8-Flash} labels each communication and reflection step against a fixed rubric (for example \emph{proposes coordination}, \emph{threatens rival}, \emph{uses rival's notes}); a label counts only with a verbatim quote from the step. A step with neither hidden reasoning nor a message has no text to judge and is left out, so \LU's shares are over 869 of its 1{,}176 C1 steps, 433 of 588 in the mixed lineup, 1{,}855 of 2{,}376 at 100 rounds and 1{,}715 of 2{,}352 in the 50-round replication; every other model's steps are all judged. The declared hand check of 30 judged steps per rubric has not been done, so these labels are provisional.
+\para{Conduct labels.} \model{Gemini-3.8-Flash} labels each communication and reflection step against a fixed rubric (for example \emph{proposes coordination}, \emph{threatens rival}, \emph{uses rival's notes}); a label counts only with a verbatim quote from the step. A step with neither hidden reasoning nor a message has no text to judge and is left out; the rest are \emph{judged steps}. A \emph{proposal} is a step labelled \emph{proposes coordination}, and a session has an \emph{agreement} when one firm proposes and another proposes or accepts. Because of the left-out steps, \LU's shares are over 869 of its 1{,}176 C1 steps, 433 of 588 in the mixed lineup, 1{,}855 of 2{,}376 at 100 rounds and 1{,}715 of 2{,}352 in the 50-round replication; every other model's steps are all judged. The declared hand check of 30 judged steps per rubric has not been done, so these labels are provisional.
 
 \para{Models.} \DS{} (low reasoning effort, temperature 1.0, served by DeepInfra), \LU{} (high reasoning effort, served by OpenAI) and \model{Claude-Haiku-5.5} (high reasoning effort, served by Anthropic; no temperature or seed is sent, as the endpoint rejects both), through OpenRouter. Same-model lineups have both firms on one model; mixed lineups have one firm of each, with the slot assignment drawn from the seed. Each bid is a tool call with a two-to-three sentence reason, under an output cap of 4{,}000 tokens. \LU's automatic prompt caching was on in the baseline, notes, C1, placebo and rescaled-game runs and off in the mixed \DS$\times$\LU{} lineup and the 100-round replication; caching changes billing only, and the model receives the same text.
 
@@ -169,7 +169,7 @@ Model & Arm & Index $\uparrow$ & Markup & Profit & Low-cost win \% & Ties \% \\
 \begin{figure}[t]
 \centering
 \includegraphics[width=\textwidth]{figures/fig_rounds.pdf}
-\caption{Collusion index by 5-round block, computed from each block's mean winning and benchmark prices. Lines are means over 12 sessions; bands are 95\% bootstrap intervals over sessions. With messages, \DS{} is above 0.75 from round 6 on.}
+\caption{\emph{Block index}: the collusion index computed over each 5-round block. Lines are means over 12 sessions; bands are 95\% bootstrap intervals over sessions. With messages, \DS{} is above 0.75 from round 6 on.}
 \label{fig:rounds}
 \end{figure}
 
