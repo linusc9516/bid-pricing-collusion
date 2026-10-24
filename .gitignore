@@ -57,6 +57,7 @@ paper/*.out
 HANDOFF*.md
 PLANNING_NEW.md
 paper_plan.md
+paper_plan_archive*.md
 slides/
 
 # draft config never declared or run
