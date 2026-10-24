@@ -1,0 +1,8 @@
+condition_id,n_sessions,reserve_bid_rate,below_cost_bid_rate
+tie-bafo__info-full__lineup-bafo-deepseek__n2__msg,12,0.48666666666666664,0.0
+tie-random__info-full__lineup-b0v2-deepseek__n2__pv2,12,0.050833333333333335,0.0025
+tie-random__info-full__lineup-c1v2-deepseek__n2__msg__pv2,12,0.725,0.0008333333333333334
+tie-random__info-full__lineup-nodigits-deepseek__n2__msg-nodigits,12,0.3308333333333333,0.008333333333333333
+tie-random__info-full__lineup-undelivered-deepseek__n2__msg-undelivered,12,0.0675,0.0008333333333333334
+tie-random__info-winner_only__lineup-hidden-b0-deepseek__n2,12,0.017499999999999998,0.005833333333333334
+tie-random__info-winner_only__lineup-hidden-c1-deepseek__n2__msg,12,0.4141666666666666,0.0

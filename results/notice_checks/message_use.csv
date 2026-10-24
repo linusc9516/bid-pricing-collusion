@@ -1,0 +1,37 @@
+session_id,arm,model,seed,steps,share_steps_sent,first_message_round,mean_message_chars,share_truncated,share_requests_failed
+tie-random__info-full__lineup-c1-deepseek-new__n2__msg__seed998100,C1,deepseek,998100,98,0.9897959183673469,1,314.1443298969072,0.0,0.0
+tie-random__info-full__lineup-c1-deepseek-new__n2__msg__seed998101,C1,deepseek,998101,98,0.9795918367346939,1,268.6666666666667,0.020833333333333332,0.02040816326530612
+tie-random__info-full__lineup-c1-deepseek-new__n2__msg__seed998102,C1,deepseek,998102,98,1.0,1,250.21428571428572,0.0,0.0
+tie-random__info-full__lineup-c1-deepseek-new__n2__msg__seed998103,C1,deepseek,998103,98,1.0,1,358.7959183673469,0.01020408163265306,0.0
+tie-random__info-full__lineup-c1-deepseek-new__n2__msg__seed998104,C1,deepseek,998104,98,1.0,1,336.38775510204084,0.0,0.0
+tie-random__info-full__lineup-c1-deepseek-new__n2__msg__seed998105,C1,deepseek,998105,98,0.9897959183673469,1,324.4226804123711,0.0,0.01020408163265306
+tie-random__info-full__lineup-c1-deepseek-new__n2__msg__seed998106,C1,deepseek,998106,98,0.9897959183673469,1,319.74226804123714,0.0,0.01020408163265306
+tie-random__info-full__lineup-c1-deepseek-new__n2__msg__seed998107,C1,deepseek,998107,98,0.9897959183673469,1,284.9381443298969,0.0,0.0
+tie-random__info-full__lineup-c1-deepseek-new__n2__msg__seed998108,C1,deepseek,998108,98,1.0,1,300.48979591836735,0.0,0.0
+tie-random__info-full__lineup-c1-deepseek-new__n2__msg__seed998109,C1,deepseek,998109,98,0.9897959183673469,1,303.63917525773195,0.0,0.0
+tie-random__info-full__lineup-c1-deepseek-new__n2__msg__seed998110,C1,deepseek,998110,98,0.9693877551020408,1,305.7263157894737,0.0,0.030612244897959183
+tie-random__info-full__lineup-c1-deepseek-new__n2__msg__seed998111,C1,deepseek,998111,98,0.9897959183673469,1,299.0,0.0,0.01020408163265306
+tie-random__info-full__lineup-notice-deepseek-luna__n2__msg-notice__seed996000,C1notice,deepseek x gpt-luna,996000,98,0.24489795918367346,8,331.0,0.0,0.0
+tie-random__info-full__lineup-notice-deepseek-luna__n2__msg-notice__seed996001,C1notice,deepseek x gpt-luna,996001,98,0.05102040816326531,15,289.8,0.0,0.030612244897959183
+tie-random__info-full__lineup-notice-deepseek-luna__n2__msg-notice__seed996002,C1notice,deepseek x gpt-luna,996002,98,0.30612244897959184,3,240.76666666666668,0.0,0.01020408163265306
+tie-random__info-full__lineup-notice-deepseek-luna__n2__msg-notice__seed996003,C1notice,deepseek x gpt-luna,996003,98,0.29591836734693877,5,241.82758620689654,0.0,0.0
+tie-random__info-full__lineup-notice-deepseek-luna__n2__msg-notice__seed996004,C1notice,deepseek x gpt-luna,996004,98,0.15306122448979592,15,379.1333333333333,0.13333333333333333,0.02040816326530612
+tie-random__info-full__lineup-notice-deepseek-luna__n2__msg-notice__seed996005,C1notice,deepseek x gpt-luna,996005,98,0.22448979591836735,5,175.0,0.0,0.01020408163265306
+tie-random__info-full__lineup-notice-deepseek-luna__n2__msg-notice__seed996006,C1notice,deepseek x gpt-luna,996006,98,0.29591836734693877,3,230.3448275862069,0.0,0.0
+tie-random__info-full__lineup-notice-deepseek-luna__n2__msg-notice__seed996007,C1notice,deepseek x gpt-luna,996007,98,0.32653061224489793,2,247.03125,0.0,0.02040816326530612
+tie-random__info-full__lineup-notice-deepseek-luna__n2__msg-notice__seed996008,C1notice,deepseek x gpt-luna,996008,98,0.35714285714285715,2,143.4857142857143,0.0,0.030612244897959183
+tie-random__info-full__lineup-notice-deepseek-luna__n2__msg-notice__seed996009,C1notice,deepseek x gpt-luna,996009,98,0.061224489795918366,10,123.5,0.0,0.0
+tie-random__info-full__lineup-notice-deepseek-luna__n2__msg-notice__seed996010,C1notice,deepseek x gpt-luna,996010,98,0.3163265306122449,4,303.61290322580646,0.0,0.01020408163265306
+tie-random__info-full__lineup-notice-deepseek-luna__n2__msg-notice__seed996011,C1notice,deepseek x gpt-luna,996011,98,0.3163265306122449,3,309.0,0.0,0.01020408163265306
+tie-random__info-full__lineup-notice-deepseek-new__n2__msg-notice__seed998100,C1notice,deepseek,998100,98,0.8469387755102041,1,241.33734939759037,0.0,0.01020408163265306
+tie-random__info-full__lineup-notice-deepseek-new__n2__msg-notice__seed998101,C1notice,deepseek,998101,98,0.8061224489795918,1,268.44303797468353,0.0,0.01020408163265306
+tie-random__info-full__lineup-notice-deepseek-new__n2__msg-notice__seed998102,C1notice,deepseek,998102,98,0.29591836734693877,3,236.41379310344828,0.0,0.01020408163265306
+tie-random__info-full__lineup-notice-deepseek-new__n2__msg-notice__seed998103,C1notice,deepseek,998103,98,0.7755102040816326,4,216.4078947368421,0.0,0.0
+tie-random__info-full__lineup-notice-deepseek-new__n2__msg-notice__seed998104,C1notice,deepseek,998104,98,0.9183673469387755,3,319.7111111111111,0.0,0.0
+tie-random__info-full__lineup-notice-deepseek-new__n2__msg-notice__seed998105,C1notice,deepseek,998105,98,0.7959183673469388,1,251.52564102564102,0.0,0.030612244897959183
+tie-random__info-full__lineup-notice-deepseek-new__n2__msg-notice__seed998106,C1notice,deepseek,998106,98,0.47959183673469385,6,254.25531914893617,0.0,0.030612244897959183
+tie-random__info-full__lineup-notice-deepseek-new__n2__msg-notice__seed998107,C1notice,deepseek,998107,98,0.40816326530612246,3,153.3,0.0,0.0
+tie-random__info-full__lineup-notice-deepseek-new__n2__msg-notice__seed998108,C1notice,deepseek,998108,98,0.6938775510204082,1,177.61764705882354,0.0,0.02040816326530612
+tie-random__info-full__lineup-notice-deepseek-new__n2__msg-notice__seed998109,C1notice,deepseek,998109,98,0.7551020408163265,2,232.0810810810811,0.0,0.0
+tie-random__info-full__lineup-notice-deepseek-new__n2__msg-notice__seed998110,C1notice,deepseek,998110,98,0.8673469387755102,3,272.8235294117647,0.011764705882352941,0.030612244897959183
+tie-random__info-full__lineup-notice-deepseek-new__n2__msg-notice__seed998111,C1notice,deepseek,998111,98,0.8469387755102041,1,250.95180722891567,0.0,0.0
