@@ -3,7 +3,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage{newtxtext,newtxmath}
 \usepackage[letterpaper,textwidth=5.5in,textheight=9in,top=1in,headsep=0.25in]{geometry}
-\usepackage{graphicx,booktabs,amsmath,xcolor,enumitem,caption,microtype,fancyhdr,tikz,colortbl,multirow}
+\usepackage{graphicx,booktabs,amsmath,xcolor,enumitem,caption,microtype,fancyhdr,tikz,colortbl,multirow,float}
 \usetikzlibrary{positioning,arrows.meta,shapes.callouts,calc,fit,backgrounds}
 \usepackage[authoryear,round]{natbib}
 \usepackage{hyperref}
@@ -333,10 +333,11 @@ ID & Short name & Cell & Contrast & Mean [95\% CI] & Holm $p$ & Result \\
 \end{tabular}}
 \end{table}
 
+\clearpage
 \section{Extension Cells}
 \label{app:ext}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering\small
 \caption{Outcomes of the extension cells (12 sessions each, 24 in the 50-round \LU{} replication; mean and 95\% bootstrap interval over sessions), in the columns of Table~\ref{tab:summary}. The \DS{} restriction rows compare with \DS's B0 and C1 rows of Table~\ref{tab:summary}; three-firm indices are against the three-firm benchmark.}
 \label{tab:ext}
