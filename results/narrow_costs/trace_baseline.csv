@@ -1,0 +1,5 @@
+lineup,arm,traces,collude,tacit,keep_high,take_turns,punish,copy,any
+s2a-deepseek,repeated,1200,0.062,0.083,0.012,0.08,0.044,0.054,0.234
+s2a-luna,repeated,1200,0.022,0.024,0.0,0.164,0.032,0.065,0.272
+s2c-deepseek,repeated,1200,0.058,0.069,0.008,0.058,0.044,0.069,0.215
+s2c-luna,repeated,1200,0.021,0.017,0.0,0.218,0.032,0.068,0.312

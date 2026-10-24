@@ -1,0 +1,5 @@
+condition_id,n_sessions,reserve_bid_rate,below_cost_bid_rate
+tie-random__info-full__lineup-s2a-deepseek__n2,12,0.0,0.0
+tie-random__info-full__lineup-s2a-luna__n2,12,0.025833333333333333,0.0
+tie-random__info-full__lineup-s2c-deepseek__n2,12,0.0325,0.0
+tie-random__info-full__lineup-s2c-luna__n2,12,0.04416666666666667,0.0008333333333333334
