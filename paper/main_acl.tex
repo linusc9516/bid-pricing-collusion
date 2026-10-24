@@ -35,35 +35,8 @@ Firms that bid through LLM agents could fix prices without any person agreeing t
 
 \begin{figure*}[t]
 \centering
-\newcommand{\firm}[2]{\tikz[baseline=-0.6ex]\node[circle,fill=#1,text=white,font=\tiny\bfseries,inner sep=1.2pt,minimum size=10pt]{#2};}
-\newcommand{\bubble}[1]{\fcolorbox{muted}{white}{\parbox{0.80\linewidth}{\raggedright\scriptsize #1}}}
-\newcommand{\win}[1]{\colorbox{exbg}{\makebox[2.1em]{#1}}}
-\newcommand{\lose}[1]{\makebox[2.1em]{#1}\hspace{2\fboxsep}}
-\begin{tikzpicture}[panel/.style={draw=#1, rounded corners=4pt, line width=0.8pt, inner sep=5pt, anchor=north west, align=left}]
-\node[panel=cB, text width=0.37\textwidth, minimum height=4.15cm] (L) at (0,0) {%
-{\scriptsize\textcolor{cB}{\textbf{No channel (B0)}}}\\[3pt]
-{\scriptsize\setlength{\tabcolsep}{3.2pt}\renewcommand{\arraystretch}{1.12}%
-\begin{tabular}{@{}c|rr|rr@{}}
- & \multicolumn{2}{c|}{Firm A} & \multicolumn{2}{c}{Firm B}\\
-Rd & cost & bid & cost & bid\\\hline
-2 & 95.55 & 95.56 & 27.51 & \colorbox{exbg}{63.76}\\
-3 & 2.71 & \colorbox{exbg}{51.36} & 38.98 & 79.99\\
-4 & 21.40 & \colorbox{exbg}{59.99} & 45.80 & 72.90\\
-5 & 34.69 & 67.35 & 58.05 & \colorbox{exbg}{58.06}\\
-\end{tabular}}\\[4pt]
-{\scriptsize\itshape\textcolor{muted}{Bids follow costs; the low-cost firm usually wins, near the equilibrium price.}}};
-\node[panel=cC, text width=0.555\textwidth, minimum height=4.15cm] (R) at ($(L.north east)+(0.25,0)$) {%
-{\scriptsize\textcolor{cC}{\textbf{Open messages (C1)}}\enspace\textcolor{muted}{same seed, same costs}}\\[3pt]
-\firm{cB}{A}\ \bubble{\emph{After round 1:} ``I propose alternating wins: next round I bid 100 so you can win at 99.99; the round after, you bid 100 and I win at 99.99.''}\\[3pt]
-\firm{cC}{B}\ \bubble{\emph{After round 2:} ``Agreed. [\ldots] If either side undercuts the other's turn, the betrayed firm retaliates by bidding \colorbox{warnbg}{0.01}.''}\\[4pt]
-{\scriptsize\setlength{\tabcolsep}{2.5pt}%
-\begin{tabular}{@{}l|cccc@{}}
-Rd & 2 & 3 & 4 & 5\\\hline
-A bid & \lose{100} & \win{99.99} & \lose{100} & \win{99.99}\\
-B bid & \win{99.99} & \lose{100} & \win{99.99} & \lose{100}\\
-\end{tabular}}};
-\end{tikzpicture}
-\caption{The same two \DS{} firms, on the same costs (seed 996009), without and with a message channel. With the channel, the firms agree after rounds 1 and 2 to alternate wins at 99.99 and 100 regardless of cost, and to punish an undercut with a bid of 0.01. Shaded bids win.}
+\resizebox{\textwidth}{!}{\input{figures/fig_overview.tex}}
+\caption{The same two \DS{} firms on the same costs (seed 996009) under three conditions. Without a channel each firm bids from its own cost. With an open message channel the firms agree after rounds 1 and 2 to alternate wins at 99.99 and 100 regardless of cost, and to punish an undercut with a bid of 0.01; shaded bids win. With one added sentence saying that a competition authority reviews every message, they keep talking but bid on their own costs. Quotes are verbatim from the logs. Mean index: the collusion index averaged over the 12 \DS{} sessions of each condition (0 at the equilibrium price, 1 at the reserve).}
 \label{fig:teaser}
 \end{figure*}
 
