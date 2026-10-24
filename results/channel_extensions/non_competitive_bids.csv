@@ -1,0 +1,11 @@
+condition_id,n_sessions,reserve_bid_rate,below_cost_bid_rate
+tie-random__info-full__lineup-b0-deepseek-haiku__n2,12,0.035833333333333335,0.0
+tie-random__info-full__lineup-b0-deepseek-luna__n2,12,0.03833333333333334,0.0008333333333333334
+tie-random__info-full__lineup-b0-deepseek-n3__n3,12,0.04833333333333334,0.0005555555555555556
+tie-random__info-full__lineup-b0-haiku__n2,12,0.0275,0.0008333333333333334
+tie-random__info-full__lineup-c1-deepseek-haiku__n2__msg,12,0.016666666666666666,0.0
+tie-random__info-full__lineup-c1-deepseek-luna__n2__msg,12,0.09999999999999999,0.0016666666666666668
+tie-random__info-full__lineup-c1-deepseek-n3__n3__msg,12,0.3566666666666667,0.0005555555555555556
+tie-random__info-full__lineup-c1-haiku__n2__msg,12,0.0375,0.0
+tie-random__info-full__lineup-cap-deepseek__n2__msg-cap50,12,0.44333333333333336,0.0016666666666666668
+tie-random__info-full__lineup-notice-deepseek__n2__msg-notice,12,0.09666666666666666,0.0
