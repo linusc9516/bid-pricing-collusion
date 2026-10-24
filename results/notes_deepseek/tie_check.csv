@@ -1,0 +1,4 @@
+lineup_id,tie_break_rule,n_sessions,rounds,sessions_with_a_tie,tie_rate,tie_ci_low,tie_ci_high,tie_rate_early,tie_rate_late,control_tie_rate,chance_tie_rate,excess_over_chance
+deepseek,random,24,1200,0,0.0,0.0,0.003069346108100284,0.0,0.0,,0.000205,-0.000205
+all,random,24,1200,0,0.0,0.0,0.003069346108100284,0.0,0.0,,0.000205,-0.000205
+pooled,random+least_wins,24,1200,0,0.0,0.0,0.003069346108100284,0.0,0.0,,0.000205,-0.000205

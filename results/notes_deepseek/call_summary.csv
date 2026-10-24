@@ -1,0 +1,3 @@
+condition_id,n_sessions,n_calls,n_rebid_calls,provider_retries,attempt_error_rate,sit_out_rate,below_cost_rate,mean_prompt_tokens,mean_completion_tokens,p95_completion_tokens,max_completion_tokens,cutoff_rate,mean_reasoning_tokens,p95_reasoning_tokens,free_text_rate
+tie-random__info-full__lineup-deepseek__n2__pn,12,4055,0,34,0.012083847102342787,0.0,0.0,6096.707274969174,653.9627620221949,2432.0,4000.0,0.011590628853267572,504.57262638717634,2400.0,0.035758323057953144
+tie-random__info-full__lineup-deepseek__n2__ws,12,4118,0,0,0.008013598834385623,0.0,0.0,10289.56750849927,621.4188926663429,2425.0,4000.0,0.007285089849441476,477.5267119961146,2400.0,0.0398251578436134
