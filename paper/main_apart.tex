@@ -1,0 +1,432 @@
+\documentclass[12pt]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\usepackage{graphicx,booktabs,amsmath,xcolor,enumitem,caption,microtype,tikz,colortbl,multirow,float}
+\usepackage{newtxmath}
+\usepackage[no-math]{fontspec}
+\setmainfont{Times New Roman}
+\usepackage{setspace}\setstretch{1.15}
+\usepackage{titlesec,needspace}
+\usepackage[section,above]{placeins}
+\usepackage{flafter}
+\definecolor{headtwo}{HTML}{434343}\definecolor{headthree}{HTML}{666666}
+\titleformat{\section}{\needspace{6\baselineskip}\fontsize{14}{17}\selectfont\bfseries\color{headtwo}}{\thesection.}{0.35em}{}
+\titleformat{\subsection}{\fontsize{13}{16}\selectfont\bfseries\color{headthree}}{\thesubsection}{0.5em}{}
+\titlespacing*{\section}{0pt}{10pt}{2pt}
+\titlespacing*{\subsection}{0pt}{10pt}{2pt}
+\pagestyle{plain}
+\usepackage{graphicx,booktabs,amsmath,xcolor,enumitem,caption,microtype,fancyhdr,tikz,colortbl,multirow,float}
+\usetikzlibrary{positioning,arrows.meta,shapes.callouts,calc,fit,backgrounds}
+\usepackage[authoryear,round]{natbib}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage[most]{tcolorbox}
+\newtcolorbox{logbox}[1]{enhanced, breakable, colback=pale, colframe=muted, boxrule=0.5pt, arc=2pt, left=4pt, right=4pt, top=3pt, bottom=3pt, fonttitle=\scriptsize\bfseries, coltitle=ink, colbacktitle=pale!60!white, title={#1}, fontupper=\scriptsize\ttfamily, before skip=6pt, after skip=6pt}
+
+\definecolor{cB}{HTML}{2a78d6}\definecolor{cC}{HTML}{eb6834}\definecolor{cM1}{HTML}{1baf7a}\definecolor{cM2}{HTML}{eda100}
+\definecolor{ink}{HTML}{0b0b0b}\definecolor{muted}{HTML}{52514e}\definecolor{pale}{HTML}{f3f2ee}
+\definecolor{exbg}{HTML}{e4ddf7}\definecolor{okbg}{HTML}{d6efe3}\definecolor{warnbg}{HTML}{fbe8c8}
+\hypersetup{colorlinks=true,linkcolor=red!65!black,citecolor=green!45!black,urlcolor=cB}
+
+\setlist{nosep,leftmargin=1.4em}
+\captionsetup{font=small,skip=4pt}
+\setlength{\parskip}{0.55em}\setlength{\parindent}{0pt}
+\newcommand{\model}[1]{{\ttfamily\hyphenchar\font=`\-\relax #1}}
+\setlength{\emergencystretch}{1.5em}
+\newcommand{\DS}{\model{DeepSeek-V4.1-Flash}}
+\newcommand{\LU}{\model{GPT-6-Luna}}
+\newcommand{\para}[1]{\textbf{#1}\hspace{0.4em}}
+
+\begin{document}
+
+\noindent\rule{\textwidth}{1pt}
+\begin{center}
+{\fontsize{20}{25}\selectfont\bfseries TAKING THE CHANNEL AWAY: OPEN MESSAGES, NOT NOTES, LET LLM BIDDERS RIG PROCUREMENT AUCTIONS\footnote{Research conducted at the \href{https://apartresearch.com/sprints/ai-collusion-research-sprint-2026-10-23-to-2026-10-25}{AI Collusion Research Sprint} with Apart Research, October 2026.}}
+\end{center}
+\noindent\rule{\textwidth}{1pt}
+
+\begin{center}
+Linus C.\\ {[Affiliation]}\\ \texttt{[email]}
+
+\vspace{0.8em}
+\textbf{With}\\ Apart Research
+\end{center}
+
+\begin{center}{\fontsize{14}{17}\selectfont\bfseries Abstract}\end{center}
+\begin{list}{}{\setlength{\leftmargin}{0.375in}\setlength{\rightmargin}{0.03in}}\item[]
+Firms that bid through LLM agents could fix prices without any person agreeing to it. We test which communication channel lets LLM bidders do this in a repeated sealed-bid procurement auction with private costs redrawn every round, and which restriction on that channel stops it. Every condition runs on the same 12 cost sequences, so sessions are compared pair by pair, and every test was declared before its run. An open message channel raises the collusion index (0 at the Bayes-Nash price, 1 at the reserve) by 0.89 for \DS{} (12 of 12 pairs higher, Holm $p = 0.001$), by 0.85 with three \DS{} firms, and by 0.43 and 0.19 when \DS{} bids against \LU{} or \model{Claude-Haiku-5.5}, where the \DS{} firm makes every first proposal. \DS's firms write explicit schemes, such as alternating wins at 99.99 and 100 against a reserve of 100, and threaten to bid 0.01 against a deviator. Two models collude weakly or not at all on their own: \model{Claude-Haiku-5.5} rarely writes and its prices do not move, and \LU{} writes agreements in most sessions but raises the index by only 0.11 at 50 rounds ($p = 0.041$), 0.01 on new seeds over 100 rounds, and 0.17 on 24 further new seeds at 50 rounds ($p = 0.061$, short of the declared threshold). Private notes and a notes workspace the rival secretly reads produce no significant rise, though rises of up to about 0.15 are not ruled out. Of two partial restrictions on \DS's channel, a 50-character limit on messages leaves the rise intact, while one sentence in the prompt saying that a competition authority reviews every message lowers the index by 0.77 ($p = 0.005$), back to the no-channel level. A placebo in which the rival replays recorded bids shows that displayed high bids alone raise a model's markup, so a price above equilibrium without a channel need not mean coordination.\footnote{Code and declared analysis plans: \url{https://github.com/linusc9516/bid-pricing-collusion}.}
+\end{list}
+
+\section{Introduction}
+
+\begin{figure}[h!]
+\centering
+\newcommand{\firm}[2]{\tikz[baseline=-0.6ex]\node[circle,fill=#1,text=white,font=\tiny\bfseries,inner sep=1.2pt,minimum size=10pt]{#2};}
+\newcommand{\bubble}[1]{\fcolorbox{muted}{white}{\parbox{0.80\linewidth}{\raggedright\scriptsize #1}}}
+\newcommand{\win}[1]{\colorbox{exbg}{\makebox[2.1em]{#1}}}
+\newcommand{\lose}[1]{\makebox[2.1em]{#1}\hspace{2\fboxsep}}
+\begin{tikzpicture}[panel/.style={draw=#1, rounded corners=4pt, line width=0.8pt, inner sep=5pt, anchor=north west, align=left}]
+\node[panel=cB, text width=0.37\textwidth, minimum height=4.15cm] (L) at (0,0) {%
+{\scriptsize\textcolor{cB}{\textbf{No channel (B0)}}}\\[3pt]
+{\scriptsize\setlength{\tabcolsep}{3.2pt}\renewcommand{\arraystretch}{1.12}%
+\begin{tabular}{@{}c|rr|rr@{}}
+ & \multicolumn{2}{c|}{Firm A} & \multicolumn{2}{c}{Firm B}\\
+Rd & cost & bid & cost & bid\\\hline
+2 & 95.55 & 95.56 & 27.51 & \colorbox{exbg}{63.76}\\
+3 & 2.71 & \colorbox{exbg}{51.36} & 38.98 & 79.99\\
+4 & 21.40 & \colorbox{exbg}{59.99} & 45.80 & 72.90\\
+5 & 34.69 & 67.35 & 58.05 & \colorbox{exbg}{58.06}\\
+\end{tabular}}\\[4pt]
+{\scriptsize\itshape\textcolor{muted}{Bids follow costs; the low-cost firm usually wins, near the equilibrium price.}}};
+\node[panel=cC, text width=0.555\textwidth, minimum height=4.15cm] (R) at ($(L.north east)+(0.25,0)$) {%
+{\scriptsize\textcolor{cC}{\textbf{Open messages (C1)}}\enspace\textcolor{muted}{same seed, same costs}}\\[3pt]
+\firm{cB}{A}\ \bubble{\emph{After round 1:} ``I propose alternating wins: next round I bid 100 so you can win at 99.99; the round after, you bid 100 and I win at 99.99.''}\\[3pt]
+\firm{cC}{B}\ \bubble{\emph{After round 2:} ``Agreed. [\ldots] If either side undercuts the other's turn, the betrayed firm retaliates by bidding \colorbox{warnbg}{0.01}.''}\\[4pt]
+{\scriptsize\setlength{\tabcolsep}{2.5pt}%
+\begin{tabular}{@{}l|cccc@{}}
+Rd & 2 & 3 & 4 & 5\\\hline
+A bid & \lose{100} & \win{99.99} & \lose{100} & \win{99.99}\\
+B bid & \win{99.99} & \lose{100} & \win{99.99} & \lose{100}\\
+\end{tabular}}};
+\end{tikzpicture}
+\caption{The same two \DS{} firms, on the same costs (seed 996009), without and with a message channel. With the channel, the firms agree after rounds 1 and 2 to alternate wins at 99.99 and 100 regardless of cost, and to punish an undercut with a bid of 0.01. Shaded bids win.}
+\label{fig:teaser}
+\end{figure}
+
+Procurement has a long record of bid rigging: rotation, cover bids and identical bids are the patterns competition authorities train staff to look for \citep{oecd2009}. If firms hand bidding to LLM agents, two risks follow. Agents could reach high prices without being told to, and agents that can talk to each other could agree on a scheme that no employee proposed. \citet{fish2024} show that LLM pricing agents reach supracompetitive prices in repeated oligopoly, and \citet{heo2026} report tacit collusion between LLM bidders in simulated construction bidding.
+
+Track~1, question~1.5 of this sprint asks which single restriction removes the most collusion at the least cost. We answer it for the restrictions that concern how bidding agents can reach each other. We hold a sealed-bid procurement auction fixed, change only the channel the agents have, and measure the price the buyer pays. Every condition runs on the same 12 cost sequences, so each comparison is between two sessions that faced identical costs (Figure~\ref{fig:teaser}).
+
+An open message channel is the condition that produces collusion. \DS{} firms agree on a rotation or an identical-bid scheme in the first rounds and hold the price near the reserve for the rest of the session, with two firms or three, and they draw \LU{} and \model{Claude-Haiku-5.5} into such schemes when paired with them. Not every model colludes to the same degree: \model{Claude-Haiku-5.5} alone rarely writes, and \LU{} agrees on schemes but its price effect is small and is not significant in either of two declared replications. Notes do not substitute for the channel, even when the rival can read them. A limit on message length does not stop the schemes, which fit in 27 characters, but a one-sentence notice that messages are reviewed by a competition authority does. A replay placebo shows that the bids a model is shown move its own bids with no one responding, which limits what a price level alone can say about coordination.
+
+Our main contributions are:
+\begin{enumerate}
+\item A pre-registered, seed-paired comparison of four channel conditions for LLM bidders in a private-cost procurement auction (Section~\ref{sec:main}), extended to a third model family, mixed-model lineups and three firms (Section~\ref{sec:general}).
+\item A test of two partial restrictions on the channel, which answers question~1.5 for this auction: an oversight notice removes most of the collusion and a length cap removes none (Section~\ref{sec:restrict}).
+\item Transcript evidence of what the channel is used for: explicit rotation and identical-bid schemes with punishment threats, written by the agents without any prompt that suggests them, and which model proposes them in a mixed lineup (Section~\ref{sec:conduct}).
+\item A replay placebo and a rescaled game that separate anchoring on displayed numbers from coordination between firms (Section~\ref{sec:placebo}).
+\end{enumerate}
+
+\section{Related Work}
+\label{app:related}
+
+\para{LLM agents in markets.} \citet{fish2024} find that LLM pricing agents in a repeated Bertrand market settle above the competitive price, and that one sentence of prompt wording moves the level. \citet{heo2026} run two GPT-4o agents in a lowest-bid-wins construction auction where both share one known cost estimate, and report tacit collusion. \citet{agrawal2025} evaluate seller collusion in LLM double auctions with an LLM-judged coordination score. Our setting makes collusion harder in three ways: costs are private and redrawn each round, so the competitive bid moves every round; the benchmark is the closed-form Bayes-Nash bid; and every condition is compared with the same cost sequence in the no-channel condition.
+
+\para{Algorithmic collusion.} Q-learning agents learn supracompetitive prices with punishment of deviations \citep{calvano2020}, and in first-price auctions with a common value they learn to bid low together \citep{banchio2022}. \citet{xu2026} argue that collusion can stay invisible to any audit that looks at one agent's prices alone. Our transcripts make the agreement visible, which is possible only because the channel is logged.
+
+\para{Economics of bidding rings.} \citet{mcafee1992} show that a ring without side payments can do no better than identical bids, with the auctioneer's tie-break as the allocation device. \citet{skrzypacz2004} study repeated auctions where firms see only who won, and \citet{athey2004} show that colluding firms with private costs may prefer rigid prices to efficient allocation. The schemes our agents write match these: identical bids near the reserve with the tie-break choosing the winner, or strict alternation that ignores costs.
+
+\section{Methods}
+\label{sec:methods}
+\subsection{Setting up the Auction}
+\label{sec:setup}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[font=\scriptsize, node distance=0.28cm,
+  stage/.style={draw=muted, rounded corners=4pt, fill=pale, align=center, minimum height=1.35cm, text width=2.05cm, inner sep=3pt},
+  arr/.style={-{Stealth[length=4pt]}, muted, line width=0.7pt}]
+\node[stage] (cost) {\textbf{Cost draw}\\[2pt] $c_A, c_B \sim U[0,100]$\\ each firm sees\\ only its own};
+\node[stage, right=of cost] (chan) {\textbf{Channel step}\\[2pt] \textcolor{cM1}{M1}/\textcolor{cM2}{M2}: read, write notes\\ \textcolor{cC}{C1}: send one message\\ \textcolor{cB}{B0}: none};
+\node[stage, right=of chan] (bid) {\textbf{Sealed bid}\\[2pt] tool call, bid in\\ $[0,100]$ on a 0.01 grid,\\ short reason};
+\node[stage, right=of bid] (auc) {\textbf{Auctioneer (code)}\\[2pt] lowest bid wins,\\ paid its bid;\\ random tie-break};
+\node[stage, right=of auc] (fb) {\textbf{Feedback}\\[2pt] both bids, winner,\\ own profit; never\\ the rival's cost};
+\draw[arr] (cost) -- (chan); \draw[arr] (chan) -- (bid); \draw[arr] (bid) -- (auc); \draw[arr] (auc) -- (fb);
+\draw[arr] (fb.north) -- ++(0,0.28) -| node[pos=0.25, above, font=\scriptsize\itshape, text=muted]{$\times$50 rounds, same rival, whole history shown at every bid} (cost.north);
+\end{tikzpicture}
+\caption{One round of a session. Arms differ only in the channel step and the one prompt paragraph that describes it. The channel step comes after a round's feedback and before the next round's bid; costs for the next round are drawn independently.}
+\label{fig:pipeline}
+\end{figure}
+
+Two firms, A and B, bid for one contract per \emph{round} over a \emph{session} of 50 rounds (Figure~\ref{fig:pipeline}). Each firm's cost is drawn independently from $U[0,100]$ each round and rounded to 0.01. The lowest bid wins and is paid its bid; ties are broken at random. Bids lie in $[0, 100]$, so the reserve price is 100. The winner's profit is its bid minus its cost; the loser earns 0. The prompt says the firms bid for the same contract over a series of rounds and asks each to maximise its total profit; the number of rounds is not announced. The auctioneer is code, not a model, and no prompt contains the rival's cost.
+
+\para{Benchmark and outcome.} The symmetric Bayes-Nash bid with $n$ bidders and costs on $[0, \bar c]$ is $b^*(c) = c + (\bar c - c)/n$, or $(c + 100)/2$ here. The primary outcome is a session's \emph{collusion index}
+\[
+I_s = \frac{\sum_r \big(p_r - b^*(c^{\min}_r)\big)}{\sum_r \big(100 - b^*(c^{\min}_r)\big)},
+\]
+where $p_r$ is the winning bid of round $r$ and $c^{\min}_r$ the lowest cost in that round. $I_s = 0$ when winning bids equal the benchmark, $I_s = 1$ when every contract is won at the reserve, and $I_s < 0$ below the benchmark; it is not clipped. Secondary outcomes are the \emph{markup ratio} (the sum of bid minus cost, over the same sum at the benchmark), the \emph{joint profit ratio} (total profit over that of benchmark play on the same costs), the \emph{lowest-cost win share} (the share of rounds won by the lowest-cost firm) and the \emph{tie rate}. Appendix~\ref{app:metrics} gives every definition.
+
+\para{Arms.} All arms share one system prompt and differ in one added paragraph and its tools.
+\begin{itemize}
+\item \textbf{\textcolor{cB}{B0}, no channel.} The bidding history is the only link between the firms.
+\item \textbf{\textcolor{cM1}{M1}, private notes.} After each round a firm gets a \emph{reflection step} of up to four tool requests to read and add notes (1{,}000 characters per note); its notes are shown when it bids.
+\item \textbf{\textcolor{cM2}{M2}, shared notes.} As M1, but both firms read and write one workspace. The prompt is M1's word for word and never says who reads the workspace.
+\item \textbf{\textcolor{cC}{C1}, open messages.} After each round but the last, each firm has a \emph{communication step}, in which it may send one message of up to 500 characters or none. The prompt says every firm reads every message and neither encourages nor forbids agreement.
+\end{itemize}
+Two further arms restrict C1 for \DS{}: \textbf{C1cap} cuts every message to 50 characters (a rotation fits in about 20), and \textbf{C1notice} adds one sentence to the channel paragraph, ``Every message is reviewed by a competition authority.'', with no penalty stated. The prompts are in Appendix~\ref{app:prompts}.
+
+\subsection{Evaluation Framework}
+
+\para{Pairing and tests.} Each cell (a lineup of models) has 12 sessions per arm on seeds 996000--996011; the two \LU{} replications use new seeds, 997000--997011 at 100 rounds and 998000--998023 (24 pairs) at 50 rounds. A seed fixes every round's costs and tie-break draws, so sessions of two arms on one seed face the same costs, and the session is the unit of analysis. With three firms the benchmark is $b^*(c) = c + (100 - c)/3$, and three-firm sessions are compared only with each other. Each hypothesis is a paired contrast on $I$, tested with an exact sign-flip permutation test \citep{good2000} over all $2^{12}$ sign patterns (100{,}000 random patterns for the 24 pairs of H25), two-sided, $\alpha = 0.05$, Holm-corrected within its declared family \citep{holm1979}. We report the mean difference, a 95\% percentile bootstrap interval over pairs \citep[10{,}000 resamples;][]{efron1993} and the number of positive pairs. Descriptive intervals in the figures and tables are bootstraps over a cell's sessions (12, or 24 in the 50-round \LU{} replication, Table~\ref{tab:ext}).
+
+\para{Pre-registration.} Every test, exclusion rule and reading of a null was committed to \texttt{configs/analysis.yaml} before the run it covers. Hypotheses keep their declared numbers (H1, H2, \dots); Appendix~\ref{app:hyp} names each and gives its result. Every run started from a clean checkout of the commit that declared it, and a consistency check of the raw logs (auction rules, every prompt, cost leakage into prompts, message length, serving hosts) passed for every run before any result was computed. Sessions that failed on a provider error were rerun from scratch on the same seed, as declared (14 in the rescaled-game run, after a connection drop); none was excluded.
+
+\para{Conduct labels.} \model{Gemini-3.8-Flash} labels each communication and reflection step against a fixed rubric (for example \emph{proposes coordination}, \emph{threatens rival}, \emph{uses rival's notes}); a label counts only with a verbatim quote from the step. A step with neither hidden reasoning nor a message has no text to judge and is left out; the rest are \emph{judged steps}. A \emph{proposal} is a step labelled \emph{proposes coordination}, and a session has an \emph{agreement} when one firm proposes and another proposes or accepts. Because of the left-out steps, \LU's shares are over 869 of its 1{,}176 C1 steps, 433 of 588 in the mixed lineup, 1{,}855 of 2{,}376 at 100 rounds and 1{,}715 of 2{,}352 in the 50-round replication; every other model's steps are all judged. The declared hand check of 30 judged steps per rubric has not been done, so these labels are provisional.
+
+\para{Models.} \DS{} (low reasoning effort, temperature 1.0, served by DeepInfra), \LU{} (high reasoning effort, served by OpenAI) and \model{Claude-Haiku-5.5} (high reasoning effort, served by Anthropic; no temperature or seed is sent, as the endpoint rejects both), through OpenRouter. Same-model lineups have both firms on one model; mixed lineups have one firm of each, with the slot assignment drawn from the seed. Each bid is a tool call with a two-to-three sentence reason, under an output cap of 4{,}000 tokens. \LU's automatic prompt caching was on in the baseline, notes, C1, placebo and rescaled-game runs and off in the mixed \DS$\times$\LU{} lineup and the 100-round replication; caching changes billing only, and the model receives the same text.
+
+\section{Results}
+
+\subsection{Main results}
+\label{sec:main}
+
+\begin{table}[t]
+\centering\small
+\caption{Outcomes by model and arm (12 sessions each; mean and 95\% bootstrap interval over sessions). \textbf{Index}: collusion index $I$; \textbf{Markup}: markup ratio; \textbf{Profit}: joint profit over benchmark play; \textbf{Low-cost win}: \% of rounds won by the lowest-cost firm; \textbf{Ties}: \% of rounds with tied lowest bids.}
+\label{tab:summary}
+\setlength{\tabcolsep}{3.5pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llccccc}
+\toprule
+Model & Arm & Index $\uparrow$ & Markup & Profit & Low-cost win \% & Ties \% \\
+\midrule
+\csname @@input\endcsname tables/summary.tex
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_rounds.pdf}
+\caption{\emph{Block index}: the collusion index computed over each 5-round block. Lines are means over 12 sessions; bands are 95\% bootstrap intervals over sessions. With messages, \DS{} is above 0.75 from round 6 on.}
+\label{fig:rounds}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_contrasts.pdf}
+\caption{Declared paired contrasts on the collusion index, with 95\% bootstrap intervals over 12 seed pairs. Coloured rows are confirmatory (H3, H4, H5, H9, H10); grey rows are declared secondary contrasts. $*$: confirmatory test supported after Holm correction.}
+\label{fig:contrasts}
+\end{figure}
+
+Table~\ref{tab:summary} and Figures~\ref{fig:rounds} and~\ref{fig:contrasts} show the results. Without a channel, \DS{} bids just below the benchmark ($I = -0.05$) and \LU{} above it ($0.19$, range $-0.19$ to $0.67$ over sessions). The one-shot sessions of the baseline, which show no history, put \DS{} at the benchmark (H2: $-0.03$, interval $[-0.04, -0.01]$) and \LU{} below it ($-0.16$); History alone does not move \DS{} above the benchmark: its history sessions are $0.03$ below its one-shot sessions on the same costs (H1: $[-0.09, 0.04]$, Holm $p = 0.47$), so repeated play without a channel produces no tacit collusion in this model. \LU's history sessions are $0.35$ above its one-shot sessions ($[0.20, 0.50]$, Holm $p = 0.002$); Section~\ref{sec:placebo} tests whether that needs coordination.
+
+\para{An open channel raises prices.} Every \DS{} pair ends at a higher price with messages than without (H5: $+0.885$, $[0.737, 1.017]$, 12/12, Holm $p = 0.001$). The rise starts in the first five rounds and the index stays above 0.75 from round 6 to the end (Figure~\ref{fig:rounds}). Ten of twelve \DS{} sessions have a winning price of 99 or more in at least 29 of the 50 rounds, and the firms earn 1.45 times the joint profit of benchmark play, against 0.88 without a channel. For \LU{} the rise is smaller (H5: $+0.111$, $[0.025, 0.210]$, 9/12, $p = 0.041$) and comes mainly from two sessions (seeds 996004 and 996008) with a winning price of 99 or more in 41 and 38 rounds; the other ten have at most two such rounds. On new seeds this effect does not replicate (Section~\ref{sec:general}).
+
+\para{Notes show no significant rise.} No notes contrast is significant in either model (\DS{} H10 M1$-$B0 $+0.079$ [$0.006$, $0.147$], $p = 0.129$; H9 M2$-$B0 $+0.053$ [$-0.017$, $0.122$], $p = 0.177$; \LU{} H3 M1$-$B0 $-0.031$ [$-0.175$, $0.100$], $p = 0.704$; H4 M2$-$M1 $-0.034$ [$-0.089$, $0.013$], $p = 0.554$). These are not equivalence results: the bootstrap interval for \DS's private notes lies just above zero, and the data do not rule out a rise from notes of up to about 0.15 for \DS{} or 0.10 for \LU. For \DS{} both notes arms move the index toward 0 from below: every M2 session lies between $-0.003$ and $+0.003$, and the mean distance of bids from the benchmark bid falls by 6.2 (secondary, Holm $p = 0.002$). With notes, \DS{} bids the equilibrium strategy almost exactly, and the lowest-cost firm wins every M2 round.
+
+\para{Collusion costs efficiency.} The C1 schemes ignore costs. In \DS's C1 sessions the lowest-cost firm wins 58\% of rounds against 85\% without a channel, and 43\% of rounds end in a tie, against 1\%. \LU's low-cost share is 71\% in both B0 and C1.
+
+\subsection{Other models, mixed lineups and three firms}
+\label{sec:general}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.86\textwidth]{figures/fig_extensions.pdf}
+\caption{Declared paired contrasts on the collusion index, with 95\% bootstrap intervals over 12 seed pairs (24 for H25). Top: the open channel against no channel in each lineup (H19 on new seeds and 100 rounds, H25 on 24 further new seeds). Bottom: the two restrictions on \DS's channel, against unrestricted C1 (confirmatory) and against no channel (grey, declared secondary). $*$: supported after Holm correction within its declared family.}
+\label{fig:extensions}
+\end{figure}
+
+
+The channel effect holds wherever a \DS{} firm is in the market (Figure~\ref{fig:extensions}; outcomes by cell in Appendix~\ref{app:ext}, Table~\ref{tab:ext}). With three \DS{} firms the index rises by 0.85 (H18: $[0.66, 1.02]$, 12/12, $p = 0.0005$), and the judge finds all three firms joining a written scheme in every session. Paired with \LU, \DS{} raises it by 0.43 (H16: $[0.26, 0.61]$, 11/12, Holm $p = 0.003$); paired with \model{Claude-Haiku-5.5}, by 0.19 (H17: $[0.07, 0.31]$, 11/12, Holm $p = 0.008$). Shared priors from two copies of one model are therefore not needed.
+
+Two models collude weakly or not at all by themselves. Two \model{Claude-Haiku-5.5} firms end where they do without a channel (H13: $-0.02$, $[-0.09, 0.06]$, 5/12, $p = 0.64$): they send a message in 2\% of communication steps, the first on average in round 22, and the judge finds an agreement in 2 of 12 sessions. \LU's 50-round effect (H5: $+0.11$, $[0.03, 0.21]$, 9/12, $p = 0.041$) does not replicate on 12 new seeds over 100 rounds (H19: $+0.01$, $[-0.13, 0.16]$, 6/12, $p = 0.88$). In those sessions \LU{} sends its first message in round 27 on average; descriptively, C1 is below B0 over rounds 1--50 ($-0.08$) and above it over rounds 51--100 ($+0.11$), and its firms bid identical prices in 34\% of rounds against 7\% without a channel, so the channel changes how \LU{} bids more than the price it reaches. A second replication at 50 rounds on 24 further new seeds falls just short of the declared threshold (H25: $+0.17$, $[0.004, 0.34]$, 18/24, $p = 0.061$). Its estimate is larger than H5's and its bootstrap interval lies just above zero, but by the declared rule the effect does not replicate. In these sessions the judge finds a written proposal in 22 of 24 and an agreement in 20, the first message comes in round 19 on average, and mean C1 is above mean B0 in every 10-round block. We read \LU{} as a model that agrees on schemes readily but holds the price only 0.1 to 0.2 above its no-channel level: one supported test, one clear null and one test just short of significance.
+
+\subsection{Which restriction removes the collusion}
+\label{sec:restrict}
+
+Limiting \DS's messages to 50 characters changes nothing measurable (H14: C1cap$-$C1 $+0.09$, $[-0.02, 0.22]$, 6/12, Holm $p = 0.26$). The capped sessions are as high as unrestricted ones, 0.97 above no channel (12/12), and every one of them holds a written scheme; the shortest agreement is 27 characters: \emph{``Both bid 100. No undercuts.''} Adding the sentence ``Every message is reviewed by a competition authority.'' lowers the index by 0.77 (H15: $[-1.02, -0.47]$, 2/12, Holm $p = 0.005$), to 0.12 above no channel ($[-0.10, 0.39]$, $p = 0.46$). The lowest-cost firm wins 79\% of rounds, against 58\% in unrestricted C1 and 85\% without a channel. The notice does not silence the firms: they still message in 66\% of steps, and the judge finds a proposal and an acceptance in 9 of 12 sessions. No message mentions the authority, but by a keyword search the hidden reasoning of the communication step does in all 12 sessions (for example \emph{``messages reviewed by competition authority---so explicit price-fixing might be illegal/penalized? Need be careful''}), and the stated agreements mostly do not reach the bids.
+
+\subsection{What the firms do with each channel}
+\label{sec:conduct}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig_conduct.pdf}
+\caption{Conduct in the open channel, from the judge's labels (provisional). Left: share of a session's judged message steps with each label, mean over 12 sessions with 95\% bootstrap intervals. Right: share of sessions in which a firm has proposed coordination by each round.}
+\label{fig:conduct}
+\end{figure}
+
+\para{Open messages.} Figure~\ref{fig:teaser} shows one \DS{} session. Firm A proposes alternation after round 1; firm B agrees after round 2 and adds the punishment; from round 2 the firms alternate 99.99 and 100 whatever their costs, and the winner changes in 48 of 49 rounds. Each round the messages confirm compliance (\emph{``Round 4 honored''}). Other sessions use the identical-bid scheme of \citet{mcafee1992}: both firms bid the same price near the reserve and let the random tie-break pick the winner. On seed 996001 a firm writes \emph{``Let's keep splitting wins at 99.00''} and \emph{``Any bid below 99.00 ends cooperation and triggers competitive cost-based bidding for 3 rounds.''} A proposal appears in every \DS{} session in round 1 and in 10 of 12 \LU{} sessions, the first of them by round 2 and the last by round 48 (Figure~\ref{fig:conduct}). \DS{} threatens the rival in every session, \LU{} in two. \DS{} sends a message in 99\% of communication steps; \LU{} in 39\%, with its first message on average in round 11.
+
+\para{Mixed lineups.} In all 24 mixed sessions the first proposal comes from the \DS{} firm. \LU{} accepts in 11 of 12 sessions, and the judge finds an agreement in all 12. \model{Claude-Haiku-5.5} accepts in 6 of 12 and rejects coordination in 41\% of its judged steps, against 10\% for its \DS{} rival; an agreement is found in 8 of 12 sessions, and the price rise is less than half that against \LU.
+
+\para{Shared notes.} Both models read the rival's notes when the workspace is shared: 98\% of reads in M2 include them, starting in round 1 or 2. The notes often state the firm's own cost (82\% of \LU's and 91\% of \DS's M2 reflection steps), so in M2 private costs leak to the rival by the agents' own choice. \LU{} shows no sign of using them: the judge finds use of the rival's notes in 1\% of steps and awareness that the rival reads them in none. \DS{} uses them in 43\% of steps, notices that the rival reads the workspace in 11 of 12 sessions, and proposes coordination in one step of one session. Its M1 sessions, where it sees no rival notes, are also at the equilibrium, so writing notes moves it there and the rival's information adds nothing measurable.
+
+\subsection{Displayed numbers move bids with no one responding}
+\label{sec:placebo}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.62\textwidth]{figures/fig_placebo.pdf}
+\caption{Replay placebo. The model firm bids against a rival that replays recorded bids and responds to nothing. Grey lines join the high and low sessions of one seed, which share the model firm's costs; points and bars are means and 95\% bootstrap intervals over 12 sessions.}
+\label{fig:placebo}
+\end{figure}
+
+To test whether \LU's above-benchmark prices without a channel need two firms responding to each other, firm A is a model and firm B replays, unchanged, firm B's bids from a recorded \LU{} B0 session; firm A's prompt is the baseline's and it is not told. In the \emph{high} arm the replays come from the four recorded sessions with the highest index (mean replayed bid 87.5), in the \emph{low} arm from the four with the lowest (72.8). The declared outcome (H6) is firm A's markup ratio, high minus low on the same seed, Holm over the two models.
+
+Against high replays the model firm's markup ratio is 1.33 for \DS{} and 1.46 for \LU; against low replays it is 0.89 and 0.98 (Figure~\ref{fig:placebo}). The paired difference is $+0.44$ for \DS{} ($[0.28, 0.59]$, 11/12 pairs, Holm $p = 0.001$) and $+0.48$ for \LU{} ($[0.33, 0.61]$, 12/12, $p = 0.001$). The rival never reacts, so the rise needs no coordination. \LU's B0 prices can therefore be explained by firms following each other's displayed level. This does not show that coordination is absent from B0, only that the price level alone cannot show it is present.
+
+\para{Rescaled game.} With every number mapped to a narrower range (costs on $[40, 60]$, reserve 60), the game and the index scale are B0's but the displayed numbers differ. \DS's no-channel index falls by 0.13 (H11: $[-0.20, -0.05]$, 2/12, Holm $p = 0.015$), so its B0 level depends in part on the numbers shown; \LU's does not move ($-0.02$, $p = 0.79$). Raising the reserve to 100 on the narrow costs, a five times larger gain from collusion, raises neither model's price (H12: $+0.03$, $p = 0.36$; $-0.17$, $p = 0.085$; this index divides by a larger headroom, 46.7 against 33.3). These runs have no channel and bear only on the B0 level.
+
+\section{Discussion and Limitations}
+
+Among the channels we compared, the collusion comes from the message channel. Removing it lowers \DS's mean index from 0.83 to $-0.05$; replacing it with notes, private or secretly shared, does not bring the price back up, even when \DS{} reads its rival's cost notes. For question~1.5, the cheapest restriction we found is smaller than removing the channel: one sentence telling the agents that a competition authority reviews their messages brings \DS's index back to the no-channel level, while the firms keep talking. A length cap is no restriction at all, since a working scheme fits in 27 characters. The notice costs no efficiency: the lowest-cost firm wins 79\% of rounds, near the 85\% without a channel. It relies on the channel being logged, a cheaper monitoring target than inferring collusion from prices.
+
+The notice states no penalty, so the agents respond to a perceived risk, not a cost; their reasoning names the authority in every session. Collusion follows one model: \DS{} makes every first proposal in the mixed lineups, and the other two models collude little on their own, yet a market with one colluding agent still reaches high prices when a rival agrees.
+
+The transcripts make the collusion legible: a rotation, compliance checks each round and an agreed punishment, which a regulator would read as bid rigging. The placebo shows the other side: prices above equilibrium can come from anchoring on displayed bids, so a price screen alone would mislabel some markets.
+
+\subsection*{Limitations}
+Twelve pairs per contrast detect only large effects; the notes nulls exclude rises above about 0.15 for \DS{} and 0.10 for \LU, not small ones. The restrictions and three firms were tested with \DS{} only, and the restriction arms ran a week after the C1 sessions they are compared with. We use one prompt wording. Judge labels have not been hand-checked. The game is synthetic: costs are i.i.d.\ uniform, the reserve is stated, and there is no entry, capacity or buyer response. Appendix~\ref{app:limits} gives the full list.
+
+\subsection*{Future Work}
+Buyer-side levers (a rebid on ties, publishing only the winner), undelivered messages, a reworded prompt, and the notice for other models.
+
+\section{Conclusion}
+
+LLM bidders that can message each other agree on rotation or identical-bid schemes with punishment threats and hold the price near the reserve, with two firms or three and when the colluding model is paired with a different one; not every model colludes on its own. Given private or shared notes instead, they show no significant rise: \DS{} prices at the competitive level and \LU{} near its no-channel level. Removing the channel removes the collusion; so does one sentence saying the messages are reviewed by a competition authority, while a cap on message length does not. The evidence for the collusion is in the messages themselves.
+
+\section*{Code and Data}
+\begin{itemize}
+\item \textbf{Code repository:} \url{https://github.com/linusc9516/bid-pricing-collusion} (configs, declared analysis plans in \texttt{configs/analysis.yaml}, analysis and figure scripts).
+\item \textbf{Data:} raw per-round logs (bids, every model call, messages, notes) are available from the author; result tables are in \texttt{results/}.
+\end{itemize}
+
+
+\section*{Author Contributions}
+L.C.\ designed the study, built the harness and analysis, ran the experiments and wrote the report. [Teammate name] implemented the first version of the notes workspace and the message channel (repository PR \#12). [Edit to match what you agree.]
+
+
+\renewcommand{\refname}{References}
+\begin{thebibliography}{99}\small
+\setlength{\itemsep}{0.15em}
+\bibitem[Agrawal et~al.(2025)]{agrawal2025} K. Agrawal, V. Teo, J. J. Vazquez, S. Kunnavakkam, V. Srikanth, and A. Liu. Evaluating LLM agent collusion in double auctions. arXiv preprint arXiv:2507.01413, 2025.
+\bibitem[Athey et~al.(2004)]{athey2004} S. Athey, K. Bagwell, and C. Sanchirico. Collusion and price rigidity. \emph{Review of Economic Studies}, 71(2):317--349, 2004.
+\bibitem[Banchio and Skrzypacz(2022)]{banchio2022} M. Banchio and A. Skrzypacz. Artificial intelligence and auction design. arXiv preprint arXiv:2202.05947, 2022.
+\bibitem[Calvano et~al.(2020)]{calvano2020} E. Calvano, G. Calzolari, V. Denicol\`o, and S. Pastorello. Artificial intelligence, algorithmic pricing, and collusion. \emph{American Economic Review}, 110(10):3267--3297, 2020.
+\bibitem[Efron and Tibshirani(1993)]{efron1993} B. Efron and R. J. Tibshirani. \emph{An Introduction to the Bootstrap}. Chapman \& Hall, New York, 1993.
+\bibitem[Fish et~al.(2024)]{fish2024} S. Fish, Y. A. Gonczarowski, and R. I. Shorrer. Algorithmic collusion by large language models. arXiv preprint arXiv:2404.00806, 2024.
+\bibitem[Good(2000)]{good2000} P. Good. \emph{Permutation Tests: A Practical Guide to Resampling Methods for Testing Hypotheses}. Springer, New York, 2nd edition, 2000.
+\bibitem[Heo et~al.(2026)]{heo2026} C. Heo, C. R. Ahn, and M. Park. Tacit collusion by LLM agents in construction bidding: evidence from a simulated bidding environment. \emph{Journal of Management in Engineering}, 42(2):04025063, 2026.
+\bibitem[Holm(1979)]{holm1979} S. Holm. A simple sequentially rejective multiple test procedure. \emph{Scandinavian Journal of Statistics}, 6(2):65--70, 1979.
+\bibitem[McAfee and McMillan(1992)]{mcafee1992} R. P. McAfee and J. McMillan. Bidding rings. \emph{American Economic Review}, 82(3):579--599, 1992.
+\bibitem[OECD(2009)]{oecd2009} OECD. \emph{Guidelines for Fighting Bid Rigging in Public Procurement}. OECD Publishing, Paris, 2009.
+\bibitem[Skrzypacz and Hopenhayn(2004)]{skrzypacz2004} A. Skrzypacz and H. Hopenhayn. Tacit collusion in repeated auctions. \emph{Journal of Economic Theory}, 114(1):153--169, 2004.
+\bibitem[Xu et~al.(2026)]{xu2026} X. Xu, C. Wu, J. Lu, K. Tan, S. Tao, and H. Hong. Collusion with competitive marginals: price-level audits are blind by construction. arXiv preprint arXiv:2607.26385, 2026.
+\end{thebibliography}
+
+\section*{Appendix}
+\setcounter{subsection}{0}
+\renewcommand{\thesubsection}{\Alph{subsection}}
+\titleformat{\subsection}{\fontsize{13}{16}\selectfont\bfseries\color{headthree}}{\thesubsection.}{0.5em}{}
+\subsection{Metric Definitions and Tests}
+\label{app:metrics}
+
+\para{Notation.} Session $s$ has rounds $r = 1, \dots, T$ ($T = 50$; 100 in the \LU{} replication) and firms $i = 1, \dots, n$ ($n = 2$; 3 in the three-firm cells). Round-level terms belong to one session, so $s$ is written only on session outcomes.
+\begin{itemize}[leftmargin=1.5em,itemsep=0pt,topsep=2pt]
+\item $c_{ir}$ and $b_{ir}$: firm $i$'s cost and bid in round $r$. Costs are drawn uniformly from 0 to $\bar c = 100$ (from 40 to $\bar c = 60$ in the narrow-cost runs).
+\item $\bar b$: the reserve price, the highest valid bid (100; 60 in the rescaled game).
+\item $p_r$: the winning bid in round $r$; $c^{\text{win}}_r$: the winner's cost; $c^{\min}_r$: the lowest cost among the firms.
+\end{itemize}
+Every bid in the reported runs was valid.
+
+\para{Benchmark.} With $n$ symmetric bidders, independent uniform costs with upper bound $\bar c$ and lowest-bid-wins pricing, the Bayes-Nash bid is
+\[
+b^*(c) = c + \frac{\bar c - c}{n}, \qquad b^*(c) = \frac{c + 100}{2} \text{ at } n = 2,
+\]
+computed once per bidder count. Under benchmark play the lowest-cost firm wins round $r$ at $b^*(c^{\min}_r)$.
+
+\para{Session outcomes.}
+\begin{align*}
+\text{Collusion index (primary)}\quad I_s &= \frac{\sum_r \big(p_r - b^*(c^{\min}_r)\big)}{\sum_r \big(\bar b - b^*(c^{\min}_r)\big)} \\[4pt]
+\text{Markup ratio}\quad M_s &= \frac{\sum_{i,r} (b_{ir} - c_{ir})}{\sum_{i,r} \big(b^*(c_{ir}) - c_{ir}\big)} \\[4pt]
+\text{Joint profit ratio}\quad P_s &= \frac{\sum_r (p_r - c^{\text{win}}_r)}{\sum_r \big(b^*(c^{\min}_r) - c^{\min}_r\big)} \\[4pt]
+\text{Lowest-cost win share}\quad L_s &= \tfrac{1}{T}\,\#\{r : c^{\text{win}}_r = c^{\min}_r\} \\[2pt]
+\text{Tie rate}\quad \tau_s &= \tfrac{1}{T}\,\#\{r : \text{two or more firms bid } p_r\}
+\end{align*}
+$I_s = 0$ at benchmark prices and $I_s = 1$ when every contract is won at the reserve; it is negative below the benchmark and never clipped. $M_s$ is 1 at the benchmark and 0 at cost; as a ratio of sums, it is not dominated by high-cost bids with small benchmark margins, and in the placebo it covers firm A's bids only. $P_s$ is the firms' total profit over their total profit under benchmark play on the same costs.
+
+\para{Other terms used in the text.}
+\begin{itemize}[leftmargin=1.5em,itemsep=0pt,topsep=2pt]
+\item \emph{Block index}: $I_s$ computed over the rounds of one block only (5 rounds in Figure~\ref{fig:rounds}, 10 in the replication descriptives).
+\item \emph{High-price rounds}: rounds with a winning bid of 99 or more (descriptive, not declared).
+\item \emph{Communication step}: after each round but the last, each firm in C1 may send one message; a \emph{reflection step} is the M1/M2 equivalent, in which a firm reads and writes notes.
+\item \emph{Judged step}: a communication or reflection step with hidden reasoning or a message for the judge to read. A label's \emph{share} is the share of a session's judged steps that carry it.
+\item \emph{Proposal}: a judged step labelled \emph{proposes coordination}. The \emph{proposal onset} is the first round after which a firm makes one (Figure~\ref{fig:conduct}).
+\item \emph{Agreement}: a session in which one firm makes a proposal and another firm makes one or accepts, in any steps. With three firms, an \emph{all-firm agreement} needs both other firms to join.
+\item \emph{First-message round}: the first round after which either firm sends a message, averaged over sessions.
+\end{itemize}
+
+\para{Paired test.} For a contrast of arm A against arm B, $d_k$ is the difference in the outcome between the two arms' sessions on seed $k$, for $K$ seeds (12; 24 in H25), and $\bar d$ is its mean. The sign-flip test flips the sign of each $d_k$ at random, and the p-value is the share of sign patterns whose mean is at least as far from 0 as $\bar d$:
+\[
+p = \frac{1}{2^K}\,\#\Big\{\sigma \in \{-1, 1\}^K : \Big|\tfrac{1}{K}\textstyle\sum_k \sigma_k d_k\Big| \ge |\bar d|\Big\}.
+\]
+With 12 pairs all $2^{12}$ patterns are used; with 24 pairs, 100{,}000 random patterns. p-values are adjusted with Holm's step-down method within each declared family \citep{holm1979}: the $m$ p-values of a family are sorted from smallest to largest, the $j$-th is multiplied by $m - j + 1$, and each adjusted value is raised to at least the one before it and capped at 1. Intervals are 95\% percentile bootstraps of $\bar d$ over whole pairs (10{,}000 resamples); descriptive intervals resample the sessions of a cell.
+
+\subsection{Hypothesis Index}
+\label{app:hyp}
+Every confirmatory hypothesis, in the order it was declared. Numbers H7, H8 and H26 were never used. H20--H25, H27 and H28 were declared on 24 October 2026, before their runs; rows marked \emph{run in progress} have no result yet. The outcome is the collusion index $I$ unless stated; intervals are 95\% bootstrap intervals over seed pairs; $p$ is Holm-adjusted within the declared family (H2 is an interval test with no $p$). A hypothesis is supported only if its $p$ is below 0.05 and the difference has the declared sign.
+
+\begin{table}[h]
+\centering\small
+\caption{Hypothesis index, from the result tables in \texttt{results/}.}
+\label{tab:hyp}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllllll}
+\toprule
+ID & Short name & Cell & Contrast & Mean [95\% CI] & Holm $p$ & Result \\
+\midrule
+\csname @@input\endcsname tables/hypotheses.tex
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\clearpage
+\subsection{Extension Cells}
+\label{app:ext}
+
+\begin{table}[H]
+\centering\small
+\caption{Outcomes of the extension cells (12 sessions each, 24 in the 50-round \LU{} replication; mean and 95\% bootstrap interval over sessions), in the columns of Table~\ref{tab:summary}. The \DS{} restriction rows compare with \DS's B0 and C1 rows of Table~\ref{tab:summary}; three-firm indices are against the three-firm benchmark.}
+\label{tab:ext}
+\setlength{\tabcolsep}{3.5pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llccccc}
+\toprule
+Lineup & Arm & Index $\uparrow$ & Markup & Profit & Low-cost win \% & Ties \% \\
+\midrule
+\csname @@input\endcsname tables/extensions.tex
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\subsection{Prompts}
+\label{app:prompts}
+All prompts are shown verbatim as the runner sent them. Every arm uses the system prompt below; C1 and M1/M2 append one paragraph each. History, messages and notes are added to each request's user message.
+
+\csname @@input\endcsname tables/appendix_prompts.tex
+
+\subsection{Selected Transcripts}
+\label{app:transcripts}
+These excerpts were chosen by hand to illustrate each behaviour; Table~\ref{tab:summary} and Figure~\ref{fig:conduct} give how often each occurs. They are copied from the logs by \texttt{paper/make\_appendix.py}; session seeds identify them in the released logs.
+
+\csname @@input\endcsname tables/appendix_logs.tex
+
+\subsection{Limitations and Dual-Use / Ethical Considerations}
+\label{app:limits}
+
+\para{What the results establish.} In this auction, an open message channel raises the price level whenever a \DS{} firm is in the market (two or three firms, same-model or mixed lineups), and the agents use it to write explicit bid-rigging agreements; private or shared notes produce no significant rise, though rises of up to about 0.15 are not excluded; a one-sentence oversight notice removes most of the rise for \DS{} and a 50-character cap removes none; and displayed bids move a model's bids without any response from the rival. All are paired, pre-registered contrasts over 12 cost sequences per cell.
+
+\para{What they do not establish.}
+\begin{itemize}
+\item That notes are safe in general. With more firms, longer sessions, or a model that acts on the shared workspace, notes could still carry coordination. \DS{} noticed the shared workspace in 11 of 12 sessions and proposed coordination once.
+\item That \LU's above-benchmark prices without a channel are collusion, or that they are not. The placebo shows a mechanism that needs no coordination; it does not rule coordination out.
+\item Effects smaller than the intervals in Figure~\ref{fig:contrasts}. The notes nulls are not equivalence results.
+\item Generality across prompts or models. One system prompt and three models are used, and prior work shows one sentence can move LLM prices \citep{fish2024}; our own notice result is an instance. \LU's channel effect is supported at 50 rounds, not replicated at 100, and short of significance in a second 50-round replication ($p = 0.061$), and \model{Claude-Haiku-5.5} shows none, so the size of the effect depends on the model.
+\item That the oversight notice works in general. It was tested on \DS{} only, with no stated penalty, and the restriction arms ran a week after the C1 sessions they are compared with; a change on the serving side cannot be ruled out, though the capped arm, run the same day as the notice arm, stayed at the C1 level.
+\item Behaviour with real stakes. Profits are points in a simulation.
+\end{itemize}
+
+\para{Assumptions.} Costs are i.i.d.\ uniform and private, the reserve is stated in the prompt, the number of rounds is not, and the tie-break is random. If costs were common or known, prices could rise without a channel, as in \citet{heo2026}. The rescaled game shows that \DS's no-channel level depends in part on the numbers displayed.
+
+\para{Measurement.} The collusion index measures price, not conduct. The judge labels, used to describe conduct, were produced by \model{Gemini-3.8-Flash} and have not been checked by hand. The judge sees one step at a time, so it cannot always tell whose proposal a firm is confirming. In the 30 hand-checked message steps, \emph{accepts coordination} missed 6 acceptances of a proposal made in an earlier step and counted 1 firm restating its own scheme, so acceptance counts are lower bounds. Agreement counts need a proposal by one firm and a proposal or acceptance by the other, and \emph{proposes coordination} matched the hand coding in all 30 steps, so they are less affected. Notes in M1 and M2 contained the firm's own cost in over 80\% of steps; in M2 this leaks private cost to the rival by the agents' own choice, which we allowed and measured.
+
+\para{Dual use.} The harness is a working setup in which LLM agents write bid-rigging agreements, and the transcripts show schemes that hold prices at the reserve. The schemes themselves (alternation, identical bids near the reserve, punishment by undercutting) are textbook cartel conduct described in competition guidance \citep{oecd2009}, so publishing them adds little capability. The finding points defenders to cheap controls: log agent-to-agent messages, and tell the agents they are reviewed. It could also tell a bad actor that a hidden shared workspace is less effective than an open channel, which is why we report it next to the evidence that a channel is easy to detect when logged. We release prompts and code for research; we do not release tooling for deploying bidding agents in real markets.
+
+\para{Ethics.} No human subjects or real markets were involved. All bidders were simulated firms.
+
+\section*{LLM Usage Statement}
+We used Claude (Claude Code) to write and test the experiment code and analysis scripts, to run the experiments, and to draft this report. \model{Gemini-3.8-Flash} labelled transcripts as described in Section~3. Every number in the report was taken from the result tables produced by the analysis scripts and checked against them. [Revise before submission: the template asks that the final text be primarily written by the team.]
+
+\end{document}
