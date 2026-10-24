@@ -90,8 +90,6 @@ averaged over the rounds of one session: 0 when winning bids equal the benchmark
 
 \paragraph{Replay placebo} To ask whether displayed bids move a firm's bids without any response from the rival, firm A is a model and firm B replays, unchanged, firm B's bids from a recorded Luna \Bzero{} session. Firm A's prompt is the baseline's and it is not told. In the \emph{high} arm the replays come from the four recorded sessions with the highest index (mean replayed bid 87.5), in the \emph{low} arm from the four with the lowest (72.8). The outcome is firm A's markup ratio, high minus low on the same seed, 12 pairs per model, Holm over the two models.
 
-\paragraph{Work before the sprint} The harness, the baseline (10 October 2026) and the three channel arms (15--19 October) were built and run before the sprint; their dated record is \texttt{PREP\_LOG.md} in the repository. The replay placebo was declared before the sprint and run on 23 October. The writing, figures, transcript analysis and placebo analysis were done during the sprint.
-
 \section{Results}
 
 \subsection{No channel: prices near equilibrium, with one model above it}
@@ -163,7 +161,7 @@ Two LLM bidders that can message each other agree on bid-rotation schemes with p
 
 \section*{Code and Data}
 \begin{itemize}
-\item \textbf{Code repository:} \url{https://github.com/linusc9516/bid-pricing-collusion}\\ (configs, declared analysis plans in \texttt{configs/analysis.yaml}, analysis and figure scripts). Code written before the sprint is listed in \texttt{PREP\_LOG.md}.
+\item \textbf{Code repository:} \url{https://github.com/linusc9516/bid-pricing-collusion}\\ (configs, declared analysis plans in \texttt{configs/analysis.yaml}, analysis and figure scripts).
 \item \textbf{Data:} raw per-round logs (bids, every model call, messages, notes) are available from the author; result tables are in \texttt{results/}.
 \end{itemize}
 

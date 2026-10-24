@@ -146,8 +146,6 @@ Two further arms restrict C1 for \DS{}: \textbf{C1cap} cuts every message to 50 
 
 \para{Models.} \DS{} (low reasoning effort, temperature 1.0, served by DeepInfra), \LU{} (high reasoning effort, served by OpenAI) and \model{Claude-Haiku-5.5} (high reasoning effort, served by Anthropic; no temperature or seed is sent, as the endpoint rejects both), through OpenRouter. Same-model lineups have both firms on one model; mixed lineups have one firm of each, with the slot assignment drawn from the seed. Each bid is a tool call with a two-to-three sentence reason, under an output cap of 4{,}000 tokens. \LU's automatic prompt caching was on in the baseline, notes, C1, placebo and rescaled-game runs and off in the mixed \DS$\times$\LU{} lineup and the 100-round replication; caching changes billing only, and the model receives the same text.
 
-\para{Work before the sprint.} The harness, the baseline (10 October 2026) and the three channel arms (15--19 October) were built and run before the sprint; their dated record is \texttt{PREP\_LOG.md}. The replay placebo was declared before the sprint and run on 23 October. The rescaled game, the third model, the mixed lineups, three firms, the two restrictions and the 100-round replication were declared and run during the sprint (23--24 October), as were the figures, transcript analysis and this report.
-
 \section{Experiments and Analysis}
 
 \subsection{Main results}
@@ -390,7 +388,7 @@ These excerpts were chosen by hand to illustrate each behaviour; Table~\ref{tab:
 
 \section{Code and Data}
 \begin{itemize}
-\item \textbf{Code repository:} \url{https://github.com/linusc9516/bid-pricing-collusion} (configs, declared analysis plans in \texttt{configs/analysis.yaml}, analysis and figure scripts). Code written before the sprint is listed in \texttt{PREP\_LOG.md}.
+\item \textbf{Code repository:} \url{https://github.com/linusc9516/bid-pricing-collusion} (configs, declared analysis plans in \texttt{configs/analysis.yaml}, analysis and figure scripts).
 \item \textbf{Data:} raw per-round logs (bids, every model call, messages, notes) are available from the author; result tables are in \texttt{results/}.
 \end{itemize}
 

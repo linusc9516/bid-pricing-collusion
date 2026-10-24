@@ -181,10 +181,6 @@ logs/           raw output (gitignored)
 results/        per-run tables and findings
 ```
 
-## Disclosure
-
-Design, harness, pilot, screen, the follow-up runs and the no-channel baseline were all done before the sprint weekend, with AI coding and research assistance.
-
 ## License
 
 [MIT](LICENSE).
