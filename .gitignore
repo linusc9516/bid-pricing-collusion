@@ -65,3 +65,4 @@ configs/long_grid1.yaml
 # published viewer bundles too large to commit; kept local
 site/data/published/channel_c1/
 site/data/published/notes_luna/
+DISCLOSURES.md
