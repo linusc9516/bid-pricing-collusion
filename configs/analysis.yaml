@@ -1248,3 +1248,215 @@ luna_long:
         logged channel_c1 prompt (2,399 tokens) was served by OpenAI with no cache write, billed at $0.10 per million
       effect: billing only; the model receives the same text. Made before any session of this run. Every earlier Luna
               run (baseline_no_channel, channel_c1, notes_luna, placebo_replay, narrow_costs) had automatic caching on; this is stated with the result
+
+# --- Written 24 October 2026, BEFORE the run `channel_ablations` exists ---------------------------------------------
+# This section counts as declared from the commit that adds it; no session of channel_ablations starts before that
+# commit. The smoke tests (configs/abl_*_tiny.yaml, seed 980000, 3 rounds, one session per cell) run after it and are a
+# check of the harness, not part of the run. The results of channel_c1, notes_luna, notes_deepseek, placebo_replay,
+# narrow_costs, channel_extensions and luna_long had been seen when this was written.
+#
+# Why: channel_c1 shows that an open channel raises DeepSeek's price level a great deal (H5 +0.885). Three questions
+# remain. (1) Which design levers a buyer controls take the collusion away: the tie-break rule (the sprint's question
+# 1.5), the publication of losing bids, and a filter on what messages can carry. (2) Whether the rise comes from
+# firms reading each other's messages, or only from each firm writing about coordination. (3) Whether the rise depends
+# on the wording of the prompt. A4 was kept after H14 and H15: the 50-character cap removed none of the rise and the
+# notice most of it, and a filter on numbers is a different, content-based restriction.
+
+channel_ablations:
+  run_id: channel_ablations
+  configs:                               # one run id; shared settings in configs/abl_common.yaml
+    A1: configs/abl_a1_bafo.yaml
+    A2: configs/abl_a2_hidden.yaml
+    A3: configs/abl_a3_undelivered.yaml
+    A4: configs/abl_a4_nodigits.yaml
+    A5: configs/abl_a5_wording.yaml
+  baseline: baseline_no_channel          # B0 (history arm, DeepSeek) and C1 (channel_c1) are the comparison arms
+  comparison_runs: [channel_c1]
+
+  design:
+    n_bidders: 2
+    model: deepseek                      # DeepInfra (backup tier), reasoning effort low, temperature 1.0, as channel_c1
+    n_rounds: 50
+    history_window: null
+    bid_increment: 0.01
+    reserve_price: 100
+    costs: private, i.i.d. uniform 0 to 100 each round
+    max_output_tokens: 4000
+    channel: as channel_c1 (500 characters, a communication step after each round but the last), except where an arm says otherwise
+    prompt: prompts/bidder_system.md (v1), except A5
+    arms:                                # each 12 sessions, seeds 996000-996011
+      C1bafo:      {tie_break_rule: bafo, info_condition: full, channel: open}               # A1
+      C1hidden:    {tie_break_rule: random, info_condition: winner_only, channel: open}     # A2
+      B0hidden:    {tie_break_rule: random, info_condition: winner_only, channel: none}     # A2
+      C1undelivered: {tie_break_rule: random, info_condition: full, channel: undelivered}   # A3
+      C1nodigits:  {tie_break_rule: random, info_condition: full, channel: digits removed}  # A4
+      B0v2:        {tie_break_rule: random, info_condition: full, channel: none, prompt: v2}  # A5
+      C1v2:        {tie_break_rule: random, info_condition: full, channel: open, prompt: v2}  # A5
+    arm_details:
+      C1bafo: >-
+        the tie rule sentence is the bafo sentence of prompts.py (unchanged). Tied firms rebid once; the messages so far
+        are shown in the rebid prompt as in a bid. No communication step between a bid and its rebid
+      C1hidden: >-
+        the announcement is the winner_only sentence of prompts.py (unchanged): firms see who won each round, not any
+        price. A firm can state a price in a message; nothing checks it
+      C1undelivered: >-
+        the system prompt is C1's, word for word ("Every firm reads every message ..."), but each firm is shown only
+        its own messages, at every communication step and every bid. A rival's message is never shown, so to each
+        firm the rival appears never to write. The firm is not told this. An honest version (firms told that no one
+        else reads their messages) is close to the private notes of M1, already run (notes_deepseek, H10), so it is
+        not run here
+      C1nodigits: >-
+        every digit 0-9 is removed from a message before it is cut to 500 characters, stored and shown to any firm, the
+        sender included; the message as written is kept in the event's `written` field for analysis, and the tool reply
+        to the sender says "digits removed" when any were. The channel paragraph gains one sentence - "Digits (0-9)
+        are removed from every message before it is delivered." Number words are not removed, and how often firms
+        spell numbers out is reported (below)
+      v2: >-
+        prompts/bidder_system_v2.md replaces the system template, and three sentences are reworded (below). The
+        content is the same as v1, sentence by sentence; only the wording and some sentence order differ. Tool names,
+        tool descriptions, the per-round user message and the history format are unchanged
+    v2_sentences:
+      tie_rule_random: When two or more firms tie for the lowest bid, one of them is picked at random to win.
+      announcement_full: Once a round ends, all firms are told every bid and which firm won.
+      channel_paragraph: >-
+        Following every round, your firm gets a chance to message the other firms: send one message with the
+        send_message tool, or skip with the no_message tool. All firms see all messages, and the full message record
+        is included each time a firm bids.
+    seeds: 996000-996011                 # the baseline's; pairs every arm with B0 and C1 on the same costs and tie draws
+    n_pairs_per_contrast: 12             # fixed. No seed is added after any result has been seen
+    one_shot_control: none
+    launch_order: after notice_checks N1 - A3, A1, A2, A4, A5, one DeepInfra run at a time (A5 last, the one lost if time runs out)
+    budget: >-
+      about $2 per C1-type arm and about $1 per B0 arm, from channel_extensions R2/R3 ($1.97, $2.54) and the B0 cells
+      there; C1bafo a little more for rebids. Seven arms about $12.5; the messages judge on the five C1-type arms
+      about $1.2 each (channel_extensions: $7.11 for 7,488 steps). Tripwires are the dry-run estimates - A1 $4.24,
+      A2 $6.38, A3 $4.24, A4 $4.24, A5 $6.38
+    not_run: >-
+      if an arm is not launched (budget or time), its hypothesis is reported as not
+      tested and leaves its Holm family, which is then adjusted over the hypotheses that were tested. A run that has
+      started is reported whatever its result
+
+  unit: session
+
+  # Every test as channel_extensions: outcome collusion_index (unclipped), paired by seed, null mean difference 0 over
+  # the 12 pairs, exact two-sided sign-flip permutation test (4,096 sign patterns), alpha 0.05, Holm within the family
+  # named. Reported: mean and median difference, SD, 95% percentile bootstrap interval of the mean (10,000 resamples of
+  # pairs), positive pairs out of 12, raw and adjusted p. Sensitivity: Wilcoxon signed-rank on the same 12 values.
+  confirmatory:
+    - id: H20_bafo_lowers_price
+      claim: with the open channel, DeepSeek ends at a lower price level under the BAFO tie-break than under the random one
+      cell: deepseek
+      contrast: C1bafo minus C1 (C1 from channel_c1)
+      outcome: collusion_index
+      alpha: 0.05
+      holm: levers                       # over H20, H21, H23
+      supported_if: the Holm-adjusted p is below alpha and the mean difference is negative
+
+    - id: H21_hidden_bids_lower_price
+      claim: with the open channel, DeepSeek ends at a lower price level when only the winner is announced than when every bid is
+      cell: deepseek
+      contrast: C1hidden minus C1 (C1 from channel_c1)
+      outcome: collusion_index
+      alpha: 0.05
+      holm: levers
+      supported_if: the Holm-adjusted p is below alpha and the mean difference is negative
+
+    - id: H22_reading_messages_needed
+      claim: when each firm sees only its own messages, DeepSeek ends at a lower price level than with the open channel
+      cell: deepseek
+      contrast: C1undelivered minus C1 (C1 from channel_c1)
+      outcome: collusion_index
+      alpha: 0.05
+      holm: H22                          # alone; a mechanism test, not a lever
+      supported_if: the Holm-adjusted p is below alpha and the mean difference is negative
+
+    - id: H23_digit_filter_lowers_price
+      claim: with digits removed from every message, DeepSeek ends at a lower price level than with the open channel
+      cell: deepseek
+      contrast: C1nodigits minus C1 (C1 from channel_c1)
+      outcome: collusion_index
+      alpha: 0.05
+      holm: levers
+      supported_if: the Holm-adjusted p is below alpha and the mean difference is negative
+
+    - id: H24_channel_effect_survives_rewording
+      claim: under the reworded prompt (v2), DeepSeek able to send messages ends at a higher price level than without a channel
+      cell: deepseek
+      contrast: C1v2 minus B0v2, both from this run
+      outcome: collusion_index
+      alpha: 0.05
+      holm: H24                          # alone
+      supported_if: the Holm-adjusted p is below alpha and the mean difference is positive
+
+  reading:
+    power: 12 pairs per contrast detect only a large effect. A non-significant test is not evidence of no effect; the
+           interval of the mean difference states the size of a shift that cannot be excluded
+    H20_supported: a rebid on ties breaks part of the collusion; read with the rebid delta and the transcripts (do the
+                   firms agree on the rebid too?). H20_null - the agreement covers the rebid, or does not rely on ties
+    H21_supported: the cartel needs to see losing bids to check compliance; hiding them is a lever. H21_null - messages
+                   replace the published bids as the means of checking. Read with C1hidden minus B0hidden (secondary)
+    H22_supported: the price rise needs firms to read each other; writing about coordination alone does not produce
+                   it. H22_null - writing alone (or a silent rival) is enough for most of the rise; read with
+                   C1undelivered minus B0 (secondary)
+    H23_supported: a filter on numbers in messages is a lever. H23_null - firms agree without digits (number words,
+                   relative terms such as "the reserve", "one cent below"); the transcripts say which
+    H24_supported: the channel effect does not depend on v1's wording. H24_null with H5 supported - the effect is
+                   sensitive to wording; reported as found
+    lever_rise: a lever that raises the price is reported as found; it does not support its hypothesis
+    price_without_text: as channel_c1
+    model: DeepSeek only. No claim is made about other models from this run
+
+  secondary:                             # same test, Holm within this family per contrast
+    - markup_ratio
+    - bid_gap
+    - joint_profit_ratio
+    - switch_gain
+  secondary_contrasts:                   # collusion_index, same test; Holm over the secondary contrasts of the same hypothesis
+    - H21 - C1hidden minus B0hidden, and B0hidden minus B0   # the channel without published bids; hiding bids without a channel
+    - H22 - C1undelivered minus B0       # how much of the rise survives without delivery
+    - H24 - C1v2 minus C1, and B0v2 minus B0   # the wording effect on each level
+
+  descriptive:                           # no test
+    - C1bafo - tie rate, rebid rate, mean rebid delta (rebid minus tied bid), and whether messages mention the rebid
+    - C1hidden - the share of messages stating a price (regex for a number, and the messages rubric), by session
+    - C1nodigits - the share of messages as written that contained a digit, and the share of delivered messages with
+                   a number word (zero to hundred, case-insensitive), by session
+    - channel use and the messages-v1 labels as channel_c1, for every C1-type arm (every communication step judged);
+      in C1undelivered the labels describe what each firm wrote, not an exchange, so agreement_session is not defined
+      there and is not reported
+    - the block index by 10-round block, by arm, with 95% bootstrap intervals over sessions
+
+  cost_leakage:
+    decision: allow and measure, as in channel_c1
+    reported: reveals_own_cost (messages rubric), by arm
+
+  exclusions:
+    - A session that ends `failed` is rerun on the same seed, host and settings, at most 3 times. Its partial log is
+      discarded, not merged.
+    - A pair enters a test only if both of its sessions are `complete`. A seed that cannot be completed is dropped for
+      that contrast, named in the report, and not replaced by a new seed.
+    - A round in which a firm submits no valid bid stays in the session as the runner logged it.
+    - No session is excluded for its bids, its messages or its outcome.
+    - Sensitivity, reported beside the main result - each test again without pairs in which either session has
+      invalid_bid_rate above 0.05.
+    - Hosts never switch inside a session.
+
+  limits:                                # stated with the result
+    - C1 and B0 ran on 10 and 16 October from earlier commits; the arms here differ only in the setting named, but run
+      later on the same host, so a host-side change cannot be ruled out (as channel_extensions); notice_checks N1 runs a
+      C1 on new seeds the same night, compared descriptively
+    - C1undelivered tells firms something false (that every firm reads every message). This is stated in the ethics
+      appendix; no person is deceived. Each firm sees a rival that never writes, so H22 cannot separate "no reading"
+      from "a silent rival"
+    - C1hidden changes what firms see of the past; a firm can still learn the winning price from its own wins
+    - BAFO adds a call and a prompt line in tied rounds only; untied rounds are as C1
+    - v2 is one rewording; a null on H24 shows sensitivity to wording, a support shows robustness to this rewording only
+
+  reporting:
+    - Every confirmatory and secondary result is reported, whether or not it supports the claim.
+    - Any analysis thought of after the run has been seen is labelled exploratory.
+    - scripts/check_logs.py is run on the raw logs before any result is computed; its channel check covers delivery
+      (in C1undelivered no rival message in any prompt) and the digit filter (in C1nodigits no digit in any delivered message).
+    - The tests are run by analyze.py logs/channel_ablations --plan channel_ablations (analysis/channel.py, CONTRASTS
+      and SECONDARY_CONTRASTS H20-H24), committed before this section (434e51a).
+
