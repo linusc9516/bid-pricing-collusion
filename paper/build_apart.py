@@ -65,7 +65,7 @@ doc = preamble + pre_keep.replace("\\documentclass[10pt]{article}", "") + r"""
 
 \noindent\rule{\textwidth}{1pt}
 \begin{center}
-{\fontsize{20}{25}\selectfont\bfseries TAKING THE CHANNEL AWAY: OPEN MESSAGES, NOT NOTES, LET LLM BIDDERS RIG PROCUREMENT AUCTIONS""" + title_fn + r"""}
+{\fontsize{20}{25}\selectfont\bfseries CHANNELING COLLUSION: LLM BIDDING AGENTS RIG PROCUREMENT AUCTIONS""" + title_fn + r"""}
 \end{center}
 \noindent\rule{\textwidth}{1pt}
 

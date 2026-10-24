@@ -1,4 +1,4 @@
-# Taking the Channel Away: Open Messages, Not Notes, Let LLM Bidders Rig Procurement Auctions
+# Channeling Collusion: LLM Bidding Agents Rig Procurement Auctions
 
 Code, declared analysis plans and result tables for a study built for the Apart Research AI Collusion Research Sprint
 (23–25 October 2026), Track 1, Markets and Collusion, question 1.5: which restriction on how AI agents communicate
