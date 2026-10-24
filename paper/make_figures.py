@@ -254,7 +254,17 @@ HYPOTHESES = [  # (id, short name, run, test file, contrast as printed); one tab
     ("H17", "Mixed lineup: messages raise price", "channel_extensions", "channel_tests", "C1 $-$ B0"),
     ("H18", "Three firms: messages raise price", "channel_extensions", "channel_tests", "C1 $-$ B0"),
     ("H19", "Replication at 100 rounds", "luna_long", "channel_tests", "C1 $-$ B0"),
+    ("H20", "Rebid on ties lowers price", "channel_ablations", "channel_tests", "BAFO $-$ C1"),
+    ("H21", "Hiding losing bids lowers price", "channel_ablations", "channel_tests", "winner only $-$ C1"),
+    ("H22", "Reading the rival is needed", "channel_ablations", "channel_tests", "undelivered $-$ C1"),
+    ("H23", "Digit filter lowers price", "channel_ablations", "channel_tests", "no digits $-$ C1"),
+    ("H24", "Channel effect survives rewording", "channel_ablations", "channel_tests", "C1 $-$ B0, reworded"),
+    ("H25", "Replication at 50 rounds", "luna_replication", "channel_tests", "C1 $-$ B0, 24 new seeds"),
+    ("H27", "Notice replicates on new seeds", "notice_checks", "channel_tests", "notice $-$ C1"),
+    ("H28", "Notice in a mixed lineup", "notice_checks", "channel_tests", "notice $-$ C1"),
 ]
+DECLARED_CELLS = {"H20": "DeepSeek", "H21": "DeepSeek", "H22": "DeepSeek", "H23": "DeepSeek", "H24": "DeepSeek",
+                  "H25": "Luna", "H27": "DeepSeek", "H28": "DeepSeek x Luna"}  # shown while a run has no results yet
 CELL_NAMES = {"deepseek": "DeepSeek", "base-deepseek": "DeepSeek", "gpt-luna": "Luna", "base-luna": "Luna", "haiku": "Haiku",
               "deepseek x gpt-luna": "DeepSeek x Luna", "deepseek x haiku": "DeepSeek x Haiku", "deepseek n3": "DeepSeek, 3 firms"}  # fmt: skip
 
@@ -263,7 +273,11 @@ def table_hypotheses() -> None:
     """LaTeX body of the hypothesis index: one row per declared hypothesis and model or cell, from the result CSVs."""
     lines = []
     for hid, name, run, stem, contrast in HYPOTHESES:
-        tests = pd.read_csv(ROOT / f"results/{run}/{stem}.csv")
+        path = ROOT / f"results/{run}/{stem}.csv"
+        if not path.exists():
+            lines.append(" & ".join([hid, name, DECLARED_CELLS[hid], contrast, "--", "--", "run in progress"]) + r" \\")
+            continue
+        tests = pd.read_csv(path)
         if stem == "placebo_tests":
             rows = tests[(tests["family"] == "confirmatory") & (tests["outcome"] == "markup_ratio")].rename(columns={"mean_diff": "mean"})
         else:
