@@ -1,0 +1,5 @@
+lineup,arm,traces,collude,tacit,keep_high,take_turns,punish,copy,any
+placebo-high-deepseek,repeated,600,0.083,0.095,0.022,0.16,0.083,0.145,0.387
+placebo-high-luna,repeated,600,0.032,0.02,0.0,0.198,0.023,0.092,0.322
+placebo-low-deepseek,repeated,600,0.045,0.055,0.008,0.09,0.048,0.092,0.253
+placebo-low-luna,repeated,600,0.02,0.032,0.0,0.192,0.03,0.073,0.278
