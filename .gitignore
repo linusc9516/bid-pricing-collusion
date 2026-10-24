@@ -66,3 +66,4 @@ configs/long_grid1.yaml
 site/data/published/channel_c1/
 site/data/published/notes_luna/
 DISCLOSURES.md
+paper/*.xdv
