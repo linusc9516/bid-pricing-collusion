@@ -4,8 +4,11 @@ judge's labels by arm.
 
 Arms: B0 is a history session without a channel, M1 a private-notes session (condition id `__pn`), M2 a shared-
 workspace session (`__ws`), C1 an open-channel session (`__msg`), C1cap one with a message limit other than 500
-characters (`__msg-cap<n>`), C1notice one with the oversight notice (`__msg-notice`). Sessions are paired by cell (the
-lineup's models and the number of firms, `cell_label`) and seed; the seed fixes every round's costs.
+characters (`__msg-cap<n>`), C1notice one with the oversight notice (`__msg-notice`), C1undelivered one in which each
+firm sees only its own messages (`__msg-undelivered`), C1nodigits one with digits removed from messages (`__msg-nodigits`), C1bafo the channel under the BAFO tie-break, C1hidden the channel
+with only the winner announced (B0hidden without the channel), and C1v2 and B0v2 the reworded prompt (`__pv2`).
+Sessions are paired by cell (the lineup's models and the number of firms, `cell_label`) and seed; the seed fixes every
+round's costs.
 """
 
 import json
@@ -25,26 +28,34 @@ from bidrig.analysis.stats import (
     holm,
 )
 from bidrig.bne import collusion_index
+from bidrig.prompts import REWORDED_VERSION
 from bidrig.schema import BidRow, CallRow, SessionMeta
 from bidrig.workspace import END_TOOL
 
 CAP_SHARE_LIMIT = 0.10  # a session with more of its reflection steps ending at the step cap is left out of the tests (declared)
 # Keyed by the hypothesis id's prefix: (arm, arm it is compared with, the sign support needs: 1 a rise, -1 a fall, 0
-# either). H3, H10 and H11 have no predicted direction; H14 and H15 predict that a restricted channel lowers the price
-# (configs/analysis.yaml, supported_if).
+# either). H3, H10 and H11 have no predicted direction; H14, H15 and H20-H23, H27 and H28 predict that a restricted
+# channel lowers the price (configs/analysis.yaml, supported_if).
 CONTRASTS = {
     "H3": ("M1", "B0", 0), "H4": ("M2", "M1", 1), "H5": ("C1", "B0", 1),
     "H9": ("M2", "B0", 1), "H10": ("M1", "B0", 0), "H11": ("S2C", "B0", 0), "H12": ("S2A", "B0", 1),
     "H13": ("C1", "B0", 1), "H14": ("C1cap", "C1", -1), "H15": ("C1notice", "C1", -1),
     "H16": ("C1", "B0", 1), "H17": ("C1", "B0", 1), "H18": ("C1", "B0", 1), "H19": ("C1", "B0", 1),
+    "H20": ("C1bafo", "C1", -1), "H21": ("C1hidden", "C1", -1), "H22": ("C1undelivered", "C1", -1),
+    "H23": ("C1nodigits", "C1", -1), "H24": ("C1v2", "B0v2", 1), "H25": ("C1", "B0", 1),
+    "H27": ("C1notice", "C1", -1), "H28": ("C1notice", "C1", -1),
 }  # fmt: skip
 NARROW_COSTS = {(40.0, 60.0, 60.0): "S2C", (40.0, 60.0, 100.0): "S2A"}  # (cost_low, cost_high, reserve_price) of the narrow-cost arms
 # Declared secondary contrasts on the confirmatory outcome, Holm-adjusted over the pair: for H5, C1 against M2 and M1 of
 # notes_luna; for H9 (notes_deepseek), M2 against M1 and C1 of channel_c1 against M2; for H12 (narrow_costs), S2A against S2C, the
-# same costs with a reserve of 100 against 60; for H14 and H15 (channel_extensions), each restricted channel against B0.
+# same costs with a reserve of 100 against 60; for H14 and H15 (channel_extensions), each restricted channel against B0;
+# for H21, H22 and H24 (channel_ablations) the arm against its no-channel counterpart and the wording effect on each
+# level; for H27 and H28 (notice_checks) the channel and the notice against B0.
 SECONDARY_CONTRASTS = {
     "H5": (("C1", "M2"), ("C1", "M1")), "H9": (("M2", "M1"), ("C1", "M2")), "H12": (("S2A", "S2C"),),
     "H14": (("C1cap", "B0"),), "H15": (("C1notice", "B0"),),
+    "H21": (("C1hidden", "B0hidden"), ("B0hidden", "B0")), "H22": (("C1undelivered", "B0"),),
+    "H24": (("C1v2", "C1"), ("B0v2", "B0")), "H27": (("C1", "B0"), ("C1notice", "B0")), "H28": (("C1notice", "B0"),),
 }  # fmt: skip
 DEFAULT_MAX_CHARS = 500  # the message limit of channel_c1; any other limit is the C1cap arm
 CHANNEL_TEST_COLUMNS = [
@@ -54,7 +65,7 @@ CHANNEL_TEST_COLUMNS = [
 
 
 def arm_of(meta: SessionMeta) -> str | None:
-    """`M1` (private notes), `M2` (shared workspace), `C1` (open channel), `C1cap` (message limit other than 500), `C1notice` (oversight notice), `S2C` (rescaled game), `S2A` (narrow costs, reserve 100) or `B0` (history session, no channel, costs 0 to 100); None for a control, an undeclared cost range, or a cap with the notice."""
+    """The session's arm (module docstring): `B0`, `M1`, `M2`, `C1` and its variants, `B0hidden`, `B0v2`, `S2C` or `S2A`; None for a control, an undeclared cost range, rule or announcement, or a channel with two variants at once."""
     if meta.is_control:
         return None
     if meta.workspace or meta.channel:
@@ -62,14 +73,27 @@ def arm_of(meta: SessionMeta) -> str | None:
             return None
     elif (meta.cost_low, meta.cost_high, meta.reserve_price) != (0, 100, 100):
         return NARROW_COSTS.get((float(meta.cost_low), float(meta.cost_high), float(meta.reserve_price)))
+    reworded = meta.prompt_version == REWORDED_VERSION
+    rule, info = meta.tie_break_rule, meta.info_condition
     if meta.channel:
-        capped = meta.channel_max_chars != DEFAULT_MAX_CHARS
-        if capped and meta.channel_notice:
+        if rule not in ("random", "bafo") or info not in ("full", "winner_only"):
             return None
-        return "C1cap" if capped else "C1notice" if meta.channel_notice else "C1"
+        variants = {
+            "C1cap": meta.channel_max_chars != DEFAULT_MAX_CHARS, "C1notice": meta.channel_notice,
+            "C1undelivered": not meta.channel_delivered, "C1nodigits": meta.channel_strip_digits, "C1bafo": rule == "bafo", "C1hidden": info == "winner_only",
+            "C1v2": reworded,
+        }  # fmt: skip
+        on = [name for name, flag in variants.items() if flag]
+        return None if len(on) > 1 else on[0] if on else "C1"
+    if rule != "random":
+        return None
     if meta.workspace:
-        return "M2" if meta.workspace_shared else "M1"
-    return "B0"
+        return ("M2" if meta.workspace_shared else "M1") if info == "full" and not reworded else None
+    if info == "winner_only":
+        return None if reworded else "B0hidden"
+    if info != "full":
+        return None
+    return "B0v2" if reworded else "B0"
 
 
 def cell_label(meta: SessionMeta) -> str:
@@ -257,12 +281,16 @@ def message_use(sessions: Iterable[tuple[SessionMeta, Sequence[dict[str, Any]], 
 
 
 def judge_arm(condition_ids: pd.Series) -> np.ndarray:
-    """Arm of each condition id: `__pn` M1, `__ws` M2, `__msg-cap<n>` C1cap, `__msg-notice` C1notice, `__msg` C1, a cell `s2c-` or `s2a-` S2C or S2A, else B0."""
+    """Arm of each condition id: `__pn` M1, `__ws` M2, `__pv2` C1v2 or B0v2, `__msg-cap<n>` C1cap, `__msg-notice` C1notice, `__msg-undelivered` C1undelivered, `__msg-nodigits` C1nodigits, `tie-bafo` with `__msg` C1bafo, `info-winner_only` C1hidden or B0hidden, `__msg` C1, a cell `s2c-` or `s2a-` S2C or S2A, else B0."""
     ids = condition_ids.str
+    msg = ids.contains("__msg")
+    hidden = ids.contains("__info-winner_only__")
     return np.select(
-        [ids.endswith("__pn"), ids.endswith("__ws"), ids.contains("__msg-cap"), ids.endswith("__msg-notice"), ids.endswith("__msg"),
+        [ids.endswith("__pn"), ids.endswith("__ws"), ids.endswith("__pv2") & msg, ids.endswith("__pv2"),
+         ids.contains("__msg-cap"), ids.endswith("__msg-notice"), ids.endswith("__msg-undelivered"), ids.endswith("__msg-nodigits"),
+         ids.startswith("tie-bafo__") & msg, hidden & msg, hidden, ids.endswith("__msg"),
          ids.contains("lineup-s2c-"), ids.contains("lineup-s2a-")],
-        ["M1", "M2", "C1cap", "C1notice", "C1", "S2C", "S2A"], "B0",
+        ["M1", "M2", "C1v2", "B0v2", "C1cap", "C1notice", "C1undelivered", "C1nodigits", "C1bafo", "C1hidden", "B0hidden", "C1", "S2C", "S2A"], "B0",
     )  # fmt: skip
 
 

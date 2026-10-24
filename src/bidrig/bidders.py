@@ -262,7 +262,10 @@ class LLMBidder:
                 return "Not accepted: give the message as a non-empty text."
             sent = True
             message = await channel.write(firm_id, round_number, text)
-            return f"Message sent (cut to {channel.max_chars} characters)." if message.truncated else "Message sent."
+            notes = [f"cut to {channel.max_chars} characters"] if message.truncated else []
+            if message.written is not None and message.written != message.text:
+                notes.insert(0, "digits removed")
+            return f"Message sent ({', '.join(notes)})." if notes else "Message sent."
 
         messages = build_communication_messages(
             self.meta, self.log, firm_id, round_number, earlier, self.reasoning_length, self.max_output_tokens, self.template

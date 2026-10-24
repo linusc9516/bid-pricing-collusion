@@ -22,7 +22,7 @@ SESSION_FIELDS = [
     "run_id", "condition_id", "session_id", "seed", "n_bidders", "info_condition",
     "tie_break_rule", "lineup_id", "lineup", "cost_low", "cost_high", "reserve_price",
     "bid_increment", "n_rounds", "cost_spread", "reveal_costs", "history_window", "temperature", "prompt_version",
-    "workspace", "workspace_shared", "channel", "channel_max_chars", "channel_notice",
+    "workspace", "workspace_shared", "channel", "channel_max_chars", "channel_notice", "channel_strip_digits", "channel_delivered",
     "providers", "replay", "provider_retries", "provider_errors", "git_sha", "started_at", "finished_at", "status",
 ]  # fmt: skip
 BID_FIELDS = [

@@ -17,6 +17,8 @@ from bidrig.analysis.channel import (
     message_use,
     reflection_endings,
 )
+from bidrig.prompts import REWORDED_VERSION
+from bidrig.runner import condition_id
 from bidrig.schema import CallRow
 
 PLAN = {
@@ -200,3 +202,32 @@ def test_cell_scoped_hypotheses_use_their_declared_holm_families_and_a_restricti
     assert main.loc["H14_x", "p_holm"] == pytest.approx(4 / 256) == main.loc["H15_x", "p_holm"]
     assert bool(main.loc["H14_x", "supported"]) and not bool(main.loc["H15_x", "supported"])  # H15 rose: no support
     assert set(out.loc[out["family"] == "secondary_contrast", "contrast"]) == {"C1cap - B0", "C1notice - B0"}
+
+
+@pytest.mark.parametrize(
+    ("changes", "arm"),
+    [
+        ({}, "B0"), ({"channel": True}, "C1"), ({"channel": True, "channel_notice": True}, "C1notice"),
+        ({"channel": True, "tie_break_rule": "bafo"}, "C1bafo"), ({"channel": True, "info_condition": "winner_only"}, "C1hidden"),
+        ({"info_condition": "winner_only"}, "B0hidden"), ({"channel": True, "channel_delivered": False}, "C1undelivered"), ({"channel": True, "channel_strip_digits": True}, "C1nodigits"),
+        ({"channel": True, "prompt_version": REWORDED_VERSION}, "C1v2"), ({"prompt_version": REWORDED_VERSION}, "B0v2"),
+    ],
+)  # fmt: skip
+def test_ablation_arms_agree_between_session_metadata_and_condition_id(changes: dict, arm: str) -> None:
+    """The tests pair by `arm_of`, the judge tables by `judge_arm`; a session must land in the same arm in both."""
+    meta = dataclasses.replace(make_meta(["llm"] * 2), **changes)
+    cid = condition_id(
+        "cell", meta.tie_break_rule, meta.info_condition, 2, None, channel=meta.channel, channel_notice=meta.channel_notice,
+        channel_delivered=meta.channel_delivered, prompt_version=meta.prompt_version, channel_strip_digits=meta.channel_strip_digits,
+    )  # fmt: skip
+    assert arm_of(meta) == arm == judge_arm(pd.Series([cid]))[0]
+
+
+def test_undeclared_combinations_have_no_arm() -> None:
+    meta = make_meta(["llm"] * 2)
+    for changes in (
+        {"tie_break_rule": "bafo"}, {"tie_break_rule": "least_wins", "channel": True}, {"info_condition": "winner_price"},
+        {"channel": True, "tie_break_rule": "bafo", "channel_notice": True}, {"channel": True, "info_condition": "winner_only", "channel_delivered": False},
+        {"workspace": True, "prompt_version": REWORDED_VERSION}, {"info_condition": "winner_only", "prompt_version": REWORDED_VERSION},
+    ):  # fmt: skip
+        assert arm_of(dataclasses.replace(meta, **changes)) is None, changes

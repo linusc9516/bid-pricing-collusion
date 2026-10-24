@@ -13,6 +13,11 @@ from bidrig.bidders import BidRequest
 from bidrig.prompts import (
     ANNOUNCEMENTS,
     CHANNEL_NOTICE,
+    CHANNEL_PARAGRAPH,
+    REWORDED_ANNOUNCEMENTS,
+    REWORDED_CHANNEL_PARAGRAPH,
+    REWORDED_TIE_RULES,
+    REWORDED_VERSION,
     TIE_RULE_SENTENCES,
     build_messages,
     system_prompt,
@@ -283,3 +288,20 @@ def test_channel_notice_snapshot() -> None:
     text = system_prompt(meta, "A", "short", 4000)
     check_snapshot("system_random_n2_channel_notice", text)
     assert text == system_prompt(replace(meta, channel_notice=False), "A", "short", 4000) + " " + CHANNEL_NOTICE
+
+
+def test_reworded_prompt_snapshot_shares_no_sentence_with_v1_and_states_the_same_numbers() -> None:
+    """The reworded arm swaps the template and three sentences, whatever template the caller passes."""
+    meta = replace(make_meta(["llm", "llm"], seed=3, n_rounds=4), channel=True, prompt_version=REWORDED_VERSION)
+    text = system_prompt(meta, "A", "short", 4000, template=Path("ignored.md"))
+    check_snapshot("system_random_n2_channel_reworded", text)
+    v1 = system_prompt(replace(meta, prompt_version="v1"), "A", "short", 4000)
+    for sentence in (TIE_RULE_SENTENCES["random"], ANNOUNCEMENTS["full"], CHANNEL_PARAGRAPH):
+        assert sentence in v1 and sentence not in text
+    for sentence in (REWORDED_TIE_RULES["random"], REWORDED_ANNOUNCEMENTS["full"], REWORDED_CHANNEL_PARAGRAPH):
+        assert sentence in text
+    for fragment in ["Firm A", "2 firms", "1,000 units", "0 up to 100", "steps of 0.01", "from 0 to 100", "4000 tokens", "submit_bid", '"reasoning"', "two or three"]:
+        assert fragment in text
+    assert "{" not in text and "}" not in text
+    assert not [word for word in FORBIDDEN if word in text.lower()]
+    assert not [word for word in FORBIDDEN if word in system_prompt(replace(meta, channel=False), "A", "short", 4000).lower()]

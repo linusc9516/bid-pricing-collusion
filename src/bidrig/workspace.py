@@ -10,6 +10,7 @@ its own: the arm that holds "having notes" fixed and removes the channel. The to
 """
 
 import asyncio
+import re
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
@@ -19,6 +20,7 @@ WorkspaceOp = Literal["read", "write"]
 READ_TOOL = "read_workspace"
 WRITE_TOOL = "write_workspace"
 END_TOOL = "end_reflection"
+DIGITS = re.compile(r"[0-9]")
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,7 @@ class WorkspaceEvent:
     truncated: bool = False  # write only: the note was cut to `max_chars`
     n_notes: int | None = None  # read only: notes the reader was shown
     n_foreign: int | None = None  # read only: of those, notes written by other firms
+    written: str | None = None  # write only, with the digit filter: the text as the firm wrote it, before the filter and the cut
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-ready dict."""
@@ -67,11 +70,13 @@ class Workspace:
     """Append-only notes; `lock` is a binary semaphore held for the whole of every read and write.
 
     `shared` True: every firm reads every note. False: each firm reads only its own (private notes).
+    `strip_digits` True: every digit 0-9 is removed from a text before it is cut and stored (the channel's digit filter).
     """
 
-    def __init__(self, max_chars: int = 1000, shared: bool = True) -> None:
+    def __init__(self, max_chars: int = 1000, shared: bool = True, strip_digits: bool = False) -> None:
         self.max_chars = max_chars
         self.shared = shared
+        self.strip_digits = strip_digits
         self.events: list[WorkspaceEvent] = []
         self.lock = asyncio.Lock()
 
@@ -89,10 +94,15 @@ class Workspace:
             return format_notes(notes, firm_id)
 
     async def write(self, firm_id: str, round_number: int, text: str) -> WorkspaceEvent:
-        """Append one note, cut to `max_chars`; earlier notes are never changed."""
+        """Append one note, digits removed if `strip_digits`, then cut to `max_chars`; earlier notes are never changed."""
         async with self.lock:
+            written = text if self.strip_digits else None
+            if self.strip_digits:
+                text = DIGITS.sub("", text)
             truncated = len(text) > self.max_chars
-            return self._next(round=round_number, firm_id=firm_id, op="write", text=text[: self.max_chars], truncated=truncated)
+            return self._next(
+                round=round_number, firm_id=firm_id, op="write", text=text[: self.max_chars], truncated=truncated, written=written
+            )
 
     async def notes_before(self, round_number: int, firm_id: str) -> list[WorkspaceEvent]:
         """Snapshot of the notes `firm_id` sees when bidding in `round_number`."""

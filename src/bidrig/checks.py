@@ -34,7 +34,7 @@ from bidrig.schema import (
     read_session,
     read_workspace_events,
 )
-from bidrig.workspace import WorkspaceEvent, notes_before
+from bidrig.workspace import DIGITS, WorkspaceEvent, notes_before
 
 CAP_PATTERN = re.compile(r"limited to (\d+) tokens")
 ROUND_LINE = re.compile(r"^Round (\d+):", re.MULTILINE)
@@ -451,7 +451,7 @@ def check_private_notes(log: SessionLog, report: CheckReport) -> None:
 
 
 def check_channel(log: SessionLog, report: CheckReport) -> None:
-    """Messages are numbered in order, at most one per firm per step, from the lineup's firms, each matched by a communication call and within the session's length limit."""
+    """Messages are numbered in order, at most one per firm per step, from the lineup's firms, each matched by a communication call and within the session's length limit; with the digit filter no stored message holds a digit; with undelivered messages no prompt holds another firm's message."""
     meta, sid = log.meta, log.meta.session_id
     if not meta.channel:
         if log.messages:
@@ -478,6 +478,23 @@ def check_channel(log: SessionLog, report: CheckReport) -> None:
     expected = {(r, f) for r in range(1, meta.n_rounds) for f in firms}
     if steps != expected:
         report.fail("channel", sid, f"communication calls for {len(steps)} firm-rounds, expected {len(expected)}")
+    for event in log.messages:
+        if meta.channel_strip_digits and (DIGITS.search(event.text or "") or event.written is None):
+            report.fail("channel", sid, f"message {event.seq}: digit filter on, stored text has a digit or no text as written")
+        elif meta.channel_strip_digits and DIGITS.sub("", event.written or "")[: meta.channel_max_chars] != event.text:
+            report.fail("channel", sid, f"message {event.seq}: stored text is not the written text filtered and cut")
+        elif not meta.channel_strip_digits and event.written is not None:
+            report.fail("channel", sid, f"message {event.seq}: a text as written in a session without the digit filter")
+    if not meta.channel_delivered:
+        for call in log.calls:
+            mine = {e.text for e in log.messages if e.firm_id == call.firm_id and e.text}
+            # A rival message identical to one of the firm's own cannot be told apart from it, so it is not counted.
+            foreign = {e.text for e in log.messages if e.firm_id != call.firm_id and e.text} - mine
+            shown = "\n".join(str(m.get("content") or "") for m in _messages(call))
+            found = [text for text in foreign if text in shown]
+            if found:
+                label = f"round {call.round} firm {call.firm_id} {call.phase} attempt {call.attempt}"
+                report.fail("channel", sid, f"{label}: undelivered session, prompt holds {len(found)} message(s) by another firm, e.g. {found[0][:60]!r}")
 
 
 def check_run(logs: list[SessionLog], template: Path = DEFAULT_TEMPLATE, include_incomplete: bool = False) -> CheckReport:

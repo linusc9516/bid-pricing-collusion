@@ -1,6 +1,7 @@
 """Open message channel: prompts, one message per step, the runner, the toggle, and the log checks; mocked client only."""
 
 import asyncio
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +15,7 @@ from bidrig.auction import run_session
 from bidrig.bidders import LLMBidder
 from bidrig.checks import check_run, load_logs
 from bidrig.llm import LLMSettings, OpenRouterClient, SpendTracker
-from bidrig.prompts import CHANNEL_PARAGRAPH, WORKSPACE_PARAGRAPH, system_prompt
+from bidrig.prompts import CHANNEL_DIGITS, CHANNEL_PARAGRAPH, WORKSPACE_PARAGRAPH, system_prompt
 from bidrig.runner import plan_sessions, prepare, run_plan
 from bidrig.schema import MESSAGES_FILE, read_workspace_events
 from bidrig.workspace import Workspace
@@ -46,13 +47,13 @@ def test_system_prompt_discloses_the_channel() -> None:
     assert not any(word in CHANNEL_PARAGRAPH.lower() for word in ("coordinat", "cooperat", "collu", "agree"))
 
 
-def run_channel(twice: bool = False) -> tuple[FakeOpenAI, list, Workspace]:
-    fake = FakeOpenAI(fn=talking_model(twice=twice))
+def run_channel(twice: bool = False, delivered: bool = True, strip_digits: bool = False, text: str = "Firm {firm} here.") -> tuple[FakeOpenAI, list, Workspace]:
+    fake = FakeOpenAI(fn=talking_model(text, twice=twice))
     meta = make_meta(["llm"] * 2, n_rounds=3)
-    meta.channel = True
+    meta.channel, meta.channel_delivered, meta.channel_strip_digits = True, delivered, strip_digits
     client = OpenRouterClient(fake, LLMSettings(), SpendTracker(1.0))
     log: list = []
-    channel = Workspace(max_chars=500)
+    channel = Workspace(max_chars=500, strip_digits=strip_digits)
     bidders = [LLMBidder(SPEC, HOST, client, meta, log, channel=channel) for _ in range(2)]
 
     async def between(round_number: int) -> None:
@@ -119,3 +120,63 @@ def test_cells_switch_the_channel_cap_and_notice_on_for_themselves_only() -> Non
     assert by_cell["notice-deepseek"].condition_id.endswith("__msg-notice") and by_cell["notice-deepseek"].channel_notice
     mixed = [p for p in plan if p.meta.lineup_id.endswith("deepseek-luna")]
     assert mixed[0].models == mixed[1].models  # same seed, same firm-to-model assignment in B0 and C1
+
+
+def test_undelivered_messages_reach_only_their_sender_under_the_same_prompt() -> None:
+    fake, _, channel = run_channel(delivered=False)
+    assert len(channel.events) == 4
+    for request in fake.requests:
+        system, user = request["messages"][0]["content"], request["messages"][1]["content"]
+        firm = system.split("Firm ")[1][0]
+        assert f"Firm {'B' if firm == 'A' else 'A'} here." not in user
+        assert system.endswith(CHANNEL_PARAGRAPH)
+    later = [r["messages"][1]["content"] for r in fake.requests if "Round 2 is over" in r["messages"][1]["content"]]
+    assert later and all("(you)] Firm " in u for u in later)
+
+
+def test_runner_undelivered_session_passes_the_checks_and_a_delivered_one_would_not(tmp_path: Path) -> None:
+    config, models, _ = prepare(CONFIGS / "channel_tiny.yaml")
+    config["channel"] = {**config["channel"], "delivered": False}
+    plan = plan_sessions(config, "undelivered", models)
+    assert all(p.meta.condition_id.endswith("__msg-undelivered") and not p.meta.channel_delivered for p in plan)
+    route = lambda kw: HOSTS[kw["extra_body"].get("provider", {"only": [None]})["only"][0]]
+    make_fake = lambda: FakeOpenAI(fn=talking_model("Firm {firm}: bid 99.", provider=route))
+    assert not asyncio.run(run_plan(plan, config, models, tmp_path, make_fake)).failed
+    logs, _ = load_logs(tmp_path / "undelivered")
+    report = check_run(logs)
+    assert report.passed, report.findings[:3]
+
+    delivered = prepare(CONFIGS / "channel_tiny.yaml")[2]
+    asyncio.run(run_plan(delivered, config | {"channel": {**config["channel"], "delivered": True}}, models, tmp_path, make_fake))
+    delivered_logs, _ = load_logs(tmp_path / "channel_tiny")
+    relabelled = [replace(log, meta=replace(log.meta, channel_delivered=False)) for log in delivered_logs]
+    assert any("by another firm" in f.detail for f in check_run(relabelled).failures("channel"))
+
+
+def test_digit_filter_removes_every_digit_before_any_firm_sees_the_message_and_keeps_the_text_as_written() -> None:
+    fake, _, channel = run_channel(strip_digits=True, text="Firm {firm}: both bid 99.50, then 100 in round 3.")
+    assert [e.text for e in channel.events if e.firm_id == "A"] == ["Firm A: both bid ., then  in round ."] * 2
+    assert all(e.written == f"Firm {e.firm_id}: both bid 99.50, then 100 in round 3." for e in channel.events)
+    for request in fake.requests:
+        shown = "\n".join(str(m.get("content") or "") for m in request["messages"] if m["role"] in ("user", "tool"))
+        assert "99.50" not in shown and "then 100" not in shown
+        assert request["messages"][0]["content"].endswith(f"{CHANNEL_PARAGRAPH} {CHANNEL_DIGITS}")
+
+
+def test_runner_digit_filter_session_passes_the_checks_and_an_unfiltered_one_would_not(tmp_path: Path) -> None:
+    config, models, _ = prepare(CONFIGS / "channel_tiny.yaml")
+    config["channel"] = {**config["channel"], "strip_digits": True}
+    plan = plan_sessions(config, "nodigits", models)
+    assert all(p.meta.condition_id.endswith("__msg-nodigits") and p.meta.channel_strip_digits for p in plan)
+    route = lambda kw: HOSTS[kw["extra_body"].get("provider", {"only": [None]})["only"][0]]
+    make_fake = lambda: FakeOpenAI(fn=talking_model("Firm {firm}: bid 99.", provider=route))
+    assert not asyncio.run(run_plan(plan, config, models, tmp_path, make_fake)).failed
+    logs, _ = load_logs(tmp_path / "nodigits")
+    report = check_run(logs)
+    assert report.passed, report.findings[:3]
+
+    unfiltered = prepare(CONFIGS / "channel_tiny.yaml")[2]
+    asyncio.run(run_plan(unfiltered, config | {"channel": {**config["channel"], "strip_digits": False}}, models, tmp_path, make_fake))
+    unfiltered_logs, _ = load_logs(tmp_path / "channel_tiny")
+    relabelled = [replace(log, meta=replace(log.meta, channel_strip_digits=True)) for log in unfiltered_logs]
+    assert any("has a digit" in f.detail for f in check_run(relabelled).failures("channel"))

@@ -212,6 +212,8 @@ One directory per session: `logs/<run_id>/<condition_id>/<session_id>/`
 | `channel` | bool | open message channel with a communication step (7.6); never true together with `workspace` |
 | `channel_max_chars` | int | with a channel, the message length limit; 500 in every run before 24 October 2026 |
 | `channel_notice` | bool | with a channel, the system prompt adds that a competition authority reviews every message; false before 24 October 2026 |
+| `channel_strip_digits` | bool | with a channel, every digit 0-9 is removed from a message before it is stored and shown, the prompt says so, and the text as written is kept in the event's `written` field; false in every run before 25 October 2026 |
+| `channel_delivered` | bool | with a channel, false shows each firm only its own messages while the prompt still says every firm reads every message; true in every run before 25 October 2026 |
 | `providers` | map of model alias to pinned host and quantisation | fixed for the whole session (5.5) |
 | `provider_retries` | int | requests repeated after a transient provider error, summed over the session's firms |
 | `provider_errors` | list of str | the first 20 failed requests, as `round R firm F phase attempt N: HTTP 502: message`, including the failure that ended a retry run |
