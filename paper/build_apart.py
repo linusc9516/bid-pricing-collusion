@@ -18,7 +18,7 @@ for line in pre.splitlines():
     keep.append(line)
 pre_keep = "\n".join(keep)
 
-title_fn = re.search(r"Rig Procurement Auctions(\\footnote\{.*?\})\}\n", src).group(1)
+title_fn = re.search(r"When Allowed To Talk(\\footnote\{.*?\})\}\n", src).group(1)
 abstract = between("\\begin{quote}\n", "\\end{quote}")
 intro = between("\\section{Introduction}\n", "\\section{Setting up the Auction}")
 setup = between("\\section{Setting up the Auction}\n", "\\section{Evaluation Framework}")
@@ -65,7 +65,7 @@ doc = preamble + pre_keep.replace("\\documentclass[10pt]{article}", "") + r"""
 
 \noindent\rule{\textwidth}{1pt}
 \begin{center}
-{\fontsize{20}{25}\selectfont\bfseries CHANNELING COLLUSION: LLM BIDDING AGENTS RIG PROCUREMENT AUCTIONS""" + title_fn + r"""}
+{\fontsize{20}{25}\selectfont\bfseries CHANNELING COLLUSION: LLM BIDDERS RIG AUCTIONS WHEN ALLOWED TO TALK""" + title_fn + r"""}
 \end{center}
 \noindent\rule{\textwidth}{1pt}
 
