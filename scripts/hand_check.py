@@ -34,6 +34,8 @@ PHASES: dict[str, tuple[str, Rubric]] = {"trace_judge": ("bid", BID_RUBRIC), "no
 # Declared before their labels are reported (channel_c1, notes_deepseek, notes_luna); channel_extensions and luna_long
 # declare none of their own and rely on channel_c1's messages check.
 REQUIRED = (("channel_c1", "messages_judge"), ("notes_deepseek", "notes_judge"), ("notes_luna", "notes_judge"))
+# Labels the paper reports; the other labels are coded only where the judge marks them true.
+PRIMARY = {"messages_judge": ("proposes_coordination", "accepts_coordination", "rejects_coordination", "threatens_rival", "reveals_own_cost")}
 ARMS = (("__pn", "M1 private notes"), ("__ws", "M2 shared notes"), ("__msg", "C1 messages"), ("oneshot__", "one-shot control"))
 
 
@@ -54,6 +56,15 @@ def page_data(run: str, stem: str, logs_root: Path, results_root: Path) -> dict 
     # A check file written under an older rubric version has fewer label columns than the current rubric.
     labels = [label for label in rubric.labels if f"{label}_quote" in check.columns]
     version = rubric.version if labels == rubric.labels else f"older than {rubric.version}"
+    primary = [label for label in PRIMARY.get(stem, labels) if label in labels]
+    # accepts_coordination needs to know whose proposal a firm follows, which one judged step does not show.
+    first_proposal: dict[str, dict[str, int]] = {}
+    judged_path = results_root / run / f"{stem}.csv"
+    if "proposes_coordination" in labels and judged_path.exists():
+        judged = pd.read_csv(judged_path)
+        proposed = judged[judged["proposes_coordination"].astype(str).str.lower() == "true"]
+        for (session, firm), g in proposed.groupby(["session_id", "firm_id"]):
+            first_proposal.setdefault(session, {})[str(firm)] = int(g["round"].min())
     rows = []
     for r in check.itertuples(index=False):
         body, model = text.get((r.session_id, int(r.round), str(r.firm_id)), ("(trace not found in the logs)", ""))
@@ -62,8 +73,9 @@ def page_data(run: str, stem: str, logs_root: Path, results_root: Path) -> dict 
             "key": f"{r.session_id}|{int(r.round)}|{r.firm_id}", "session": r.session_id, "round": int(r.round), "firm": str(r.firm_id),
             "model": model, "arm": arm_of(r.session_id), "seed": info.get(r.session_id, {}).get("seed"), "text": body,
             "quotes": {k: (v if isinstance(v, str) and v.strip() else None) for k, v in quotes.items()},
+            "first_proposal": first_proposal.get(r.session_id, {}),
         })  # fmt: skip
-    return {"run": run, "stem": stem, "rubric": version, "phase": phase, "labels": labels, "definitions": rubric.definitions, "rows": rows}
+    return {"run": run, "stem": stem, "rubric": version, "phase": phase, "labels": labels, "primary": primary, "definitions": rubric.definitions, "rows": rows}
 
 
 TEMPLATE = """<!doctype html>
@@ -123,7 +135,9 @@ function highlighted(text, quotes, selected) {
   for (const [a, b, label] of spans) { if (a < pos) continue; out += esc(text.slice(pos, a)) + `<mark data-l="${label}" class="${label === selected ? "sel" : ""}" title="${label}">${esc(text.slice(a, b))}</mark>`; pos = b; }
   return out + esc(text.slice(pos));
 }
-const done = (row) => D.labels.every((l) => codes[row.key] && codes[row.key][l]);
+const isPrimary = (l) => D.primary.includes(l);
+const toCode = (row) => D.labels.filter((l) => isPrimary(l) || row.quotes[l]);
+const done = (row) => toCode(row).every((l) => codes[row.key] && codes[row.key][l]);
 function renderNav() {
   document.getElementById("nav").innerHTML = D.rows.map((r, i) =>
     `<a href="#" data-i="${i}" class="${i === cur ? "cur" : ""}">${i + 1}. ${esc(r.arm)} · seed ${r.seed ?? "?"} · r${r.round} ${esc(r.firm)}<span class="s">${done(r) ? "✓" : ""}</span></a>`).join("");
@@ -134,25 +148,33 @@ function renderNav() {
 let selected = null;
 function render() {
   const r = D.rows[cur], c = codes[r.key] || (codes[r.key] = {});
-  const labelRows = D.labels.map((l) => {
-    const q = r.quotes[l], found = q ? !!locate(r.text, q) : true, v = c[l];
+  const labelRow = (l) => {
+    const q = r.quotes[l], found = q ? !!locate(r.text, q) : true, v = c[l], codable = isPrimary(l) || q;
     return `<tr><td><div class="lab">${l}</div><div class="def">${esc(D.definitions[l] || "")}</div></td>
       <td class="${q ? "yes" : "no"}">${q ? "true" : "false"}</td>
       <td>${q ? `<a href="#" class="quote" data-l="${l}">“${esc(q)}”</a>${found ? "" : '<div class="miss">quote not found verbatim in the text</div>'}` : ""}</td>
-      <td style="white-space:nowrap"><button class="ok ${v === "right" ? "on" : ""}" data-l="${l}" data-v="right">right</button>
-        <button class="bad ${v === "wrong" ? "on" : ""}" data-l="${l}" data-v="wrong">wrong</button></td></tr>`;
-  }).join("");
+      <td style="white-space:nowrap">${codable ? `<button class="ok ${v === "right" ? "on" : ""}" data-l="${l}" data-v="right">right</button>
+        <button class="bad ${v === "wrong" ? "on" : ""}" data-l="${l}" data-v="wrong">wrong</button>` : '<span class="def">not coded</span>'}</td></tr>`;
+  };
+  const head = '<thead><tr><th>Label</th><th>Judge</th><th>Quote (click to find)</th><th>Your code</th></tr></thead>';
+  const primaryRows = D.labels.filter(isPrimary).map(labelRow).join("");
+  const otherLabels = D.labels.filter((l) => !isPrimary(l));
+  const fp = Object.entries(r.first_proposal || {}).sort().map(([f, rd]) => `firm ${esc(f)} round ${rd}`).join(", ");
+  const proposalLine = r.first_proposal ? `<p class="def">First step the judge labels <i>proposes coordination</i>, per firm, anywhere in this session: ${fp || "none"}. Use it for accepts_coordination: accepting means following the other firm's proposal.</p>` : "";
+  const otherCard = otherLabels.length ? `<div class="card"><b>Other labels</b> <span class="def">(not reported in the paper; code only those the judge marks true)</span>
+      <table>${head}<tbody>${otherLabels.map(labelRow).join("")}</tbody></table></div>` : "";
   document.getElementById("main").innerHTML = `
     <div class="card"><b>${esc(r.arm)}</b> · ${esc(r.model)} · seed ${r.seed ?? "?"} · round ${r.round} · firm ${esc(r.firm)}
       <div class="def">${esc(r.session)}</div>
-      <div class="keys">Keys: ← → rows · mark each label right (judge correct) or wrong; a false label that should be true is wrong. “All shown right” marks every uncoded label right.</div></div>
-    <div class="card"><table><thead><tr><th>Label</th><th>Judge</th><th>Quote (click to find)</th><th>Your code</th></tr></thead><tbody>${labelRows}</tbody></table>
+      <div class="keys">Keys: ← → rows · mark each label right (judge correct) or wrong; a false label that should be true is wrong. “All shown right” marks every uncoded label that needs a code right.</div></div>
+    <div class="card"><b>Labels used in the paper</b><table>${head}<tbody>${primaryRows}</tbody></table>${proposalLine}
       <p><button id="allright">All shown right</button></p>
       <textarea id="note" placeholder="Note for this row">${esc(c._note || "")}</textarea></div>
+    ${otherCard}
     <div class="card"><pre id="text">${highlighted(r.text, r.quotes, selected)}</pre></div>`;
   document.querySelectorAll("button[data-v]").forEach((b) => b.onclick = () => { c[b.dataset.l] = c[b.dataset.l] === b.dataset.v ? undefined : b.dataset.v; save(); render(); });
   document.querySelectorAll("a.quote").forEach((a) => a.onclick = (e) => { e.preventDefault(); selected = a.dataset.l; render(); const m = document.querySelector("mark.sel"); if (m) m.scrollIntoView({ block: "center" }); });
-  document.getElementById("allright").onclick = () => { D.labels.forEach((l) => { if (!c[l]) c[l] = "right"; }); save(); render(); };
+  document.getElementById("allright").onclick = () => { toCode(r).forEach((l) => { if (!c[l]) c[l] = "right"; }); save(); render(); };
   document.getElementById("note").oninput = (e) => { c._note = e.target.value; save(); renderNav(); };
   renderNav();
 }
