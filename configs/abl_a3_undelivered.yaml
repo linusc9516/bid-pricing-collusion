@@ -1,0 +1,12 @@
+# A3: DeepSeek with the open channel's prompt, but each firm is shown only its own messages (the rival's are never
+# delivered; the firm is not told). Test H22, against channel_c1's DeepSeek C1. Run id: channel_ablations.
+
+inherits: abl_common.yaml
+
+budget:
+  max_cost_usd: 4.24      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+
+cells:
+  - id: undelivered-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+    channel: {enabled: true, delivered: false}

@@ -1,0 +1,18 @@
+# A5: the reworded prompt (prompts/bidder_system_v2.md and the reworded sentences in prompts.py), DeepSeek without
+# (B0v2) and with (C1v2) the open channel. Test H24 (C1v2 against B0v2). Run id: channel_ablations.
+
+inherits: abl_common.yaml
+
+prompt:
+  template: prompts/bidder_system_v2.md
+  version: v2-reworded
+
+budget:
+  max_cost_usd: 6.38      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+
+cells:
+  - id: b0v2-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: c1v2-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+    channel: {enabled: true}

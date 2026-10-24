@@ -1,0 +1,17 @@
+# A2: only the winner is announced after each round (no prices), DeepSeek with the open channel (C1hidden) and
+# without it (B0hidden). Test H21 (C1hidden against channel_c1's C1). Run id: channel_ablations.
+
+inherits: abl_common.yaml
+
+session:
+  info_condition: winner_only
+
+budget:
+  max_cost_usd: 6.38      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+
+cells:
+  - id: hidden-b0-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+  - id: hidden-c1-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+    channel: {enabled: true}

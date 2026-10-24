@@ -1,0 +1,20 @@
+# N1: DeepSeek without a channel (B0), with the open channel (C1) and with the oversight notice (C1notice), side by
+# side on 12 new seeds. Test H27 (C1notice against C1). Run id: notice_checks.
+
+inherits: abl_common.yaml
+
+session:
+  base_seed: 998100       # new; no earlier session uses 998100-998111
+
+budget:
+  max_cost_usd: 10.62      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+
+cells:
+  - id: b0-deepseek-new
+    lineup: {type: homogeneous, model: deepseek}
+  - id: c1-deepseek-new
+    lineup: {type: homogeneous, model: deepseek}
+    channel: {enabled: true}
+  - id: notice-deepseek-new
+    lineup: {type: homogeneous, model: deepseek}
+    channel: {enabled: true, notice: true}

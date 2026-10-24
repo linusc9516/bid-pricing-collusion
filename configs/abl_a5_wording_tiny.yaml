@@ -1,0 +1,14 @@
+# Smoke test of abl_a5_wording.yaml: one 3-round session per cell, with its settings. Read the prompts by hand and run
+# check_logs.py before the full run.
+
+inherits: abl_a5_wording.yaml
+
+auction:
+  n_rounds: 3
+
+session:
+  n_sessions: 1
+  base_seed: 980000       # disjoint from the declared seeds
+
+budget:
+  max_cost_usd: 0.5

@@ -1,0 +1,15 @@
+# A1: DeepSeek with the open channel under the BAFO tie-break (tied firms rebid once), against channel_c1's DeepSeek
+# C1 under the random rule. Test H20. Run id: channel_ablations.
+
+inherits: abl_common.yaml
+
+auction:
+  tie_break_rule: bafo
+
+budget:
+  max_cost_usd: 4.24      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+
+cells:
+  - id: bafo-deepseek
+    lineup: {type: homogeneous, model: deepseek}
+    channel: {enabled: true}

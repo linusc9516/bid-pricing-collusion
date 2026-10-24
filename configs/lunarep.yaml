@@ -1,0 +1,37 @@
+# Luna replication: GPT-6 Luna at 50 rounds on 24 new seeds, no channel (B0) and the open channel (C1). Test H25.
+# Declared in configs/analysis.yaml, section luna_replication; do not change a setting here without changing that
+# section first, in its own commit, and never after the first session has run. As luna_long.yaml, with 50 rounds and
+# seeds 998000-998023. Host: OpenAI. Run id: luna_replication.
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 50
+
+session:
+  n_sessions: 24
+  base_seed: 998000       # new; no earlier session uses 998000-998023
+
+channel:
+  enabled: false
+  max_chars: 500
+
+llm:
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  max_concurrency: 12     # OpenAI only, as luna_long
+  reasoning_overrides:
+    gpt-luna: {effort: high}
+
+budget:
+  max_cost_usd: 14.83      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+  estimate_output_tokens: 4000
+
+cells:
+  - id: b0-luna-rep
+    lineup: {type: homogeneous, model: gpt-luna}
+  - id: c1-luna-rep
+    lineup: {type: homogeneous, model: gpt-luna}
+    channel: {enabled: true}

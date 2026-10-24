@@ -1,0 +1,13 @@
+# N2: one DeepSeek firm and one GPT-6 Luna firm with the oversight notice, on channel_extensions' seeds, so each
+# session pairs with that run's mixed C1 (R4, cell c1-deepseek-luna) on the same costs and slot assignment. Test H28.
+# Run id: notice_checks.
+
+inherits: abl_common.yaml
+
+budget:
+  max_cost_usd: 4.58      # tripwire, set to the dry-run estimate (every call at the whole 4,000-token cap)
+
+cells:
+  - id: notice-deepseek-luna
+    lineup: {type: heterogeneous, models: [deepseek, gpt-luna]}
+    channel: {enabled: true, notice: true}

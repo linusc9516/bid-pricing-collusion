@@ -1,0 +1,32 @@
+# Shared settings of the channel_ablations (A1-A5) and notice_checks (N1-N2) runs, declared in configs/analysis.yaml,
+# sections channel_ablations and notice_checks. Do not change a setting here or in an abl_*.yaml or notice_*.yaml
+# without changing those sections first, in its own commit, and never after the first session of a run has started.
+# As channel_c1.yaml: two firms, 50 rounds, the whole history shown, random tie-break, full announcement, prompt v1, the
+# baseline's seeds. Each file sets its cells and what it changes. Hosts: deepseek on DeepInfra (its backup tier, the
+# host of baseline_no_channel and channel_c1), gpt-luna on OpenAI.
+
+inherits: base.yaml
+
+auction:
+  tie_break_rule: random
+  n_bidders: 2
+  n_rounds: 50
+
+session:
+  n_sessions: 12
+  base_seed: 996000       # = baseline_no_channel.yaml and channel_c1.yaml
+
+channel:
+  enabled: false
+  max_chars: 500
+
+llm:
+  host: deepseek=backup
+  max_output_tokens: 4000
+  request_timeout_s: 300
+  reasoning_overrides:
+    deepseek: {effort: low}
+    gpt-luna: {effort: high}
+
+budget:
+  estimate_output_tokens: 4000
