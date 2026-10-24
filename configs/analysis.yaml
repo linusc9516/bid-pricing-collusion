@@ -1589,3 +1589,103 @@ notice_checks:
     - The tests are run by analyze.py logs/notice_checks --plan notice_checks (analysis/channel.py, CONTRASTS and
       SECONDARY_CONTRASTS H27-H28), committed before this section (434e51a).
 
+# --- Written 24 October 2026, BEFORE the run `luna_replication` exists ----------------------------------------------
+# This section counts as declared from the commit that adds it; no session of luna_replication starts before that
+# commit. The smoke test (configs/lunarep_tiny.yaml, seed 980000, 3 rounds, one session per cell) runs after it and is a
+# check of the harness, not part of the run. The results of channel_c1, notes_luna, notes_deepseek, placebo_replay,
+# narrow_costs, channel_extensions and luna_long (H19) had been seen.
+#
+# Launched because H19 (luna_long, 100 rounds, new seeds) was not supported: +0.012, p = 0.88. This run is a fresh
+# confirmatory test on new seeds at H5's horizon; the report states that it was launched after H19 and why.
+#
+# Why: GPT-6 Luna's C1 effect is small (H5 +0.111, SD 0.17, Holm p = 0.041, 12 pairs) and H19 does not replicate it.
+# At H5's SD, 24 pairs give about 80% power for an effect of H5's size (two-sided alpha 0.05). The comparison with
+# shared notes (C1 minus M2) is not run: it matters only if C1 minus B0 holds.
+
+luna_replication:
+  run_id: luna_replication
+  config: configs/lunarep.yaml           # both arms in one config
+  baseline: luna_replication             # both arms are in this run (new seeds)
+
+  design:
+    n_bidders: 2
+    model: gpt-luna                      # OpenAI, reasoning effort high, no temperature sent, caching off (cache_writes false)
+    costs: private, i.i.d. uniform 0 to 100 each round
+    n_rounds: 50                         # as channel_c1, so H25 is on H5's horizon
+    tie_break_rule: random
+    info_condition: full
+    history_window: null
+    bid_increment: 0.01
+    reserve_price: 100
+    prompt: prompts/bidder_system.md     # v1
+    max_output_tokens: 4000
+    arms:
+      B0: no channel                     # as baseline_no_channel's history arm
+      C1: open channel                   # as channel_c1 (500 characters)
+    seeds: 998000-998023                 # new; no earlier session uses them
+    n_pairs: 24                          # fixed. No seed is added after any result has been seen
+    one_shot_control: none
+    budget: >-
+      about $3.4 at list prices for 48 sessions (scaled from luna_long, $4.84 for 24 sessions of 100 rounds). Tripwire
+      the dry-run estimate, $14.83. Messages judge on C1 about $1.9
+    launch_order: on the OpenAI lane, beside the DeepInfra runs
+
+  unit: session
+
+  confirmatory:
+    - id: H25_luna_messages_raise_price_replication
+      claim: on 24 new seeds, GPT-6 Luna able to send messages ends at a higher price level than without a channel
+      cell: gpt-luna
+      contrast: C1 minus B0, paired by seed
+      outcome: collusion_index           # unclipped (analysis/metrics.py)
+      null: the mean difference over the 24 pairs is 0
+      test: paired sign-flip permutation test on the mean difference, two-sided   # above 20 pairs, 100,000 random sign patterns, seed 20261010 (analysis/stats.py)
+      alpha: 0.05
+      holm: H25                          # alone
+      supported_if: the p is below alpha and the mean difference is positive
+
+  reported: mean and median difference, SD, a 95% percentile bootstrap interval of the mean (10,000 resamples of whole
+            pairs), positive pairs out of 24, raw p. Sensitivity - Wilcoxon signed-rank on the same values
+
+  reading:
+    power: 24 pairs detect an effect of H5's size with about 80% power; a non-significant test is not evidence of no effect
+    H25_supported: Luna's channel effect replicates at 50 rounds on new seeds; read beside H5 and H19
+    H25_null: the 50-round effect does not replicate; reported beside H5 and H19, not as overturning H5
+    price_without_text: as channel_c1
+
+  secondary:                             # same test, C1 minus B0, Holm within this family
+    - markup_ratio
+    - bid_gap
+    - joint_profit_ratio
+    - switch_gain
+
+  descriptive:
+    - channel use and the messages-v1 labels for C1, as channel_c1 (every communication step judged; judged steps
+      reported, with steps that had neither thinking nor a message counted and named)
+    - the block index by 10-round block, by arm, with 95% bootstrap intervals over sessions
+    - H5, H19 and H25 side by side (means, intervals, p); no pooled test
+
+  cost_leakage:
+    decision: allow and measure, as in channel_c1
+
+  exclusions:
+    - A session that ends `failed` is rerun on the same seed, host and settings, at most 3 times. Its partial log is
+      discarded, not merged.
+    - A pair enters the test only if both of its sessions are `complete`. A seed that cannot be completed is dropped,
+      named in the report, and not replaced by a new seed.
+    - A round in which a firm submits no valid bid stays in the session as the runner logged it.
+    - No session is excluded for its bids, its messages or its outcome.
+    - Sensitivity, reported beside the main result - H25 again without pairs in which either session has
+      invalid_bid_rate above 0.05.
+    - Hosts never switch inside a session.
+
+  limits:
+    - Luna caching is off here and was on in channel_c1 (billing only; the model receives the same text)
+    - the run was launched after H19 was seen; this decides whether it ran, not what it tests
+
+  reporting:
+    - Every confirmatory and secondary result is reported, whether or not it supports the claim.
+    - Any analysis thought of after the run has been seen is labelled exploratory.
+    - scripts/check_logs.py is run on the raw logs before any result is computed.
+    - The test is run by analyze.py logs/luna_replication --plan luna_replication (analysis/channel.py, CONTRASTS H25),
+      committed before this section (434e51a).
