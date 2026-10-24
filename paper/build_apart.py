@@ -1,6 +1,8 @@
 """Build paper/main_apart.tex (the Apart submission template layout) from paper/main.tex: same content, template heading order and styles. Run from the repo root, then compile with xelatex."""
 import re
-src = open("paper/main.tex").read()
+from pathlib import Path
+
+src = Path("paper/main.tex").read_text()
 
 def between(a, b):
     i = src.index(a); j = src.index(b, i + len(a))
@@ -102,5 +104,5 @@ Linus C.\\ {[Affiliation]}\\ \texttt{[email]}
 \titleformat{\subsection}{\fontsize{13}{16}\selectfont\bfseries\color{headthree}}{\thesubsection.}{0.5em}{}
 """ + app + r"""\section*{LLM Usage Statement}
 """ + llm + "\\end{document}\n"
-open("paper/main_apart.tex", "w").write(doc)
+Path("paper/main_apart.tex").write_text(doc)
 print("written", len(doc))
