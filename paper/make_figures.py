@@ -487,6 +487,52 @@ def table_ablation_conduct() -> None:
     (TABLES / "ablation_conduct.tex").write_text("\n".join(lines) + "\n")
 
 
+PARTNER_CELLS = [  # (run, lineup_id, judged firm's model, partner label, cell label) for table_partner (exploratory)
+    ("channel_c1", "c1-deepseek", "deepseek", "DeepSeek", "C1"),
+    ("channel_extensions", "c1-deepseek-luna", "deepseek", "Luna", "C1"),
+    ("channel_extensions", "c1-deepseek-haiku", "deepseek", "Haiku", "C1"),
+    ("channel_c1", "c1-luna", "gpt-luna", "Luna", "C1"),
+    ("luna_long", "c1-luna-100", "gpt-luna", "Luna", "C1, 100 rounds"),
+    ("luna_replication", "c1-luna-rep", "gpt-luna", "Luna", "C1, 24 new seeds"),
+    ("channel_extensions", "c1-deepseek-luna", "gpt-luna", "DeepSeek", "C1"),
+    ("channel_extensions", "c1-haiku", "haiku", "Haiku", "C1"),
+    ("channel_extensions", "c1-deepseek-haiku", "haiku", "DeepSeek", "C1"),
+]
+MODEL_LABELS = {"deepseek": "DeepSeek", "gpt-luna": "Luna", "haiku": "Haiku"}
+
+
+def table_partner() -> None:
+    """LaTeX body of the exploratory conduct-by-partner table: one row per judged model and partner, counted per firm."""
+    lines, last = [], None
+    for run, lineup, model, partner, cell_label in PARTNER_CELLS:
+        judged = pd.read_csv(ROOT / f"results/{run}/messages_judge.csv")
+        judged = judged[(judged["lineup_id"] == lineup) & judged["parse_ok"].astype(bool)]
+        firms = []
+        for sid in sorted(judged["session_id"].unique()):
+            d = next(ROOT.glob(f"logs/{run}/*/{sid}"))
+            models = {json.loads(line)["firm_id"]: json.loads(line)["model"] for line in (d / "bids.jsonl").open()}
+            sent = pd.Series([m["firm_id"] for m in map(json.loads, (d / "messages.jsonl").open()) if m.get("op") == "write"], dtype=object)
+            for firm, firm_model in models.items():
+                if firm_model != model:
+                    continue
+                steps = judged[(judged["session_id"] == sid) & (judged["firm_id"] == firm)]
+                firms.append({"messages": int((sent == firm).sum()), "steps": len(steps),
+                              **{label: bool(steps[label].astype(bool).any()) for label in ("proposes_coordination", "accepts_coordination", "rejects_coordination")}})
+        f = pd.DataFrame(firms)
+        steps = judged[judged["model"] == model]
+        n = len(f)
+        if last is not None and model != last:
+            lines.append(r"\midrule")
+        lines.append(" & ".join([
+            MODEL_LABELS[model] if model != last else "", partner, cell_label, str(n), f"{f['messages'].mean():.1f}",
+            f"{len(steps):,}".replace(",", "{,}"), f"{steps['proposes_coordination'].astype(bool).mean() * 100:.0f}",
+            *(f"{int(f[label].sum())} ({f[label].mean() * 100:.0f}\\%)" for label in ("proposes_coordination", "accepts_coordination", "rejects_coordination")),
+            f"{steps['rejects_coordination'].astype(bool).mean() * 100:.0f}",
+        ]) + r" \\")  # fmt: skip
+        last = model
+    (TABLES / "partner.tex").write_text("\n".join(lines) + "\n")
+
+
 def fmt_ci(values: np.ndarray, scale: float = 1.0, digits: int = 2) -> str:
     mean, lo, hi = (round(v * scale, digits) + 0 for v in boot(values))
     return f"${mean:.{digits}f}$ {{\\scriptsize [{lo:.{digits}f}, {hi:.{digits}f}]}}"
@@ -530,3 +576,4 @@ if __name__ == "__main__":
     figure_ablation_rounds(column=True)
     table_ablations()
     table_ablation_conduct()
+    table_partner()

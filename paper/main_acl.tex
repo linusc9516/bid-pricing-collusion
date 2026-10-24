@@ -180,7 +180,7 @@ Table~\ref{tab:summary} and Figures~\ref{fig:rounds} and~\ref{fig:contrasts} sho
 
 The channel effect holds wherever a \DS{} firm is in the market (Figure~\ref{fig:extensions}; outcomes by cell in Appendix~\ref{app:ext}, Table~\ref{tab:ext}). With three \DS{} firms the index rises by 0.85 (H18: $[0.66, 1.02]$, 12/12, $p = 0.0005$), and the judge finds all three firms joining a written scheme in every session. Paired with \LU, \DS{} raises it by 0.43 (H16: $[0.26, 0.61]$, 11/12, Holm $p = 0.003$); paired with \model{Claude-Haiku-5.5}, by 0.19 (H17: $[0.07, 0.31]$, 11/12, Holm $p = 0.008$). Shared priors from two copies of one model are therefore not needed.
 
-Two models collude weakly or not at all by themselves. Two \model{Claude-Haiku-5.5} firms end where they do without a channel (H13: $-0.02$, $[-0.09, 0.06]$, 5/12, $p = 0.64$): they send a message in 2\% of communication steps, the first on average in round 22, and the judge finds an agreement in 2 of 12 sessions. \LU's 50-round effect (H5: $+0.11$, $[0.03, 0.21]$, 9/12, $p = 0.041$) does not replicate on 12 new seeds over 100 rounds (H19: $+0.01$, $[-0.13, 0.16]$, 6/12, $p = 0.88$). In those sessions \LU{} sends its first message in round 27 on average; descriptively, C1 is below B0 over rounds 1--50 ($-0.08$) and above it over rounds 51--100 ($+0.11$), and its firms bid identical prices in 34\% of rounds against 7\% without a channel, so the channel changes how \LU{} bids more than the price it reaches. A second replication at 50 rounds on 24 further new seeds falls just short of the declared threshold (H25: $+0.17$, $[0.004, 0.34]$, 18/24, $p = 0.061$). Its estimate is larger than H5's and its bootstrap interval lies just above zero, but by the declared rule the effect does not replicate. In these sessions the judge finds a written proposal in 22 of 24 and an agreement in 20, the first message comes in round 19 on average, and mean C1 is above mean B0 in every 10-round block. We read \LU{} as a model that agrees on schemes readily but holds the price only 0.1 to 0.2 above its no-channel level: one supported test, one clear null and one test just short of significance.
+Two models collude weakly or not at all by themselves. Two \model{Claude-Haiku-5.5} firms end where they do without a channel (H13: $-0.02$, $[-0.09, 0.06]$, 5/12, $p = 0.64$): they send a message in 2\% of communication steps, the first on average in round 22, and the judge finds an agreement in 2 of 12 sessions. \LU's 50-round effect (H5: $+0.11$, $[0.03, 0.21]$, 9/12, $p = 0.041$) does not replicate on 12 new seeds over 100 rounds (H19: $+0.01$, $[-0.13, 0.16]$, 6/12, $p = 0.88$). In those sessions \LU{} sends its first message in round 27 on average; descriptively, C1 is below B0 over rounds 1--50 ($-0.08$) and above it over rounds 51--100 ($+0.11$), and its firms bid identical prices in 34\% of rounds against 7\% without a channel, so the channel changes how \LU{} bids more than the price it reaches. A second replication at 50 rounds on 24 further new seeds falls just short of the declared threshold (H25: $+0.17$, $[0.004, 0.34]$, 18/24, $p = 0.061$). Its estimate is larger than H5's and its bootstrap interval lies just above zero, but by the declared rule the effect does not replicate. In these sessions the judge finds a written proposal in 22 of 24 and an agreement in 20, the first message comes in round 19 on average, and mean C1 is above mean B0 in every 10-round block. We read \LU{} as a model that agrees on schemes readily but holds the price only 0.1 to 0.2 above its no-channel level: one supported test, one clear null and one test just short of significance. Both models also write differently to a \DS{} rival: \model{Claude-Haiku-5.5} sends 7.5 messages per firm instead of 1.0, and \LU{} proposes in 68\% of its judged steps instead of 50 to 62\% (exploratory, Appendix~\ref{app:partner}).
 
 \subsection{Which restriction removes the collusion}
 \label{sec:restrict}
@@ -410,6 +410,27 @@ Lineup & Arm & Index $\uparrow$ & Markup & Profit & Low-cost win \% & Ties \% \\
 Lineup & Arm & Sent \% & Judged & Prop.\ \% & Proposes & Accepts & Rejects & Threatens & Reveals cost & Agreement \\
 \midrule
 \csname @@input\endcsname tables/ablation_conduct.tex
+\bottomrule
+\end{tabular}}
+\end{table*}
+
+\section{Exploratory: Conduct by Partner}
+\label{app:partner}
+This analysis was not declared. We computed it after seeing the declared results, to help read H13, H16, H17, H19 and H25. Table~\ref{tab:partner} counts, for each model, its firms' messages and the judge's labels by the model of the rival firm, in the open-channel arm of each cell.
+
+\model{Claude-Haiku-5.5} barely writes to itself, 1.0 message per firm over 49 communication steps, but writes 7.5 per firm to a \DS{} rival. Against \DS, half of its firms accept a scheme at least once and every one of them rejects coordination at least once. \LU{} agrees with itself readily: 67 to 100\% of its firms accept in the three same-model cells, while its price stays within 0.2 of its no-channel level (Tables~\ref{tab:summary} and~\ref{tab:ext}). Against \DS{} it proposes in a larger share of its judged steps (68\%, against 50 to 62\% with itself), and 11 of its 12 firms accept. A \DS{} firm proposes in 92 to 98\% of its judged steps against \DS{} or \LU, and in 52\% against \model{Claude-Haiku-5.5}.
+
+\begin{table*}[t]
+\centering\small
+\caption{Exploratory: conduct in the open channel by the judged firm's model and its rival's model. \textbf{Firms}: firms of that model in the cell; \textbf{Msgs}: messages sent per firm (mean); \textbf{Judged}: judged steps of those firms; \textbf{Prop.\ \%} and \textbf{Rej.\ \%}: \% of judged steps labelled \emph{proposes coordination} and \emph{rejects coordination}; then the firms with at least one step carrying each label (number and \% of firms). \emph{Accepts} is a lower bound (Appendix~\ref{app:limits}). The hand checks cover \emph{rejects coordination} for \DS, \LU{} and two \model{Claude-Haiku-5.5} self-play steps only, so the 41\% for \model{Claude-Haiku-5.5} against \DS{} rests on unchecked labels.}
+\label{tab:partner}
+\setlength{\tabcolsep}{3.5pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllcccccccc}
+\toprule
+Model & Rival & Cell & Firms & Msgs & Judged & Prop.\ \% & Proposes & Accepts & Rejects & Rej.\ \% \\
+\midrule
+\csname @@input\endcsname tables/partner.tex
 \bottomrule
 \end{tabular}}
 \end{table*}
