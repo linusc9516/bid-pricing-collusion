@@ -180,3 +180,16 @@ def test_runner_digit_filter_session_passes_the_checks_and_an_unfiltered_one_wou
     unfiltered_logs, _ = load_logs(tmp_path / "channel_tiny")
     relabelled = [replace(log, meta=replace(log.meta, channel_strip_digits=True)) for log in unfiltered_logs]
     assert any("has a digit" in f.detail for f in check_run(relabelled).failures("channel"))
+
+
+def test_log_checks_rebuild_a_reworded_prompt_run(tmp_path: Path) -> None:
+    """The checks once missed the reworded prompt's token cap and so skipped its exact rebuild."""
+    config, models, _ = prepare(CONFIGS / "channel_tiny.yaml")
+    config["prompt"] = {"template": "prompts/bidder_system_v2.md", "version": "v2-reworded"}
+    plan = plan_sessions(config, "reworded", models)
+    route = lambda kw: HOSTS[kw["extra_body"].get("provider", {"only": [None]})["only"][0]]
+    assert not asyncio.run(run_plan(plan, config, models, tmp_path, lambda: FakeOpenAI(fn=talking_model(provider=route)))).failed
+    logs, _ = load_logs(tmp_path / "reworded")
+    report = check_run(logs)
+    assert report.passed, report.findings[:3]
+    assert report.items["system_prompt"] > 0 and sum(report.caps.values()) == report.items["tokens"]

@@ -18,6 +18,9 @@ from bidrig.prompts import (
     ANNOUNCEMENTS,
     DEFAULT_TEMPLATE,
     REASONING_LENGTHS,
+    REWORDED_ANNOUNCEMENTS,
+    REWORDED_TIE_RULES,
+    REWORDED_VERSION,
     TIE_RULE_SENTENCES,
     notes_block,
     system_prompt,
@@ -36,7 +39,7 @@ from bidrig.schema import (
 )
 from bidrig.workspace import DIGITS, WorkspaceEvent, notes_before
 
-CAP_PATTERN = re.compile(r"limited to (\d+) tokens")
+CAP_PATTERN = re.compile(r"limited to (\d+) tokens|You have (\d+) tokens for your entire reply")  # v1, then the reworded prompt
 ROUND_LINE = re.compile(r"^Round (\d+):", re.MULTILINE)
 COST_LINE = re.compile(r"Your cost for this round is (-?\d+\.\d\d)\.")
 REBID_NOTICE = re.compile(r"Your bid tied for lowest: (\d+) firms, including you, bid (\d+\.\d\d)\.")
@@ -326,7 +329,7 @@ def check_calls(log: SessionLog, report: CheckReport, template: Path = DEFAULT_T
         system, user = messages[0]["content"], messages[1]["content"]
 
         cap_match = CAP_PATTERN.search(system)
-        cap = int(cap_match.group(1)) if cap_match else None
+        cap = int(next(g for g in cap_match.groups() if g)) if cap_match else None
         report.items["tokens"] += 1
         if cap is None:
             report.fail("tokens", sid, f"{label}: system prompt does not state the output cap")
@@ -343,9 +346,12 @@ def check_calls(log: SessionLog, report: CheckReport, template: Path = DEFAULT_T
             report.fail("system_prompt", sid, f"{label}: differs from the template build; {_first_difference(system, expected)}")
 
         report.items["tie_rule_prompt"] += 1
-        own = TIE_RULE_SENTENCES[meta.tie_break_rule]
-        others = [r for r, text in TIE_RULE_SENTENCES.items() if r != meta.tie_break_rule and text in system]
-        if own not in system or others or ANNOUNCEMENTS[meta.info_condition] not in system:
+        reworded = meta.prompt_version == REWORDED_VERSION
+        own = (REWORDED_TIE_RULES if reworded else TIE_RULE_SENTENCES)[meta.tie_break_rule]
+        sentences = [*TIE_RULE_SENTENCES.items(), *REWORDED_TIE_RULES.items()]
+        others = [r for r, text in sentences if text != own and text in system]
+        announcement = (REWORDED_ANNOUNCEMENTS if reworded else ANNOUNCEMENTS)[meta.info_condition]
+        if own not in system or others or announcement not in system:
             report.fail("tie_rule_prompt", sid, f"{label}: states rules {others or 'none'} or lacks its own rule or announcement")
 
         report.items["user_prompt"] += 1
