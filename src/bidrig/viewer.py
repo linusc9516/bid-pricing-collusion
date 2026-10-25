@@ -185,7 +185,7 @@ INDEX_METRIC_KEYS = [
     "bid_gap", "joint_profit_ratio", "switch_gain", "best_reply_share",
 ]  # fmt: skip
 
-# Charts the findings page draws under a finding of BASELINE_FINDINGS.md, by the finding's id; the names are read by
+# Charts the findings page draws under a finding of docs/history/BASELINE_FINDINGS.md, by the finding's id; the names are read by
 # site/app.js. They are drawn from the first bundled run, so they fit only the findings file written about that run.
 FINDING_CHARTS = {
     "F2": ["paired:collusion_index"],

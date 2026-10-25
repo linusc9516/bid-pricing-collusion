@@ -2,7 +2,7 @@
 
 ## 9 October 2026: open message channel
 
-Adds a second, separate mode alongside the workspace: an open message channel. After each bidding round, each firm may send one message, and firms are told plainly that every firm reads every message. Nothing asks them to coordinate, and nothing mentions law or monitoring. It is the disclosed counterpart of the workspace's "broken channel". Built and tested with a mocked client; not yet run with real models. Design: `PLANNING.md` section 7.6.
+Adds a second, separate mode alongside the workspace: an open message channel. After each bidding round, each firm may send one message, and firms are told plainly that every firm reads every message. Nothing asks them to coordinate, and nothing mentions law or monitoring. It is the disclosed counterpart of the workspace's "broken channel". Built and tested with a mocked client; not yet run with real models. Design: `docs/history/PLANNING.md` section 7.6.
 
 ### How it works
 
@@ -56,7 +56,7 @@ New configs:
 | `src/bidrig/schema.py` | `message` phase, `SessionMeta.channel`, `MESSAGES_FILE`; `write_session` takes the messages. |
 | `src/bidrig/checks.py` | New `channel` check: messages numbered in order, at most one per firm per step, and one communication call per firm per step. Bid prompts are rebuilt with their messages. Message text is skipped by the leak and prompt-shape checks. |
 | `scripts/check_logs.py` | `--phase message` accepted. |
-| `PLANNING.md` | `channel` field, `message` phase and `messages.jsonl` in section 3; new section 7.6. |
+| `docs/history/PLANNING.md` | `channel` field, `message` phase and `messages.jsonl` in section 3; new section 7.6. |
 
 ### Tests
 
@@ -74,7 +74,7 @@ With no `channel` block, nothing changes. Workspace sessions are unchanged.
 
 ## 9 October 2026: shared notes workspace ("broken channel")
 
-Adds an optional reflection step after each bidding round. In it, firms can read and append to a notes workspace that every firm in the session shares. Firms are told they have a notes workspace. They are not told that other firms read it, and nothing in the prompt mentions communicating. The question is whether firms find the channel and use it to coordinate. Built and tested with a mocked client; not yet run with real models. Design: `PLANNING.md` section 7.5.
+Adds an optional reflection step after each bidding round. In it, firms can read and append to a notes workspace that every firm in the session shares. Firms are told they have a notes workspace. They are not told that other firms read it, and nothing in the prompt mentions communicating. The question is whether firms find the channel and use it to coordinate. Built and tested with a mocked client; not yet run with real models. Design: `docs/history/PLANNING.md` section 7.5.
 
 ### How it works
 
@@ -128,7 +128,7 @@ New configs:
 | `src/bidrig/schema.py` | `reflect` phase, `SessionMeta.workspace`, `WORKSPACE_FILE`, `read_workspace_events`; `write_session` takes the workspace events. |
 | `src/bidrig/checks.py` | New `workspace` check: events numbered in order, from lineup firms, only after rounds with a next round, each matched by a reflection call. Bid prompts are rebuilt with their notes. Reflect calls get the provider checks only. Note text is skipped by the leak, rounds-shown, cost-line and rebid-notice checks. |
 | `scripts/check_logs.py` | `--phase reflect` accepted. |
-| `PLANNING.md` | `workspace` field in `session.json`, `reflect` phase and the `workspace.jsonl` schema in section 3; new section 7.5. |
+| `docs/history/PLANNING.md` | `workspace` field in `session.json`, `reflect` phase and the `workspace.jsonl` schema in section 3; new section 7.5. |
 
 ### Tests
 

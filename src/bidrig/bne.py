@@ -2,7 +2,7 @@
 
 `BneBenchmark` is the closed form for i.i.d. uniform costs; `CommonCostBenchmark` is the numeric
 equilibrium for the common-cost draw (`cost_spread` > 0). Derivation and the collusion index built on
-them are in PLANNING.md section 2.4.
+them are in docs/history/PLANNING.md section 2.4.
 """
 
 from collections.abc import Sequence

@@ -1,6 +1,6 @@
 """Bidder interface, scripted control bidders (BNE, markup, overbid, rotating cartel, match), and the LLM bidder.
 
-Scripted rules and their expected readings are in PLANNING.md section 2.7. `BidRequest` and
+Scripted rules and their expected readings are in docs/history/PLANNING.md section 2.7. `BidRequest` and
 `BidResponse` live in schema.py and are re-exported here.
 """
 

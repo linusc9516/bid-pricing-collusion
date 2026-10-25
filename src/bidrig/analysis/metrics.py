@@ -2,7 +2,7 @@
 from the matched one-shot control, lowest-cost-wins share, repeat-win rate, win-count
 chi-square statistic (descriptive), bid clustering, tie metrics.
 
-Definitions are in PLANNING.md sections 2.6, 3 and 6.4. Every metric is computed under
+Definitions are in docs/history/PLANNING.md sections 2.6, 3 and 6.4. Every metric is computed under
 every tie-break rule; which win-pattern metrics may be read under which rule is in 6.4
 (under `least_wins`, `chi2_stat` and `repeat_win_rate` are uniform by construction).
 """
@@ -18,7 +18,7 @@ from bidrig.auction import to_ticks
 from bidrig.bne import collusion_index
 from bidrig.schema import SESSION_FILE, BidRow, CallRow, SessionMeta, read_session
 
-# A repeated session and its one-shot control share these (PLANNING.md section 3, `lineup_id`).
+# A repeated session and its one-shot control share these (docs/history/PLANNING.md section 3, `lineup_id`).
 # `info_condition` is left out: the information levels share the baseline's control (5.2).
 CONTROL_MATCH_KEYS = ["lineup_id", "n_bidders", "tie_break_rule", "seed", "cost_spread", "reveal_costs"]
 
@@ -198,7 +198,7 @@ def session_metrics(meta: SessionMeta, rows: Sequence[BidRow]) -> dict[str, obje
         lowest_outside = outside.groupby("round")["bid"].min().reindex(won.index[tied])
         bafo_overshoot_rate = _mean(won.loc[tied, "winning_bid"] > lowest_outside)
 
-    # Non-competitive unilateral bids (PLANNING.md 2.6): over valid original bids, on the bid grid; reported apart from
+    # Non-competitive unilateral bids (docs/history/PLANNING.md 2.6): over valid original bids, on the bid grid; reported apart from
     # the collusion, tie and rotation measures.
     valid_bids = bids[bids["valid"]]
     bid_ticks = valid_bids["bid"].map(lambda v: to_ticks(v, meta.bid_increment))
@@ -309,7 +309,7 @@ CALL_SUMMARY_COLUMNS = [
 
 
 def call_summary(sessions: Iterable[tuple[SessionMeta, Sequence[BidRow], Sequence[CallRow]]]) -> pd.DataFrame:
-    """Pilot checks per condition (PLANNING.md 4, step 7): parse failures, sit-outs, bids below cost, tokens.
+    """Pilot checks per condition (docs/history/PLANNING.md 4, step 7): parse failures, sit-outs, bids below cost, tokens.
 
     Rates are shares in [0, 1]: `attempt_error_rate` over LLM attempts, `sit_out_rate` over
     firm-round rows, `below_cost_rate` over valid bids. Token columns are per attempt.
@@ -355,7 +355,7 @@ def call_summary(sessions: Iterable[tuple[SessionMeta, Sequence[BidRow], Sequenc
 def non_competitive_bids(table: pd.DataFrame) -> pd.DataFrame:
     """The separate non-competitive-bids table: per condition, mean `reserve_bid_rate` and `below_cost_bid_rate` over sessions.
 
-    Shares in [0, 1]. Kept apart from the central table of collusion, tie and rotation measures (PLANNING.md 2.6).
+    Shares in [0, 1]. Kept apart from the central table of collusion, tie and rotation measures (docs/history/PLANNING.md 2.6).
     """
     grouped = table.groupby("condition_id", sort=True)
     summary = grouped.agg(
@@ -451,7 +451,7 @@ def _clopper_pearson(tied: int, rounds: int) -> tuple[float, float]:
 
 
 def tie_check(table: pd.DataFrame, chance: dict[tuple[int, float, float], float]) -> pd.DataFrame:
-    """The pilot's tie manipulation check (PLANNING.md 7.1): ties per model and rule, with the chance benchmark.
+    """The pilot's tie manipulation check (docs/history/PLANNING.md 7.1): ties per model and rule, with the chance benchmark.
 
     One row per (lineup, rule) over repeated sessions, plus pooled rows over all lineups per rule and one
     row, `pooled`, for the `random` and `least_wins` arms together, which is what the decision rule reads.

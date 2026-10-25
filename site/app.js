@@ -889,7 +889,7 @@ function renderRun() {
         stat("Mean delta", fmt(mean(m("delta_index")), 2), "Index minus the matched one-shot control's."),
         stat("Tie rate", fmt(mean(m("tie_rate")), "pct"), "Mean share of rounds with an exact tie at the lowest bid."),
         stat("Lowest-cost wins", lw ? "n/a" : fmt(mean(m("lowest_cost_win_share")), 2),
-          lw ? "Not valid under least_wins: the rule forces uniform wins (PLANNING.md 6.4)." : "Mean share of rounds won by the lowest-cost firm.")),
+          lw ? "Not valid under least_wins: the rule forces uniform wins (docs/history/PLANNING.md 6.4)." : "Mean share of rounds won by the lowest-cost firm.")),
       ...g.rep.sort((a, b) => a.seed - b.seed).map(rowFor));
   });
   root.replaceChildren(h("div", null,

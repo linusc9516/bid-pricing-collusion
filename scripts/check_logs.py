@@ -1,4 +1,4 @@
-"""CLI: check a run's raw logs against the auction rules and the prompt design (PLANNING.md 5.5).
+"""CLI: check a run's raw logs against the auction rules and the prompt design (docs/history/PLANNING.md 5.5).
 Usage: check_logs.py RUN_DIR [--expect-cap N] [--max-failures N] [--include-incomplete]
        check_logs.py RUN_DIR --pick
        check_logs.py RUN_DIR --show SESSION_ID ROUND FIRM [--phase bid|rebid|reflect|message]

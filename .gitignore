@@ -66,3 +66,8 @@ configs/long_grid1.yaml
 DISCLOSURES.md
 paper/*.xdv
 paper/*.synctex.gz
+
+# design and findings notes kept at the root locally; the tracked copies are in docs/history/
+/BASELINE_FINDINGS.md
+/BidPricingCollusion.md
+/PLANNING.md

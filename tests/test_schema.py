@@ -17,7 +17,7 @@ from bidrig.schema import (
     write_session,
 )
 
-# PLANNING.md section 3, in table order.
+# docs/history/PLANNING.md section 3, in table order.
 SESSION_FIELDS = [
     "run_id", "condition_id", "session_id", "seed", "n_bidders", "info_condition",
     "tie_break_rule", "lineup_id", "lineup", "cost_low", "cost_high", "reserve_price",

@@ -1,6 +1,6 @@
 """OpenRouter wrapper: structured bid extraction via tool call, retries, usage and cost tracking.
 
-Behaviour is specified in PLANNING.md section 2.3; host pinning and routing rules in 5.5.
+Behaviour is specified in docs/history/PLANNING.md section 2.3; host pinning and routing rules in 5.5.
 """
 
 import asyncio
@@ -343,7 +343,7 @@ class OpenRouterClient:
             # Explicit mode with no breakpoint caches nothing (OpenRouter prompt caching, OpenAI GPT-5.6 and later).
             extra["prompt_cache_options"] = {"mode": "explicit"}
         if host is not None:
-            # Never fall back to another host mid-session (PLANNING.md 5.5).
+            # Never fall back to another host mid-session (docs/history/PLANNING.md 5.5).
             extra["provider"] = {"only": [host.routing_slug], "allow_fallbacks": False, "require_parameters": True}
             if host.quantization is not None:
                 extra["provider"]["quantizations"] = [host.quantization]

@@ -309,7 +309,7 @@ def test_bid_request_carries_only_the_firms_own_cost() -> None:
 
 
 def test_bafo_rebid_may_exceed_an_outside_bid() -> None:
-    """PLANNING.md 5.1: the lowest rebid within the tied subset wins, even above C's original bid."""
+    """docs/history/PLANNING.md 5.1: the lowest rebid within the tied subset wins, even above C's original bid."""
     _, rows = custom_session([fixed(50, 70), fixed(50, 75), fixed(60)], rule="bafo", n_rounds=3)
     assert winners(rows) == ["A"] * 3
     assert all(r.winning_bid == 70 for r in rows)

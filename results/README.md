@@ -1,7 +1,7 @@
 # Results
 
 One directory per run id, written by `scripts/analyze.py` from `logs/<run_id>/` (raw logs are gitignored). Each
-holds the generated CSVs and a hand-written findings file. Column definitions: `PLANNING.md` section 3.
+holds the generated CSVs and a hand-written findings file. Column definitions: `docs/history/PLANNING.md` section 3.
 
 **Runs up to `costs_revealed` are exploratory: cells have 3 to 12 sessions (5 in the pilot and the screen), and all numbers are descriptive, with no tests and no intervals. From `baseline_no_channel` on, every run's tests were declared in `configs/analysis.yaml` before the run, and the declared tests are in `baseline_tests.csv`, `channel_tests.csv` or `placebo_tests.csv`. The paper (`paper/main.pdf`) reports those runs.**
 
@@ -9,10 +9,10 @@ holds the generated CSVs and a hand-written findings file. Column definitions: `
 |---|---|---|---|---|---|
 | `pilot` | 2026-10-03 | Phase A pilot: 3 models x 3 tie-break rules, N = 3, 25 rounds, repeated and one-shot control | 90 | $3.11 | [`pilot/PILOT_FINDINGS.md`](pilot/PILOT_FINDINGS.md) |
 | `rotation_screen` | 2026-10-04 | Does any setting produce rotation under `random`? N = 2, coarse grids, thinking off, combined, repeated-interaction prompt | 100 | about $3.0 | [`rotation_screen/SCREEN_FINDINGS.md`](rotation_screen/SCREEN_FINDINGS.md) |
-| `n2_replicate` | 2026-10-09 | Does the screen's one high DeepSeek session recur? Same N = 2 cell, 50 rounds, 12 new seeds | 24 | $1.93 | tables only; summary in `PLANNING.md` 7.4 |
+| `n2_replicate` | 2026-10-09 | Does the screen's one high DeepSeek session recur? Same N = 2 cell, 50 rounds, 12 new seeds | 24 | $1.93 | tables only; summary in `docs/history/PLANNING.md` 7.4 |
 | `common_cost_check` | 2026-10-09 | Harness check of the common-cost draw (spread 5): N = 2, DeepSeek, 12 rounds | 6 | $0.16 | tables only |
-| `costrange` | 2026-10-09 | Common costs (a round's costs within 10 of each other): N = 2, DeepSeek, 25 rounds | 10 | $0.55 | tables only; `PLANNING.md` 7.4 |
-| `costs_revealed` | 2026-10-09 | Complete information (every firm sees every cost): N = 2, 50 rounds, DeepSeek and GPT-6 Luna | 16 | $0.76 | tables only; `PLANNING.md` 7.4 |
+| `costrange` | 2026-10-09 | Common costs (a round's costs within 10 of each other): N = 2, DeepSeek, 25 rounds | 10 | $0.55 | tables only; `docs/history/PLANNING.md` 7.4 |
+| `costs_revealed` | 2026-10-09 | Complete information (every firm sees every cost): N = 2, 50 rounds, DeepSeek and GPT-6 Luna | 16 | $0.76 | tables only; `docs/history/PLANNING.md` 7.4 |
 | `workspace_screen_n2` | 2026-10-09 | First shared-notes screen, exploratory | 10 | | notes judge |
 | `baseline_no_channel` | 2026-10-10 | Declared no-channel baseline: N = 2, private costs, 50 rounds, DeepSeek and GPT-6 Luna, 12 matched pairs each on the same seeds | 48 | $3.34 | `baseline_tests.csv`, `baseline_descriptives.csv`, judge output; reported in the paper |
 | `private_screen_n2` | 2026-10-15 | First private-notes screen, DeepSeek, exploratory | 5 | | tables only |

@@ -29,7 +29,7 @@ uv run python scripts/export_site.py --publish baseline_no_channel channel_c1 no
 built paper, since Figure 1 is TikZ inside the paper. Each rebuild adds its size to the repository's history, so
 publish at milestones. A finding heading `### F5. ... (exploratory)` becomes a card with a badge. Live charts under a
 finding (`FINDING_CHARTS` in `src/bidrig/viewer.py`) are drawn from the first bundled run and are used only with
-`BASELINE_FINDINGS.md`, the earlier findings page about the baseline.
+`docs/history/BASELINE_FINDINGS.md`, the earlier findings page about the baseline.
 
 ## GitHub Pages
 
@@ -59,7 +59,7 @@ for a copy of that `logs/` directory.
 the logs do not match, fix the mismatch as follows:
 
 - The expected fields are the dataclasses in `src/bidrig/schema.py` (`SessionMeta`, `BidRow`, `CallRow`), described
-  in `PLANNING.md` section 3. Compare the logs against those first and report every difference before changing anything.
+  in `docs/history/PLANNING.md` section 3. Compare the logs against those first and report every difference before changing anything.
 - Never edit the raw logs in place. Write a small converter script that reads them and writes a converted copy to a
   new directory, then export with `--logs-root <that directory>`.
 - Keep data the schema has no field for, such as workspace or message entries, in its own file per session (for

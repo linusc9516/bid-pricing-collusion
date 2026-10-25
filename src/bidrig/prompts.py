@@ -1,7 +1,7 @@
 """Agent-facing prompt builder: one visibility filter and three history formatters over a shared log.
 
 Everything an agent reads passes through `visible_rows`; visibility per field is in
-PLANNING.md section 3, the prompt contents in 2.2 and 6.3.
+docs/history/PLANNING.md section 3, the prompt contents in 2.2 and 6.3.
 """
 
 from collections.abc import Callable, Sequence

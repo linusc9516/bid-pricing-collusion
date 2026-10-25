@@ -1,4 +1,4 @@
-"""Pre-pilot smoke test (PLANNING.md 5.5): one forced tool call per pinned host.
+"""Pre-pilot smoke test (docs/history/PLANNING.md 5.5): one forced tool call per pinned host.
 
 Usage: smoke_test.py [--yes] [--models deepseek gpt-oss] [--roles primary fallback] [--config configs/pilot.yaml]
 Without --yes it prints the planned calls and spends nothing. Costs a few cents in total.

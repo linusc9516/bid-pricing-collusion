@@ -91,8 +91,8 @@ behind the paper, round by round, with each firm's bids, stated reasons and mess
 | [`src/bidrig/`](src/bidrig/) | Auction, bidders, prompts, LLM client, runner, log checks, analysis |
 | [`scripts/`](scripts/) | Command-line entry points (below) |
 | [`site/`](site/) | Static viewer of the findings and all 540 sessions; open `site/index.html`, or the GitHub Pages site |
-| [`PLANNING.md`](PLANNING.md) | Spec the code implements, data schema, decisions |
-| [`BidPricingCollusion.md`](BidPricingCollusion.md) | Original design note (tie-break rules, shelved) |
+| [`docs/history/PLANNING.md`](docs/history/PLANNING.md) | Spec the code implements, data schema, decisions |
+| [`docs/history/BidPricingCollusion.md`](docs/history/BidPricingCollusion.md) | Original design note (tie-break rules, shelved) |
 
 ## Install
 
@@ -137,7 +137,7 @@ Raw logs: `logs/<run_id>/<condition_id>/<session_id>/` (gitignored; available fr
 - `calls.jsonl`: every LLM attempt, with prompt, raw response and hidden thinking
 - `messages.jsonl` / `workspace.jsonl`: the channel or notes, in channel and notes arms
 
-Schema: `PLANNING.md` section 3.
+Schema: `docs/history/PLANNING.md` section 3.
 
 ## Earlier focus
 

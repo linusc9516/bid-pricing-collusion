@@ -31,7 +31,7 @@ UPDATE = os.environ.get("UPDATE_SNAPSHOTS") == "1"
 INFO = ["full", "winner_price", "winner_only"]
 RULES = ["random", "least_wins", "bafo"]
 
-# Coordination vocabulary the prompt must never contain (PLANNING.md 2.2, 5.3).
+# Coordination vocabulary the prompt must never contain (docs/history/PLANNING.md 2.2, 5.3).
 FORBIDDEN = [
     "cooperat", "coordinat", "collu", "cartel", "rotat", "agree", "conspir", "together",
     "competitor", "rival", "fair", "share", "turn", "interest of", "other firms' profit",

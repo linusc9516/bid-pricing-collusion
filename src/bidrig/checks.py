@@ -1,6 +1,6 @@
 """Consistency checks on a run's raw logs: auction invariants, costs, bids against calls, and every logged prompt.
 
-Meant for the hand-check before a pilot (PLANNING.md 5.5). Prompts get independent checks (rounds shown,
+Meant for the hand-check before a pilot (docs/history/PLANNING.md 5.5). Prompts get independent checks (rounds shown,
 cost line, leaks, tie rule) and an exact rebuild through the prompt builder from the bid log.
 """
 

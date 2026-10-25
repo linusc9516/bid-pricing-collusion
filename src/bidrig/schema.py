@@ -1,6 +1,6 @@
 """Dataclasses for session metadata, per-firm bid rows, and per-attempt LLM call rows.
 
-Field definitions and agent visibility are in PLANNING.md section 3.
+Field definitions and agent visibility are in docs/history/PLANNING.md section 3.
 """
 
 import json
@@ -77,7 +77,7 @@ class SessionMeta:
         return self.history_window == 0
 
     def to_dict(self) -> dict[str, Any]:
-        """JSON-ready dict with the field names of PLANNING.md section 3."""
+        """JSON-ready dict with the field names of docs/history/PLANNING.md section 3."""
         return asdict(self)
 
     @classmethod
@@ -111,7 +111,7 @@ class BidRow:
     model: str | None
 
     def to_dict(self) -> dict[str, Any]:
-        """JSON-ready dict with the field names of PLANNING.md section 3."""
+        """JSON-ready dict with the field names of docs/history/PLANNING.md section 3."""
         return asdict(self)
 
     @classmethod
@@ -145,7 +145,7 @@ class CallRow:
     content: str | None = None  # free text the model wrote outside the tool call, where it wrote any
 
     def to_dict(self) -> dict[str, Any]:
-        """JSON-ready dict with the field names of PLANNING.md section 3."""
+        """JSON-ready dict with the field names of docs/history/PLANNING.md section 3."""
         return asdict(self)
 
     @classmethod

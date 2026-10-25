@@ -1,4 +1,4 @@
-"""Per-session metrics: hand-computed logs, then the expected readings of PLANNING.md 2.7."""
+"""Per-session metrics: hand-computed logs, then the expected readings of docs/history/PLANNING.md 2.7."""
 
 import math
 from dataclasses import replace
@@ -185,7 +185,7 @@ def test_early_late_split_with_odd_rounds() -> None:
     assert m["tie_rate"] == pytest.approx(13 / 25)
 
 
-# --- expected readings, PLANNING.md 2.7 ---
+# --- expected readings, docs/history/PLANNING.md 2.7 ---
 
 
 @pytest.mark.parametrize("n", [2, 3, 5])
@@ -253,7 +253,7 @@ def test_only_lowest_cost_share_separates_overbid_from_rotation(n: int) -> None:
     assert rotation["delta_lowest_cost_win_share"] == pytest.approx(1 / n - 1, abs=0.03)
 
 
-# --- tie metrics with match bidders, PLANNING.md 2.7 ---
+# --- tie metrics with match bidders, docs/history/PLANNING.md 2.7 ---
 
 
 @pytest.mark.parametrize("n", [2, 3, 5])
@@ -271,7 +271,7 @@ def test_match_under_random(n: int) -> None:
 
 @pytest.mark.parametrize("n", [2, 3, 5])
 def test_match_under_least_wins_is_uniform_by_construction(n: int) -> None:
-    """The false positive of PLANNING.md 6.4: exact rotation with no intent in the bidders."""
+    """The false positive of docs/history/PLANNING.md 6.4: exact rotation with no intent in the bidders."""
     forced = session_metrics(*scripted_session("match", n=n, rule="least_wins"))
     chance = session_metrics(*scripted_session("match", n=n, rule="random"))
     assert forced["tie_rate"] == 1.0

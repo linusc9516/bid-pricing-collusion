@@ -1,6 +1,6 @@
 """Experiment orchestrator: expands a config into cells x sessions x rounds and runs them.
 
-Behaviour is specified in PLANNING.md section 2.5; host rules in 5.5.
+Behaviour is specified in docs/history/PLANNING.md section 2.5; host rules in 5.5.
 """
 
 import asyncio
@@ -53,7 +53,7 @@ SCRIPTED_PARAMS = {"markup", "shade", "undercut", "price"}
 _SLOT_STREAM = 2
 
 
-# Phase B leaves these as the string TBD until decided (PLANNING.md 5.6); only `per_model` thinking exists so far.
+# Phase B leaves these as the string TBD until decided (docs/history/PLANNING.md 5.6); only `per_model` thinking exists so far.
 UNDECIDED_LLM_KEYS = ("max_output_tokens", "reasoning_mode")
 
 
@@ -67,7 +67,7 @@ def check_llm_settings(config: dict[str, Any]) -> None:
     """Raise if a config that calls models has a TBD (`ValueError`) or unusable (`ValueError`, `TypeError`) `llm` setting."""
     tbd = tbd_settings(config)
     if tbd:
-        raise ValueError(f"llm settings still TBD: {', '.join(tbd)} (PLANNING.md 5.6, 7.2); not calling models")
+        raise ValueError(f"llm settings still TBD: {', '.join(tbd)} (docs/history/PLANNING.md 5.6, 7.2); not calling models")
     llm = config.get("llm", {})
     if llm.get("reasoning_mode", "per_model") != "per_model":
         raise ValueError(f"unsupported llm.reasoning_mode {llm['reasoning_mode']!r}; only per_model exists")

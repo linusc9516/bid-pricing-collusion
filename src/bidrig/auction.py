@@ -1,6 +1,6 @@
 """Rule-based auctioneer: cost draws, bid collection, winner determination, logging.
 
-No LLM is involved in any decision here. Mechanics are in PLANNING.md sections 2.1 and 6.3.
+No LLM is involved in any decision here. Mechanics are in docs/history/PLANNING.md sections 2.1 and 6.3.
 """
 
 import asyncio
