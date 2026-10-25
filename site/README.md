@@ -6,25 +6,36 @@ control beside each session. No server, no build step: open `index.html` in a br
 
 ## After cloning: open `index.html`
 
-Nothing to install and no server. The page opens on **Findings**: the text of `BASELINE_FINDINGS.md`, with charts
-drawn from the bundled sessions under the findings they support. **All runs** lists the bundled run
-(`baseline_no_channel`), and every session in it can be opened round by round.
+Nothing to install and no server. The page opens on **Findings**: the text of `site/FINDINGS.md` (the paper's
+results), with the paper's figures as PNG copies in `site/figures/`. **All runs** lists the 11 runs behind the paper
+(540 sessions), and every session can be opened round by round, with its messages or notes.
 
 This works on a fresh clone because one bundle is committed:
 
-- `data/published.js`: the run index, the findings page as HTML, and the small tables behind two of its charts.
-- `data/published/<run_id>/<session_id>.js`: one file per session, without hidden thinking and without the per-call
-  prompts (the 2 to 3 sentence reasoning of each bid is kept). About 3.4 MB for the baseline.
+- `data/published.js`: the run index, the findings page as HTML, and small per-run tables.
+- `data/published/<run_id>/<session_id>.js`: one file per session, without hidden thinking, per-call prompts or the
+  tool results a notes step was shown (the notes themselves are in the session's notes panel). The 2 to 3 sentence
+  reasoning of each bid and every message are kept. About 65 MB for the 11 runs.
 
-Rebuild it after the findings file or the run changes, from a machine that has the logs:
+Rebuild it after the findings file or a run changes, from a machine that has the logs:
 
 ```sh
-uv run python scripts/export_site.py --publish baseline_no_channel            # --findings FILE for another Markdown file
+uv run python scripts/export_site.py --publish baseline_no_channel channel_c1 notes_deepseek notes_luna \
+  channel_extensions luna_long luna_replication channel_ablations notice_checks placebo_replay narrow_costs
 ```
 
-Each rebuild adds its size to the repository's history, so publish at milestones. The findings file is the only
-source of the text: edit `BASELINE_FINDINGS.md`, then rebuild. A finding heading `### F5. ... (exploratory)` becomes a
-card with a badge; the charts under a finding are set in `FINDING_CHARTS` in `src/bidrig/viewer.py`.
+`--findings FILE` uses another Markdown file (default `site/FINDINGS.md`). The figures are converted from
+`paper/figures/*.pdf` with `pdftocairo -png -r 220 -singlefile`; `fig_overview.png` is cropped from page 2 of the
+built paper, since Figure 1 is TikZ inside the paper. Each rebuild adds its size to the repository's history, so
+publish at milestones. A finding heading `### F5. ... (exploratory)` becomes a card with a badge. Live charts under a
+finding (`FINDING_CHARTS` in `src/bidrig/viewer.py`) are drawn from the first bundled run and are used only with
+`BASELINE_FINDINGS.md`, the earlier findings page about the baseline.
+
+## GitHub Pages
+
+`.github/workflows/pages.yml` deploys `site/` on every push to `main` that touches it. Turn it on once under the
+repository's Settings, Pages, Source: GitHub Actions. Only committed files are served, so the page shows the
+published bundle; a local export (`data/runs.js`, `data/sessions/`) is gitignored and never deployed.
 
 ## Build the run pages from your own logs
 

@@ -52,7 +52,7 @@ def dump(value: object) -> str:
 def export_run(run_id: str, logs_root: Path, sessions_dir: Path, max_thinking: int, no_prompts: bool, results_root: Path) -> tuple[dict, list] | None:
     """Write one file per complete session of `run_id` into `sessions_dir` (emptied first); returns the run's index entry and its sessions, None if it has none.
 
-    `max_thinking` 0 drops hidden thinking text; `no_prompts` drops the per-call user prompts and the system prompts.
+    `max_thinking` 0 drops hidden thinking text; `no_prompts` drops the per-call user prompts, the tool results a step was shown and the system prompts.
     When `results_root/<run_id>/messages_judge.csv` exists, each judged message carries its labels and the index entry
     gets `messages_judge` (viewer.messages_judge_table).
     """
@@ -82,6 +82,8 @@ def export_run(run_id: str, logs_root: Path, sessions_dir: Path, max_thinking: i
                 for f in r["firms"]:
                     for c in f["calls"]:
                         c["user"] = ""
+                        if "results" in c:
+                            c["results"] = []
         (sessions_dir / f"{meta.session_id}.js").write_text(
             f"(window.SESSIONS=window.SESSIONS||{{}})[{dump(meta.session_id)}]={dump(bundle)};\n"
         )
@@ -129,7 +131,7 @@ def publish(run_ids: list[str], logs_root: Path, out: Path, findings: Path | Non
     sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False).stdout.strip()
     bundle = {
         "runs": runs, "tables": tables, "generated": datetime.now(UTC).date().isoformat(), "commit": sha,
-        "findings_html": findings_html(findings.read_text()) if findings and findings.exists() else "",
+        "findings_html": findings_html(findings.read_text(), None if findings.name == "BASELINE_FINDINGS.md" else {}) if findings and findings.exists() else "",
         "findings_source": findings.name if findings and findings.exists() else "",
     }  # fmt: skip
     (out / "published.js").write_text(f"window.PUBLISHED = {dump(bundle)};\n")
@@ -144,9 +146,9 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=ROOT / "site" / "data")
     parser.add_argument("--max-thinking", type=int, default=MAX_THINKING_CHARS, help="characters of hidden thinking kept per call")
     parser.add_argument("--no-thinking", action="store_true", help="drop hidden thinking text (about a third smaller)")
-    parser.add_argument("--no-prompts", action="store_true", help="drop the per-call user prompts and system prompts")
+    parser.add_argument("--no-prompts", action="store_true", help="drop the per-call user prompts, tool results and system prompts")
     parser.add_argument("--publish", action="store_true", help="write the committed bundle for the named runs instead of the local export")
-    parser.add_argument("--findings", type=Path, default=ROOT / "BASELINE_FINDINGS.md", help="Markdown file shown as the findings page (with --publish)")
+    parser.add_argument("--findings", type=Path, default=ROOT / "site" / "FINDINGS.md", help="Markdown file shown as the findings page (with --publish)")
     parser.add_argument("--results-root", type=Path, default=ROOT / "results", help="where a run's trace_judge.csv (with --publish) and messages_judge.csv are read from")
     args = parser.parse_args()
 

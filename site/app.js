@@ -776,7 +776,7 @@ function histogramCard(run, sessions) {
 
 // Sessions of the run that have a shared notes workspace or a message channel, each linked to its session page.
 function notesCard(run, sessions) {
-  const rows = sessions.filter((e) => e.notes).sort((a, b) => a.models.join().localeCompare(b.models.join()) || a.seed - b.seed);
+  const rows = sessions.filter((e) => e.notes).sort((a, b) => (a.lineup || a.models.join()).localeCompare(b.lineup || b.models.join()) || a.seed - b.seed);
   if (!rows.length) return null;
   const isNotes = rows[0].notes.kind === "workspace";
   const total = (e) => Object.values(e.notes.writes).reduce((a, b) => a + b, 0);
@@ -790,7 +790,7 @@ function notesCard(run, sessions) {
       h("thead", null, h("tr", null, ...["Session", isNotes ? "Notes written" : "Messages sent", ...(isNotes ? ["Reads showing the other firm's notes", "First such read"] : []), "Index"]
         .map((t, i) => h("th", { class: i ? "num" : "" }, t)))),
       h("tbody", null, ...rows.map((e) => h("tr", null,
-        h("td", null, h("a", { href: link(e) }, `${e.models.join(" + ")} · seed ${e.seed}`)),
+        h("td", null, h("a", { href: link(e) }, `${e.lineup || e.models.join(" + ")} · seed ${e.seed}`)),
         h("td", { class: "num" }, `${total(e)} (${Object.entries(e.notes.writes).map(([f, n]) => `${f} ${n}`).join(", ")})`),
         ...(isNotes ? [h("td", { class: "num" }, String(e.notes.foreign_reads)),
           h("td", { class: "num" }, e.notes.first_foreign == null ? "never" : `after round ${e.notes.first_foreign}`)] : []),
@@ -1042,14 +1042,15 @@ function renderFindings() {
   const tables = PUBLISHED.tables[run.id] || {};
   const page = h("div", { class: "findings prose" });
   page.innerHTML = PUBLISHED.findings_html; // generated from a Markdown file of this repository at export time
-  for (const slot of page.querySelectorAll(".chartslot")) {
+  const slots = page.querySelectorAll(".chartslot");
+  for (const slot of slots) {
     const [kind, arg] = slot.dataset.chart.split(":");
     const card = kind === "paired" ? pairedCard(run, run.sessions, arg) : kind === "scatter" ? scatterCard(run.sessions)
       : kind === "blocks" ? blocksCard(run, tables.round_blocks || []) : kind === "judge" ? judgeCard(tables.judge) : null;
     if (card) slot.replaceWith(card); else slot.remove();
   }
   const first = page.querySelector(".prosehead");
-  if (first) first.append(h("p", { class: "meta" }, "The charts below are drawn from the bundled sessions of ",
+  if (first && slots.length) first.append(h("p", { class: "meta" }, "The charts below are drawn from the bundled sessions of ",
     h("a", { href: `#/run/${encodeURIComponent(run.id)}` }, run.id), ". Open that run to see every session and step through its rounds."));
   document.getElementById("example").replaceChildren(page);
 }

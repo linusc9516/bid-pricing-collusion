@@ -256,6 +256,11 @@ body[data-mode="examples"] .notes { display: block; }
 .prose .finding > h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; font-size: 18px; line-height: 1.3; }
 .prose .fid { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
 .prose .tablewrap { margin: 12px 0; }
+.prose img { display: block; max-width: 100%; height: auto; margin: 12px 0; padding: 8px; border-radius: 8px; background: #fff; border: 1px solid var(--axis); }
+.prose p:has(> img + img) { display: flex; flex-wrap: wrap; gap: 12px; max-width: none; }
+.prose p:has(> img + img) img { flex: 1 1 340px; max-width: 480px; margin: 0; }
+.prose img[src*="_col"] { max-width: 480px; }
+.prose em.caption { display: block; font-size: 13px; color: var(--muted); }
 .prose table { font-size: 13.5px; }
 .prose td, .prose th { vertical-align: top; }
 .prose .cond.histo { background: var(--surface-2); box-shadow: none; margin: 16px 0 4px; }

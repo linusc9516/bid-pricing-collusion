@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LLM bidders: findings and sessions</title>
+<title>Channeling Collusion: LLM bidders</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,13 +14,12 @@
       <button id="theme" type="button" class="ghost" aria-label="Switch between light and dark theme">Theme</button>
     </div>
     <p class="lede">Two LLM firms bid against each other in a repeated procurement auction: the lowest bid wins and is paid its bid, and each firm sees only its own cost.
-      <span class="only-findings">Start with the findings; every chart is drawn from the bundled sessions, and each session can be opened round by round.</span>
+      We vary how the firms can reach each other (no channel, private notes, shared notes, open messages) and test restrictions on the message channel.
+      <span class="only-findings">Start with the findings; every run behind them is under <em>All runs</em>, and each session can be opened round by round.</span>
       <span class="only-examples">Pick an example, step through the rounds, and open a round to read what each firm was shown and why it bid as it did.</span></p>
     <div class="notes">
-    <p class="caveat"><strong>How to read this.</strong> These sessions were picked to illustrate a behaviour, not to be typical. The runs behind them have 5 sessions per cell,
-      so everything here is descriptive; there are no tests or intervals. A one-shot control is the same seed and costs with no history shown.</p>
-    <p class="caveat"><strong>Scope.</strong> <em>Examples</em> is a hand-picked list (<code>examples.yaml</code>). <em>All runs</em> lists every run exported
-      from <code>logs/</code> by <code>scripts/export_site.py</code>: a run, its conditions, then each session beside its matched control.</p>
+    <p class="caveat"><strong>Examples.</strong> These sessions come from the pilot and the rotation screen and were picked to illustrate a behaviour, not to be typical.
+      The study's runs are under <em>All runs</em>, with 12 sessions per cell.</p>
     </div>
   </div>
 </header>

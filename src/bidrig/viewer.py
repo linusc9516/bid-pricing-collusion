@@ -185,7 +185,8 @@ INDEX_METRIC_KEYS = [
     "bid_gap", "joint_profit_ratio", "switch_gain", "best_reply_share",
 ]  # fmt: skip
 
-# Charts the findings page draws under a finding, by the finding's id; the names are read by site/app.js.
+# Charts the findings page draws under a finding of BASELINE_FINDINGS.md, by the finding's id; the names are read by
+# site/app.js. They are drawn from the first bundled run, so they fit only the findings file written about that run.
 FINDING_CHARTS = {
     "F2": ["paired:collusion_index"],
     "F5": ["scatter", "paired:bid_gap"],
@@ -318,12 +319,12 @@ def index_entry(
     return entry
 
 
-def findings_html(text: str) -> str:
+def findings_html(text: str, charts: dict[str, list[str]] | None = None) -> str:
     """A findings Markdown file as HTML for the viewer's findings page.
 
     Each `##` section becomes a card. The section whose title contains "Definitions" becomes a closed
     `<details>`. Each `### F<n>.` finding becomes its own card with id `F<n>`, its label in brackets (declared,
-    exploratory, descriptive) becomes a badge, and the chart slots of `FINDING_CHARTS` are appended to it. Tables are
+    exploratory, descriptive) becomes a badge, and its chart slots from `charts` (default `FINDING_CHARTS`) are appended to it. Tables are
     wrapped so they can scroll sideways. The input is a file of this repository, not model output, so the result is
     inserted as HTML.
     """
@@ -342,7 +343,7 @@ def findings_html(text: str) -> str:
         if label and (kind := next((k for k in FINDING_LABELS if label.group(1).lower().startswith(k)), None)):
             title = title[: label.start()]
             badge = f' <span class="badge {kind}" title="{label.group(1)}">{FINDING_LABELS[kind]}</span>'
-        slots = "".join(f'<div class="chartslot" data-chart="{name}"></div>' for name in FINDING_CHARTS.get(fid, []))
+        slots = "".join(f'<div class="chartslot" data-chart="{name}"></div>' for name in (FINDING_CHARTS if charts is None else charts).get(fid, []))
         body = block[head.end() :]
         return f'<section class="panel finding" id="{fid}"><h3><span class="fid">{fid}</span> {title}{badge}</h3>{body}{slots}</section>'
 

@@ -52,12 +52,38 @@ private_screen_n2:
   hidden: true
   configs: [workspace_screen_n2_private.yaml]
 notes_luna:
+  about: "M1 private notes and M2 shared notes for GPT-6-Luna (H3, H4): 12 seeds each, paired with B0 on the same seeds."
   configs: [notes_luna_private.yaml, notes_luna_shared.yaml]
+notes_deepseek:
+  about: "M1 private notes and M2 shared notes for DeepSeek (H9, H10): 12 seeds each, paired with B0 and C1 on the same seeds."
+  configs: [notes_deepseek_private.yaml, notes_deepseek_shared.yaml]
 smoke_notes_luna:
   hidden: true
   configs: [workspace_tiny_luna_private.yaml, workspace_tiny_luna_shared.yaml]
 channel_c1:
+  about: "C1 open messages for DeepSeek and GPT-6-Luna (H5): 12 seeds each, paired with the baseline's B0 sessions."
   configs: [channel_c1.yaml]
+channel_extensions:
+  about: "Claude-Haiku-5.5 (H13), the 50-character cap (H14), the oversight notice (H15), mixed lineups with GPT-6-Luna and Claude-Haiku-5.5 (H16, H17) and three DeepSeek firms (H18)."
+  configs: [ext_r1_haiku.yaml, ext_r2_cap.yaml, ext_r3_notice.yaml, ext_r4_mixed_luna.yaml, ext_r5_mixed_haiku.yaml, ext_r6_n3.yaml]
+luna_long:
+  about: "GPT-6-Luna B0 and C1 on 12 new seeds over 100 rounds (H19)."
+  configs: [luna_long.yaml]
+luna_replication:
+  about: "GPT-6-Luna B0 and C1 on 24 new seeds at 50 rounds (H25)."
+  configs: [lunarep.yaml]
+channel_ablations:
+  about: "DeepSeek ablations of C1: rebid on ties (H20), winner only announced (H21), undelivered messages (H22), digits removed (H23), reworded prompt (H24)."
+  configs: [abl_a1_bafo.yaml, abl_a2_hidden.yaml, abl_a3_undelivered.yaml, abl_a4_nodigits.yaml, abl_a5_wording.yaml]
+notice_checks:
+  about: "Oversight notice replications: B0, C1 and the notice for DeepSeek on 12 new seeds (N1, H27), and the notice in the DeepSeek x GPT-6-Luna lineup (N2, H28)."
+  configs: [notice_n1_new_seeds.yaml, notice_n2_mixed_luna.yaml]
+placebo_replay:
+  about: "Replay placebo: a model firm bids against recorded high or low GPT-6-Luna B0 bids that respond to nothing (H6)."
+  configs: [placebo_replay.yaml]
+narrow_costs:
+  about: "Rescaled game: costs on [40, 60] with reserve 60 (H11) or reserve 100 (H12)."
+  configs: [narrow_costs_rescaled.yaml, narrow_costs_reserve100.yaml]
 smoke_channel_c1:
   hidden: true
   configs: [channel_tiny_c1.yaml]
