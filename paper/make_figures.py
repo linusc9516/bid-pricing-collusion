@@ -102,7 +102,7 @@ def figure_contrasts(column: bool = False) -> None:
             ax.plot([r["ci_low"], r["ci_high"]], [yi, yi], color=color, lw=1.6, solid_capstyle="round")
             ax.plot(r["mean"], yi, "o", ms=5.5, color=color, mec="white", mew=1)
             star = "*" if confirmatory and r["supported"] is True else ""
-            ax.annotate(f"{r['mean']:+.2f}{star}", (r["ci_high"], yi), xytext=(4, -2.5), textcoords="offset points", fontsize=7, color=INK)
+            ax.annotate(f"{signed(r['mean'])}{star}", (r["ci_high"], yi), xytext=(4, -2.5), textcoords="offset points", fontsize=7, color=INK)
         tags = [f" ({cell.loc[c, 'test_id'].split('_')[0]})" if cell.loc[c, "family"] == "confirmatory" else " (sec.)" for c in cell.index]
         ax.set_yticks(y, [c.replace(" - ", " $-$ ") + tag for c, tag in zip(cell.index, tags, strict=True)], fontsize=7.5)
         ax.axvline(0, color=MUTED, lw=0.7, ls=(0, (3, 3)))
@@ -130,7 +130,7 @@ def figure_placebo() -> None:
                         mew=1, capsize=3, lw=1.6, zorder=3)  # fmt: skip
             ax.annotate(f"{mean:.2f}", (x, hi), xytext=(0, 4), textcoords="offset points", ha="center", fontsize=7.5, color=INK)
         ax.axhline(1, color=MUTED, lw=0.7, ls=(0, (3, 3)))
-        ax.set_xticks([0, 1], ["low replay\n(mean bid 73)", "high replay\n(mean bid 87)"], fontsize=7)
+        ax.set_xticks([0, 1], ["low replay\n(mean bid 72.8)", "high replay\n(mean bid 87.5)"], fontsize=7)
         ax.set_xlim(-0.4, 1.4)
         ax.set_title(NAMES[model], fontsize=8.5, color=INK, fontfamily="monospace")
         ax.grid(axis="x", visible=False)
@@ -207,7 +207,7 @@ def figure_extensions(column: bool = False) -> None:
             ax.plot([r["ci_low"], r["ci_high"]], [yi, yi], color=color, lw=1.6, solid_capstyle="round")
             ax.plot(r["mean"], yi, "o", ms=5.5, color=color, mec="white", mew=1)
             star = "*" if confirmatory and r["supported"] is True else ""
-            ax.annotate(f"{r['mean']:+.2f}{star}", (max(r["ci_high"], -0.9), yi), xytext=(4, -2.5), textcoords="offset points", fontsize=7, color=INK)
+            ax.annotate(f"{signed(r['mean'])}{star}", (max(r["ci_high"], -0.9), yi), xytext=(4, -2.5), textcoords="offset points", fontsize=7, color=INK)
         ax.set_yticks(y, [row[3] for row in rows], fontsize=7)
         ax.axvline(0, color=MUTED, lw=0.7, ls=(0, (3, 3)))
         ax.set_title(title, fontsize=8.5, color=INK, loc="left")
@@ -308,7 +308,7 @@ def table_hypotheses() -> None:
             verdict = "supported" if r.supported in (True, "True") else "not supported"
             lines.append(" & ".join([
                 hid if k == 0 else "", name if k == 0 else "", CELL_NAMES.get(r.model, r.model), contrast,
-                f"${r.mean:+.3f}$ {{\\scriptsize [{r.ci_low:+.2f}, {r.ci_high:+.2f}]}}", p, verdict,
+                f"${r.mean:+.3f}$ {{\\scriptsize $[{r.ci_low:+.2f}, {r.ci_high:+.2f}]$}}", p, verdict,
             ]) + r" \\")  # fmt: skip
     (TABLES / "hypotheses.tex").write_text("\n".join(lines) + "\n")
 
@@ -355,7 +355,7 @@ def figure_ablations(column: bool = False) -> None:
             ax.plot([r["ci_low"], r["ci_high"]], [yi, yi], color=color, lw=1.6, solid_capstyle="round")
             ax.plot(r["mean"], yi, "o", ms=5.5, color=color, mec="white", mew=1)
             star = "*" if confirmatory and r["supported"] is True else ""
-            ax.annotate(f"{r['mean']:+.2f}{star}", (r["ci_high"], yi), xytext=(4, -2.5), textcoords="offset points", fontsize=7, color=INK)
+            ax.annotate(f"{signed(r['mean'])}{star}", (r["ci_high"], yi), xytext=(4, -2.5), textcoords="offset points", fontsize=7, color=INK)
         ax.set_yticks(y, [row[3] for row in rows], fontsize=7)
         ax.axvline(0, color=MUTED, lw=0.7, ls=(0, (3, 3)))
         ax.set_title(title, fontsize=8.5, color=INK, loc="right")
@@ -541,8 +541,6 @@ def table_partner() -> None:
 RUBRIC_CELLS = [  # (run, condition tag, row label, arm label) for table_bid_rubric; tag is matched in condition_id
     ("baseline_no_channel", "oneshot__", "Baseline", "one-shot"),
     ("baseline_no_channel", "^tie-random", "", "B0 (history)"),
-    ("n2_replicate", "oneshot__", "Baseline replicate", "one-shot"),
-    ("n2_replicate", "^tie-random", "", "B0 (history)"),
     ("notes_deepseek", "__pn", "Notes", "M1 private notes"),
     ("notes_deepseek", "__ws", "", "M2 shared notes"),
     ("notes_luna", "__pn", "", "M1 private notes"),
@@ -691,15 +689,20 @@ def table_scoreboard() -> None:
         else:
             replication = "--"
         lines.append(" & ".join([
-            label, tag, f"${mean:+.2f}$ {{\\scriptsize [{lo:+.2f}, {hi:+.2f}]}}", p,
+            label, tag, f"${mean:+.2f}$ {{\\scriptsize $[{lo:+.2f}, {hi:+.2f}]$}}", p,
             f"{100 * arm_cells['lowest_cost_win_share'].mean():.0f}", replication,
         ]) + r" \\")  # fmt: skip
     (TABLES / "scoreboard.tex").write_text("\n".join(lines) + "\n")
 
 
+def signed(x: float) -> str:
+    """`x` to 2 decimals with its sign, using a true minus sign for figure labels."""
+    return f"{x:+.2f}".replace("-", "\u2212")
+
+
 def fmt_ci(values: np.ndarray, scale: float = 1.0, digits: int = 2) -> str:
     mean, lo, hi = (round(v * scale, digits) + 0 for v in boot(values))
-    return f"${mean:.{digits}f}$ {{\\scriptsize [{lo:.{digits}f}, {hi:.{digits}f}]}}"
+    return f"${mean:.{digits}f}$ {{\\scriptsize $[{lo:.{digits}f}, {hi:.{digits}f}]$}}"
 
 
 def table_summary(table: pd.DataFrame) -> None:

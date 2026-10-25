@@ -1,4 +1,4 @@
-# Channeling Collusion: LLM Bidders Rig Auctions by Message, and an Oversight Notice Stops Them
+# Channeling Collusion: LLM Bidders Rig Auctions by Message, and an Oversight Notice Brings Prices Back
 
 Code, declared analysis plans and result tables for a study built for the Apart Research AI Collusion Research Sprint
 (23–25 October 2026), Track 1, Markets and Collusion, question 1.5: which restriction on how AI agents communicate
@@ -74,7 +74,7 @@ the declared family. Full list: Appendix "Hypothesis Index" of the paper.
   above equilibrium without a channel need not mean coordination.
 
 Conduct labels come from a Gemini 3.8 Flash judge that must quote the step it labels. On 70 hand-checked message
-steps it agrees with the hand coding on 360 of 370 label calls; acceptance counts are lower bounds. The paper's
+steps it agrees with the hand coding on 361 of 370 label calls; acceptance counts likely undercount. The paper's
 appendix ranks every lever in a restriction scoreboard.
 
 The [viewer](https://linusc9516.github.io/bid-pricing-collusion/) shows the findings and every session of the 11 runs
