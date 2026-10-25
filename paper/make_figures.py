@@ -92,7 +92,7 @@ def figure_contrasts(column: bool = False) -> None:
     tests = pd.concat(rows).drop_duplicates(["model", "contrast"])
     tests = tests[tests["outcome"] == "collusion_index"]
     order = ["M1 - B0", "M2 - B0", "M2 - M1", "C1 - B0", "C1 - M1", "C1 - M2"]
-    fig, axes = plt.subplots(2, 1, figsize=(3.35, 3.6), sharex=True) if column else plt.subplots(1, 2, figsize=(6.4, 2.2), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(3.35, 2.6), sharex=True) if column else plt.subplots(1, 2, figsize=(6.4, 2.2), sharex=True)
     for ax, model in zip(axes, MODELS, strict=True):
         cell = tests[tests["model"] == model].set_index("contrast").reindex([c for c in order if c in set(tests.loc[tests["model"] == model, "contrast"])])
         y = np.arange(len(cell))[::-1]
@@ -109,6 +109,7 @@ def figure_contrasts(column: bool = False) -> None:
         ax.set_title(NAMES[model], fontsize=8.5, color=INK, fontfamily="monospace")
         ax.set_xlim(-0.3, 1.25)
         ax.grid(axis="y", visible=False)
+        ax.set_ylim(-0.6, len(y) - 0.4)
     for ax in axes[-1:] if column else axes:
         ax.set_xlabel("Paired difference in collusion index")
     fig.tight_layout()
@@ -163,7 +164,7 @@ def figure_conduct() -> None:
     left.set_ylabel("% of judged message steps\n(mean over sessions)")
     left.set_ylim(0, 105)
     left.grid(axis="x", visible=False)
-    left.legend(fontsize=7, loc="upper right")
+    left.legend(fontsize=7, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2)
     right.set_xlabel("Round")
     right.set_ylabel("% of sessions with a proposal\nby this round")
     right.set_ylim(0, 105)
@@ -185,6 +186,8 @@ LINEUP_ROWS = [  # (run, model column, contrast, row label); first panel of figu
 RESTRICTION_ROWS = [
     ("channel_extensions", "deepseek", "C1cap - C1", "50-character cap $-$ C1 (H14)"),
     ("channel_extensions", "deepseek", "C1notice - C1", "oversight notice $-$ C1 (H15)"),
+    ("notice_checks", "deepseek", "C1notice - C1", "notice, new seeds $-$ C1 (H27)"),
+    ("notice_checks", "deepseek x gpt-luna", "C1notice - C1", "notice, DeepSeek x Luna $-$ C1 (H28)"),
     ("channel_extensions", "deepseek", "C1cap - B0", "50-character cap $-$ B0 (sec.)"),
     ("channel_extensions", "deepseek", "C1notice - B0", "oversight notice $-$ B0 (sec.)"),
 ]
@@ -192,9 +195,9 @@ RESTRICTION_ROWS = [
 
 def figure_extensions(column: bool = False) -> None:
     """Forest plot: C1 - B0 by lineup (top) and the restrictions on DeepSeek's channel (bottom); `column` sizes it for one column."""
-    tests = {run: pd.read_csv(ROOT / f"results/{run}/channel_tests.csv") for run in ("channel_c1", "channel_extensions", "luna_long", "luna_replication")}
-    fig, axes = plt.subplots(2, 1, figsize=(3.35, 3.9) if column else (5.4, 3.7), sharex=True, gridspec_kw={"height_ratios": [len(LINEUP_ROWS), len(RESTRICTION_ROWS)]})
-    for ax, rows, title in zip(axes, (LINEUP_ROWS, RESTRICTION_ROWS), ("Open channel, C1 $-$ B0, by lineup", "Restrictions on DeepSeek's channel"), strict=True):
+    tests = {run: pd.read_csv(ROOT / f"results/{run}/channel_tests.csv") for run in ("channel_c1", "channel_extensions", "luna_long", "luna_replication", "notice_checks")}
+    fig, axes = plt.subplots(2, 1, figsize=(3.35, 3.05) if column else (5.4, 3.7), sharex=True, gridspec_kw={"height_ratios": [len(LINEUP_ROWS), len(RESTRICTION_ROWS)]})
+    for ax, rows, title in zip(axes, (LINEUP_ROWS, RESTRICTION_ROWS), ("Open channel, C1 $-$ B0, by lineup", "Restrictions on the channel"), strict=True):
         y = np.arange(len(rows))[::-1]
         for yi, (run, model, contrast, label) in zip(y, rows, strict=True):
             t = tests[run]
@@ -210,6 +213,7 @@ def figure_extensions(column: bool = False) -> None:
         ax.set_title(title, fontsize=8.5, color=INK, loc="left")
         ax.set_xlim(-1.15, 1.35)
         ax.grid(axis="y", visible=False)
+        ax.set_ylim(-0.6, len(y) - 0.4)
     axes[-1].set_xlabel("Paired difference in collusion index")
     fig.tight_layout()
     fig.savefig(FIGURES / ("fig_extensions_col.pdf" if column else "fig_extensions.pdf"), bbox_inches="tight")
@@ -340,7 +344,7 @@ def figure_ablations(column: bool = False) -> None:
     """Forest plot of the channel_ablations and notice_checks contrasts (H20-H24, H27, H28, with H15 for reference)."""
     tests = {run: pd.read_csv(ROOT / f"results/{run}/channel_tests.csv") for run in ("channel_extensions", "channel_ablations", "notice_checks")}
     heights = [len(rows) for _, rows in ABLATION_PANELS]
-    fig, axes = plt.subplots(3, 1, figsize=(3.35, 5.0) if column else (5.6, 4.4), sharex=True, gridspec_kw={"height_ratios": heights})
+    fig, axes = plt.subplots(3, 1, figsize=(3.35, 3.6) if column else (5.6, 4.4), sharex=True, gridspec_kw={"height_ratios": heights})
     for ax, (title, rows) in zip(axes, ABLATION_PANELS, strict=True):
         y = np.arange(len(rows))[::-1]
         for yi, (run, model, contrast, label) in zip(y, rows, strict=True):
@@ -354,9 +358,10 @@ def figure_ablations(column: bool = False) -> None:
             ax.annotate(f"{r['mean']:+.2f}{star}", (r["ci_high"], yi), xytext=(4, -2.5), textcoords="offset points", fontsize=7, color=INK)
         ax.set_yticks(y, [row[3] for row in rows], fontsize=7)
         ax.axvline(0, color=MUTED, lw=0.7, ls=(0, (3, 3)))
-        ax.set_title(title, fontsize=8.5, color=INK, loc="left")
+        ax.set_title(title, fontsize=8.5, color=INK, loc="right")
         ax.set_xlim(-1.2, 1.4)
         ax.grid(axis="y", visible=False)
+        ax.set_ylim(-0.6, len(y) - 0.4)
     axes[-1].set_xlabel("Paired difference in collusion index")
     fig.tight_layout()
     fig.savefig(FIGURES / ("fig_ablations_col.pdf" if column else "fig_ablations.pdf"), bbox_inches="tight")
@@ -367,19 +372,19 @@ ROUNDS_PANELS = [  # (title, [(run, lineup_id, label, color, dashed)]) for figur
     ("DeepSeek, seeds 996000-011", [
         ("channel_ablations", "base-deepseek", "B0", ARM_COLORS["B0"], False),
         ("channel_ablations", "c1-deepseek", "C1", ARM_COLORS["C1"], False),
-        ("channel_ablations", "undelivered-deepseek", "C1 undelivered", "#52514e", False),
-        ("channel_ablations", "b0v2-deepseek", "B0 reworded", ARM_COLORS["B0"], True),
-        ("channel_ablations", "c1v2-deepseek", "C1 reworded", ARM_COLORS["C1"], True),
+        ("channel_ablations", "undelivered-deepseek", r"C1$_\mathrm{undelivered}$", "#52514e", False),
+        ("channel_ablations", "b0v2-deepseek", r"B0$_\mathrm{v2}$ (reworded)", ARM_COLORS["B0"], True),
+        ("channel_ablations", "c1v2-deepseek", r"C1$_\mathrm{v2}$ (reworded)", ARM_COLORS["C1"], True),
     ]),
     ("DeepSeek, new seeds 998100-111", [
         ("notice_checks", "b0-deepseek-new", "B0", ARM_COLORS["B0"], False),
         ("notice_checks", "c1-deepseek-new", "C1", ARM_COLORS["C1"], False),
-        ("notice_checks", "notice-deepseek-new", "C1 notice", NOTICE_COLOR, False),
+        ("notice_checks", "notice-deepseek-new", r"C1$_\mathrm{notice}$", NOTICE_COLOR, False),
     ]),
     ("DeepSeek x Luna, seeds 996000-011", [
         ("notice_checks", "b0-deepseek-luna", "B0", ARM_COLORS["B0"], False),
         ("notice_checks", "c1-deepseek-luna", "C1", ARM_COLORS["C1"], False),
-        ("notice_checks", "notice-deepseek-luna", "C1 notice", NOTICE_COLOR, False),
+        ("notice_checks", "notice-deepseek-luna", r"C1$_\mathrm{notice}$", NOTICE_COLOR, False),
     ]),
 ]
 
@@ -533,6 +538,165 @@ def table_partner() -> None:
     (TABLES / "partner.tex").write_text("\n".join(lines) + "\n")
 
 
+RUBRIC_CELLS = [  # (run, condition tag, row label, arm label) for table_bid_rubric; tag is matched in condition_id
+    ("baseline_no_channel", "oneshot__", "Baseline", "one-shot"),
+    ("baseline_no_channel", "^tie-random", "", "B0 (history)"),
+    ("n2_replicate", "oneshot__", "Baseline replicate", "one-shot"),
+    ("n2_replicate", "^tie-random", "", "B0 (history)"),
+    ("notes_deepseek", "__pn", "Notes", "M1 private notes"),
+    ("notes_deepseek", "__ws", "", "M2 shared notes"),
+    ("notes_luna", "__pn", "", "M1 private notes"),
+    ("notes_luna", "__ws", "", "M2 shared notes"),
+    ("channel_c1", "__msg", "Open channel", "C1"),
+    ("narrow_costs", "lineup-s2c", "Rescaled game", "costs 40--60, reserve 60"),
+    ("narrow_costs", "lineup-s2a", "", "costs 40--60, reserve 100"),
+    ("placebo_replay", "placebo-high", "Replay placebo", "high replays (firm A)"),
+    ("placebo_replay", "placebo-low", "", "low replays (firm A)"),
+]
+RUBRIC_LABELS = ["rival_modeling", "considers_coordination", "adopts_coordination", "rejects_coordination", "punish_reward",
+                 "copies_rival_bid", "undercuts_rival_bid", "anchors_on_past_price"]  # fmt: skip
+
+
+def table_bid_rubric() -> None:
+    """LaTeX body of the bid-rubric table: % of judged bid calls with each label, by run, arm and model (not hand-checked)."""
+    lines = []
+    for k, (run, tag, row_label, arm_label) in enumerate(RUBRIC_CELLS):
+        judged = pd.read_csv(ROOT / f"results/{run}/trace_judge.csv")
+        judged = judged[judged["parse_ok"].astype(bool) & judged["condition_id"].str.contains(tag)]
+        if k and row_label:
+            lines.append(r"\midrule")
+        for j, model in enumerate(m for m in MODELS if m in set(judged["model"])):
+            cell = judged[judged["model"] == model]
+            shares = ["--" if label not in cell or cell[label].isna().all() else f"{cell[label].astype(bool).mean() * 100:.0f}"
+                      for label in RUBRIC_LABELS]  # fmt: skip
+            lines.append(" & ".join([row_label if j == 0 else "", arm_label if j == 0 else "", MODEL_LABELS[model],
+                                     str(len(cell)), *shares]) + r" \\")
+    (TABLES / "bid_rubric.tex").write_text("\n".join(lines) + "\n")
+
+
+def _bid_rows(run: str, tag: str) -> pd.DataFrame:
+    """Every firm-round bid row of the sessions of `run` whose condition directory contains `tag`."""
+    rows = []
+    for path in sorted((ROOT / "logs" / run).glob(f"*{tag}*/*/bids.jsonl")):
+        if path.parent.parent.name.startswith("oneshot"):
+            continue
+        rows.extend(json.loads(line) for line in path.open())
+    return pd.DataFrame(rows)
+
+
+def table_rescaled_descriptives() -> None:
+    """LaTeX body of the rescaled-game descriptives: bids above 60, bid gap, reserve, below-cost and tie rates, and mean
+    bid minus benchmark by 10-round block, for S2C and S2A beside B0 (means over 12 sessions)."""
+    sessions = pd.read_csv(ROOT / "results/narrow_costs/channel_sessions.csv")
+    base = pd.read_csv(ROOT / "results/baseline_no_channel/session_metrics.csv")
+    lines = []
+    for model in MODELS:
+        tag = {"deepseek": "deepseek", "gpt-luna": "luna"}[model]
+        for k, (run, cond, label) in enumerate([("baseline_no_channel", f"lineup-base-{tag}__", "B0, costs 0--100, reserve 100"),
+                                                ("narrow_costs", f"lineup-s2c-{tag}__", "costs 40--60, reserve 60"),
+                                                ("narrow_costs", f"lineup-s2a-{tag}__", "costs 40--60, reserve 100")]):
+            bids = _bid_rows(run, cond)
+            bids = bids[bids["valid"].astype(bool)]
+            assert bids["session_id"].nunique() == 12, (run, cond)
+            bids["gap"] = bids["bid"] - bids["bne_bid"]
+            bids["block"] = (bids["round"] - 1) // 10
+            blocks = bids.groupby(["session_id", "block"])["gap"].mean().groupby("block").mean()
+            if run == "narrow_costs":
+                meta = sessions[sessions["condition_id"].str.contains(cond.rstrip("_"))]
+            else:
+                meta = base[base["condition_id"].str.contains(cond.rstrip("_")) & ~base["condition_id"].str.startswith("oneshot")]
+            above = f"{(bids['bid'] > 60).mean() * 100:.1f}" if "s2a" in cond else "--"
+            lines.append(" & ".join([
+                MODEL_LABELS[model] if k == 0 else "", label, above, f"{meta['bid_gap'].mean():.2f}",
+                f"{meta['reserve_bid_rate'].mean() * 100:.1f}", f"{meta['below_cost_bid_rate'].mean() * 100:.1f}",
+                f"{meta['tie_rate'].mean() * 100:.1f}", *(f"{blocks[b]:+.2f}" for b in range(5)),
+            ]) + r" \\")  # fmt: skip
+        if model != MODELS[-1]:
+            lines.append(r"\midrule")
+    (TABLES / "rescaled_descriptives.tex").write_text("\n".join(lines) + "\n")
+
+
+def table_placebo_descriptives() -> None:
+    """LaTeX body of the placebo descriptives: replayed mean bid, firm A's win share and markup, and the same model's
+    baseline history markup on the same seeds (means over 12 sessions)."""
+    placebo = pd.read_csv(ROOT / "results/placebo_replay/placebo_sessions.csv")
+    base = pd.read_csv(ROOT / "results/baseline_no_channel/session_metrics.csv")
+    lines = []
+    for model in MODELS:
+        tag = {"deepseek": "deepseek", "gpt-luna": "luna"}[model]
+        b = base[base["condition_id"].str.contains(f"lineup-base-{tag}__") & ~base["condition_id"].str.startswith("oneshot")]
+        for k, level in enumerate(("high", "low")):
+            cell = placebo[(placebo["model"] == model) & (placebo["level"] == level)]
+            assert len(cell) == 12, (model, level)
+            lines.append(" & ".join([
+                MODEL_LABELS[model] if k == 0 else "", level, f"{cell['replayed_mean_bid'].mean():.1f}",
+                f"{cell['win_share'].mean() * 100:.0f}", f"{cell['markup_ratio'].mean():.2f}",
+                f"{b['markup_ratio'].mean():.2f}" if k == 0 else "",
+            ]) + r" \\")  # fmt: skip
+        if model != MODELS[-1]:
+            lines.append(r"\midrule")
+    (TABLES / "placebo_descriptives.tex").write_text("\n".join(lines) + "\n")
+
+
+SCOREBOARD = [  # (row label, test run, contrast as declared, sign that turns it into lever minus C1, session run, arm)
+    ("Remove the channel (B0)", "channel_c1", "C1 - B0", -1, "channel_ablations", "B0"),
+    ("Shared notes instead (M2)", "notes_deepseek", "C1 - M2", -1, "notes_deepseek", "M2"),
+    ("Private notes instead (M1)", None, "M1 - C1", 1, "notes_deepseek", "M1"),
+    ("Oversight notice", "channel_extensions", "C1notice - C1", 1, "channel_extensions", "C1notice"),
+    ("50-character cap", "channel_extensions", "C1cap - C1", 1, "channel_extensions", "C1cap"),
+    ("Rebid on ties (BAFO)", "channel_ablations", "C1bafo - C1", 1, "channel_ablations", "C1bafo"),
+    ("Winner only announced", "channel_ablations", "C1hidden - C1", 1, "channel_ablations", "C1hidden"),
+    ("Digits removed", "channel_ablations", "C1nodigits - C1", 1, "channel_ablations", "C1nodigits"),
+    ("Messages undelivered$^{\\dagger}$", "channel_ablations", "C1undelivered - C1", 1, "channel_ablations", "C1undelivered"),
+]
+
+
+def table_scoreboard() -> None:
+    """LaTeX body of the restriction scoreboard: each DeepSeek lever against open messages (C1) on the original seeds."""
+    def test(run: str, model: str, contrast: str) -> pd.Series:
+        tests = pd.read_csv(ROOT / f"results/{run}/channel_tests.csv")
+        row = tests[(tests["model"] == model) & (tests["contrast"] == contrast) & (tests["outcome"] == "collusion_index")]
+        assert len(row) == 1, (run, model, contrast)
+        return row.iloc[0]
+
+    def cell(run: str, arm: str) -> pd.DataFrame:
+        sessions = pd.read_csv(ROOT / f"results/{run}/channel_sessions.csv")
+        rows = sessions[(sessions["model"] == "deepseek") & (sessions["arm"] == arm)].set_index("seed")
+        assert len(rows) == 12, (run, arm, len(rows))
+        return rows
+
+    def fmt_p(p: float) -> str:
+        return "$<$0.001" if round(p, 3) == 0 else f"{p:.3f}"
+
+    c1 = cell("channel_ablations", "C1")
+    lines = [" & ".join(["Open messages (C1, reference)", "--", "--", "--", f"{100 * c1['lowest_cost_win_share'].mean():.0f}", "--"]) + r" \\", r"\midrule"]
+    for label, run, contrast, sign, session_run, arm in SCOREBOARD:
+        arm_cells = cell(session_run, arm)
+        if run is None:
+            diff = (arm_cells["collusion_index"] - cell(session_run, "C1")["collusion_index"]).to_numpy()
+            mean, lo, hi = boot(diff)
+            tag, p = "expl.", "--"
+        else:
+            r = test(run, "deepseek", contrast)
+            mean = sign * r["mean"]
+            lo, hi = sorted([sign * r["ci_low"], sign * r["ci_high"]])
+            tag = r["test_id"].split("_")[0] if r["family"] == "confirmatory" else "sec."
+            p = fmt_p(r["p_holm"])
+        if arm == "B0":
+            new = test("notice_checks", "deepseek", "C1 - B0")
+            replication = f"new seeds: ${-new['mean']:+.2f}$ (sec.)"
+        elif arm == "C1notice":
+            h27, h28 = test("notice_checks", "deepseek", "C1notice - C1"), test("notice_checks", "deepseek x gpt-luna", "C1notice - C1")
+            replication = f"new seeds: ${h27['mean']:+.2f}$ (H27); with Luna: ${h28['mean']:+.2f}$ (H28)"
+        else:
+            replication = "--"
+        lines.append(" & ".join([
+            label, tag, f"${mean:+.2f}$ {{\\scriptsize [{lo:+.2f}, {hi:+.2f}]}}", p,
+            f"{100 * arm_cells['lowest_cost_win_share'].mean():.0f}", replication,
+        ]) + r" \\")  # fmt: skip
+    (TABLES / "scoreboard.tex").write_text("\n".join(lines) + "\n")
+
+
 def fmt_ci(values: np.ndarray, scale: float = 1.0, digits: int = 2) -> str:
     mean, lo, hi = (round(v * scale, digits) + 0 for v in boot(values))
     return f"${mean:.{digits}f}$ {{\\scriptsize [{lo:.{digits}f}, {hi:.{digits}f}]}}"
@@ -577,3 +741,4 @@ if __name__ == "__main__":
     table_ablations()
     table_ablation_conduct()
     table_partner()
+    table_scoreboard()

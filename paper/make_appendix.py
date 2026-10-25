@@ -44,7 +44,7 @@ def prompts() -> str:
     ws = call("notes_deepseek", "__ws", 996000, "reflect", 2, "A")
     system_ws = ws[0]["content"]
     parts = [
-        box("System prompt, every arm (shown for B0, \\DS, firm A)", tex(b0[0]["content"])),
+        box("System prompt template (shown for B0, \\DS, firm A)", tex(b0[0]["content"])),
         box("Paragraph added in C1", tex(c1[0]["content"].split("\n\n")[-1])),
         box("Paragraph added in M1 and M2 (identical in both)", tex(system_ws.split("\n\n")[-1])),
         box("Bid request, C1, round 3 (\\DS, seed 996009, firm A)", tex(c1[-1]["content"])),
