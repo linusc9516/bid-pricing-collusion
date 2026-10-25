@@ -104,28 +104,94 @@ cp .env.example .env    # then add OPENROUTER_API_KEY; .env is gitignored, never
 uv run pytest
 ```
 
-## Reproduce a run
+## Reproduce the paper
+
+Every command below that calls a model asks before the first paid call; run it with `--dry-run` first for the number
+of calls and a cost estimate. Pass `--yes` only to skip that question. Completed sessions are skipped on a rerun, so a
+run that stops partway is resumed with the same command.
+
+No `--host` flag is needed. Each config sets its hosts in `llm.host` (DeepSeek on DeepInfra, every other model on its
+primary host in `configs/models.yaml`), so a plain run uses the hosts the paper's runs used. If a pinned host fails,
+rerun with `--host fallback`, then `--host backup`; hosts never switch inside a session. Always pass `--run-id`: a run
+of several configs must land in one `logs/<run_id>/`, and `lunarep.yaml` belongs to the run `luna_replication`.
+
+### 1. Run the sessions
+
+Run `baseline_no_channel` first. The notes and channel runs pair each session with its B0 session on the same seed,
+and `placebo_replay` replays bids recorded in it (copied to `configs/replay/`).
 
 ```sh
-# Plan and cost estimate, no calls
-uv run python scripts/run_experiment.py configs/channel_c1.yaml --run-id channel_c1 --dry-run
-# Run (asks before the first paid call; completed sessions are skipped on a rerun)
-uv run python scripts/run_experiment.py configs/channel_c1.yaml --run-id channel_c1
-# Check every raw log against the auction rules and every prompt sent
-uv run python scripts/check_logs.py logs/channel_c1
-# Judge the communication steps (prints the plan and cost; add --yes to send)
-uv run python scripts/judge_traces.py logs/channel_c1 --phase message --all
-# Declared tests and tables into results/channel_c1/
-uv run python scripts/analyze.py logs/channel_c1 --plan channel_c1
-# Figures and tables of the paper
-uv run python paper/make_figures.py
+RUN="uv run python scripts/run_experiment.py"
+$RUN configs/baseline_no_channel.yaml --run-id baseline_no_channel     # B0 and one-shot control (H1, H2)
+$RUN configs/notes_luna_private.yaml --run-id notes_luna               # M1, Luna (H3, H4)
+$RUN configs/notes_luna_shared.yaml --run-id notes_luna                # M2, Luna
+$RUN configs/channel_c1.yaml --run-id channel_c1                       # C1, DeepSeek and Luna (H5)
+$RUN configs/notes_deepseek_private.yaml --run-id notes_deepseek       # M1, DeepSeek (H9, H10)
+$RUN configs/notes_deepseek_shared.yaml --run-id notes_deepseek        # M2, DeepSeek
+$RUN configs/placebo_replay.yaml --run-id placebo_replay               # replay placebo (H6)
+$RUN configs/narrow_costs_rescaled.yaml --run-id narrow_costs          # costs 40-60, reserve 60 (H11)
+$RUN configs/narrow_costs_reserve100.yaml --run-id narrow_costs        # costs 40-60, reserve 100 (H12)
+for c in ext_r1_haiku ext_r2_cap ext_r3_notice ext_r4_mixed_luna ext_r5_mixed_haiku ext_r6_n3; do
+  $RUN configs/$c.yaml --run-id channel_extensions                     # Haiku, cap, notice, mixed lineups, 3 firms (H13-H18)
+done
+$RUN configs/luna_long.yaml --run-id luna_long                         # Luna, 100 rounds, new seeds (H19)
+$RUN configs/lunarep.yaml --run-id luna_replication                    # Luna, 24 new seeds (H25)
+for c in abl_a1_bafo abl_a2_hidden abl_a3_undelivered abl_a4_nodigits abl_a5_wording; do
+  $RUN configs/$c.yaml --run-id channel_ablations                      # ablations of C1 (H20-H24)
+done
+$RUN configs/notice_n1_new_seeds.yaml --run-id notice_checks           # notice on new seeds (H27)
+$RUN configs/notice_n2_mixed_luna.yaml --run-id notice_checks          # notice, DeepSeek x Luna (H28)
 ```
 
-- `configs/README.md` lists each run id with its configs; launch every config of a run under the same `--run-id`.
-- Before a full launch, run the matching `*_tiny.yaml` config under a `smoke_*` run id and read its prompts with
-  `check_logs.py --pick` / `--show`.
-- If a pinned host fails, rerun with `--host fallback`, then `--host backup`. Hosts never switch inside a session.
-- `scripts/hand_check.py` builds the pages for the declared hand check of the judge's labels.
+Before a full launch, run the matching `*_tiny.yaml` config under a `smoke_*` run id and read its prompts with
+`check_logs.py --pick` / `--show`. After each run, check every raw log against the auction rules and every prompt sent:
+
+```sh
+uv run python scripts/check_logs.py logs/<run_id>
+```
+
+### 2. Judge the transcripts
+
+The judge is Gemini 3.8 Flash (`--judge gemini`, the default). Without `--yes` the script prints the planned calls
+and a cost estimate and sends nothing; replies are cached, so a rerun sends nothing twice.
+
+```sh
+JUDGE="uv run python scripts/judge_traces.py"
+# Every communication step of the channel runs (the conduct labels)
+for r in channel_c1 channel_extensions luna_long luna_replication channel_ablations notice_checks; do
+  $JUDGE logs/$r --phase message --all
+done
+# 24 evenly spaced reflection steps per session of the notes runs
+for r in notes_luna notes_deepseek; do
+  $JUDGE logs/$r --phase reflect --sample 24
+done
+# Bid calls against the bid-phase rubric (appendix descriptives): 20 per session in the baseline, 12 elsewhere
+$JUDGE logs/baseline_no_channel --sample 20
+for r in notes_luna notes_deepseek channel_c1 narrow_costs placebo_replay; do
+  $JUDGE logs/$r
+done
+```
+
+### 3. Tests, tables and figures
+
+```sh
+# Declared tests of each run: analyze.py finds the run's plan in configs/analysis.yaml by its run id
+for r in baseline_no_channel notes_luna channel_c1 notes_deepseek placebo_replay narrow_costs \
+         channel_extensions luna_long luna_replication channel_ablations notice_checks; do
+  uv run python scripts/analyze.py logs/$r
+done
+uv run python scripts/ablation_descriptives.py   # declared descriptives of channel_ablations and notice_checks
+uv run python paper/make_figures.py              # every figure and table of the paper, from results/
+uv run python paper/make_appendix.py             # prompt and transcript excerpts of the appendix, from logs/
+cd paper && latexmk -pdf main_acl.tex
+```
+
+- Run `analyze.py` after the judge, so the conduct tables include the labels.
+- `scripts/hand_check.py <run>` builds local pages for coding the judge's labels by hand; the coded exports are the
+  `*handcheck.csv` files in `results/`.
+- `results/notice_checks/notice_mentions.csv` is a one-off keyword count (the declared words "authority", "review",
+  "regulator", "antitrust" and "competition law" in sent messages and in the hidden reasoning of communication steps).
+  No script for it is in the repository.
 - Scripted bidders, no API calls: `uv run python scripts/run_experiment.py configs/sanity_dummy.yaml`.
 
 ## Output

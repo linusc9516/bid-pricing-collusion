@@ -741,3 +741,6 @@ if __name__ == "__main__":
     table_ablation_conduct()
     table_partner()
     table_scoreboard()
+    table_bid_rubric()
+    table_rescaled_descriptives()
+    table_placebo_descriptives()
