@@ -82,10 +82,10 @@ def test_only_one_message_per_step() -> None:
 
 
 def test_workspace_and_channel_are_exclusive_toggles() -> None:
-    config, models, plan = prepare(CONFIGS / "channel_screen_n2.yaml", "x")
+    config, models, plan = prepare(CONFIGS / "channel_c1.yaml", "x")
     assert all(p.meta.channel and not p.meta.workspace and p.meta.condition_id.endswith("__msg") for p in plan)
-    assert plan[0].n_llm_calls == (25 + 24) * 2
-    assert {p.meta.seed for p in plan} == {p.meta.seed for p in prepare(CONFIGS / "workspace_screen_n2.yaml", "x")[2]}
+    assert plan[0].n_llm_calls == (50 + 49) * 2
+    assert {p.meta.seed for p in plan} == {p.meta.seed for p in prepare(CONFIGS / "baseline_no_channel.yaml", "x")[2]}
     config["workspace"] = {"enabled": True}
     with pytest.raises(ValueError, match="at most one"):
         plan_sessions(config, "x", models)

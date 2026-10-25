@@ -24,10 +24,13 @@ holds the generated CSVs and a hand-written findings file. Column definitions: `
 | `channel_extensions` | 2026-10-23 to 24 | Declared: Haiku, 50-character cap, oversight notice, two mixed lineups, three firms; H13-H18 | 120 | $22.13 | `channel_tests.csv`, `channel_use_declared.csv`, messages judge |
 | `luna_long` | 2026-10-23 to 24 | Declared: Luna B0 and C1, 100 rounds, new seeds; H19 | 24 | $4.84 | `channel_tests.csv`, `block_index_descriptive.csv`, messages judge |
 | `luna_replication` | 2026-10-24 | Declared: Luna B0 and C1, 50 rounds, 24 new seeds; H25 | 48 | $3.73 | `channel_tests.csv`, `block_index_descriptive.csv`, messages judge |
-| `channel_ablations` | 2026-10-24 | Declared: five levers on DeepSeek's channel (A1-A5); H20-H24 | in progress | | |
-| `notice_checks` | 2026-10-24 | Declared: the notice on new seeds and in DeepSeek x Luna; H27, H28 | in progress | | |
+| `channel_ablations` | 2026-10-24 | Declared: five levers on DeepSeek's channel (A1-A5); H20-H24 | 84 | | `channel_tests.csv`, `declared_descriptives.csv`, messages judge and its hand-checked sample |
+| `notice_checks` | 2026-10-24 | Declared: the notice on new seeds and in DeepSeek x Luna; H27, H28 | 48 | | `channel_tests.csv`, `declared_descriptives.csv`, `notice_mentions.csv`, `first_proposer.csv`, messages judge and its hand-checked sample |
 
-## In brief
+## In brief: the exploratory runs
+
+These bullets cover the runs before any channel (`pilot` to `costs_revealed`). The declared runs are reported in
+the paper (`paper/main_acl.pdf`) and its Hypothesis Index.
 
 Two measures. The **collusion index** is 0 when winning bids match the competitive (Bayes-Nash) benchmark, 1 when
 every winning bid is at the reserve price, and negative below the benchmark; it is not clipped. **Delta** is a

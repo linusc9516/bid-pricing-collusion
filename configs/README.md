@@ -17,7 +17,6 @@ that run's first session. Do not change a setting in a declared config without c
 | `ext_common.yaml` | Shared settings of the `channel_extensions` configs |
 | `abl_common.yaml` | Shared settings of the `channel_ablations` and `notice_checks` configs |
 | `replay/` | Recorded bid sequences that the scripted firm replays in `placebo_replay` |
-| `drafts/extension_100.yaml` | Template for 100-round extensions; never declared or run (the declared rule selected no cell) |
 
 ## Runs in the paper
 
@@ -64,5 +63,4 @@ Harness checks with no API calls: `sanity_dummy.yaml` (scripted bidders, expecte
 | Config | Why |
 |---|---|
 | `main_tiebreak.yaml`, `supporting_info.yaml`, `supporting_lineup.yaml`, `supporting_n.yaml` | The shelved tie-break design; the runner refuses them (thinking mode and output cap unset) |
-| `supporting_costrange_sweep.yaml` | Dose-response on common costs; dropped after `costrange` |
 | `channel_screen_n2.yaml` | First message-channel screen; replaced by the declared `channel_c1.yaml` |

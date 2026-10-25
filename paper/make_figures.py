@@ -54,7 +54,7 @@ def block_index(session_id: str, condition_id: str, block: int = BLOCK) -> np.nd
 
 
 def figure_rounds(table: pd.DataFrame) -> None:
-    """Block index by model and arm: fig_rounds.pdf (panels side by side) and fig_rounds_col.pdf (stacked, one column)."""
+    """Block index by model and arm: fig_rounds_col.pdf (panels stacked, one column)."""
     x = np.arange(1, 50 // BLOCK + 1) * BLOCK
     stats = {}
     for model in MODELS:
@@ -62,7 +62,7 @@ def figure_rounds(table: pd.DataFrame) -> None:
             cell = table[(table["model"] == model) & (table["arm"] == arm)]
             blocks = np.vstack([block_index(r.session_id, r.condition_id) for r in cell.itertuples()])
             stats[model, arm] = np.array([boot(blocks[:, k]) for k in range(blocks.shape[1])])
-    for name, shape, size, ncol in (("fig_rounds", (1, 2), (6.4, 2.35), 4), ("fig_rounds_col", (2, 1), (3.35, 3.9), 2)):
+    for name, shape, size, ncol in (("fig_rounds_col", (2, 1), (3.35, 3.9), 2),):
         fig, axes = plt.subplots(*shape, figsize=size, sharey=True)
         for ax, model in zip(axes, MODELS, strict=True):
             for arm in ARMS:
@@ -726,17 +726,13 @@ if __name__ == "__main__":
     assert (sessions.groupby(["model", "arm"]).size() == 12).all()
     table_summary(sessions)
     figure_rounds(sessions)
-    figure_contrasts()
     figure_contrasts(column=True)
     figure_placebo()
     figure_conduct()
-    figure_extensions()
     figure_extensions(column=True)
     table_extensions()
     table_hypotheses()
-    figure_ablations()
     figure_ablations(column=True)
-    figure_ablation_rounds()
     figure_ablation_rounds(column=True)
     table_ablations()
     table_ablation_conduct()
