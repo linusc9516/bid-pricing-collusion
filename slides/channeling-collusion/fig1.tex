@@ -1,0 +1,14 @@
+% Figure 1 of the paper, built standalone in the paper's fonts so its text fits its boxes
+\documentclass[11pt,border=2pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{times,inconsolata,amsmath,xcolor,tikz,colortbl}
+\usetikzlibrary{positioning,arrows.meta,shapes.callouts,calc,fit,backgrounds}
+\definecolor{cB}{HTML}{2a78d6}\definecolor{cC}{HTML}{eb6834}\definecolor{cM1}{HTML}{1baf7a}\definecolor{cM2}{HTML}{c98a00}
+\definecolor{ink}{HTML}{0b0b0b}\definecolor{muted}{HTML}{52514e}\definecolor{pale}{HTML}{f3f2ee}
+\definecolor{exbg}{HTML}{e4ddf7}\definecolor{okbg}{HTML}{d6efe3}\definecolor{warnbg}{HTML}{fbe8c8}
+\newcommand{\model}[1]{{\ttfamily\hyphenchar\font=`\-\relax #1}}
+\newcommand{\DS}{\model{DeepSeek}}\newcommand{\LU}{\model{Luna}}\newcommand{\HK}{\model{Haiku}}
+\begin{document}
+\input{../../paper/figures/fig_overview.tex}
+\end{document}

@@ -58,7 +58,18 @@ HANDOFF*.md
 PLANNING_NEW.md
 paper_plan.md
 paper_plan_archive*.md
-slides/
+slides/*
+!slides/channeling-collusion/
+slides/channeling-collusion/*.aux
+slides/channeling-collusion/*.log
+slides/channeling-collusion/*.nav
+slides/channeling-collusion/*.snm
+slides/channeling-collusion/*.toc
+slides/channeling-collusion/*.out
+slides/channeling-collusion/*.fls
+slides/channeling-collusion/*.fdb_latexmk
+slides/channeling-collusion/*.synctex.gz
+slides/channeling-collusion/*.vrb
 
 # draft config never declared or run
 configs/long_grid1.yaml
