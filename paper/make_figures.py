@@ -1,6 +1,7 @@
 """Paper figures and tables from results/ and logs/. Intervals are 95% percentile bootstraps over sessions (10,000 resamples)."""
 
 import json
+import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -14,7 +15,7 @@ MODELS = ("deepseek", "gpt-luna")
 NAMES = {"deepseek": "DeepSeek-V4.1-Flash", "gpt-luna": "GPT-6-Luna"}
 ARMS = ["B0", "M1", "M2", "C1"]
 ARM_NAMES = {"B0": "B0 no channel", "M1": "M1 private notes", "M2": "M2 shared notes", "C1": "C1 open messages"}
-ARM_COLORS = {"B0": "#2a78d6", "C1": "#eb6834", "M1": "#1baf7a", "M2": "#eda100"}
+ARM_COLORS = {"B0": "#2a78d6", "C1": "#eb6834", "M1": "#1baf7a", "M2": "#c98a00"}
 MODEL_COLORS = {"deepseek": "#2a78d6", "gpt-luna": "#eb6834"}
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e6e5e1"
 BLOCK = 5
@@ -26,6 +27,20 @@ plt.rcParams.update({
     "axes.spines.top": False, "axes.spines.right": False, "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.6,
     "legend.frameon": False, "pdf.fonttype": 42,
 })  # fmt: skip
+
+
+ARM_TEX_COLORS = {"B0": "cB", "M1": "cM1", "M2": "cM2", "C1": "cC"}  # colour names defined in main_acl.tex
+
+
+def color_arms(tex: str) -> str:
+    """`tex` with every arm code (B0, M1, M2, C1, and any \\textsubscript after it) wrapped in its colour."""
+    return re.sub(r"(?<![A-Za-z0-9_\\])(B0|M1|M2|C1)(\\textsubscript\{[^}]*\})?(?![A-Za-z0-9_])",
+                  lambda m: f"\\textcolor{{{ARM_TEX_COLORS[m.group(1)]}}}{{{m.group(0)}}}", tex)
+
+
+def write_table(name: str, body: str) -> None:
+    """Writes a LaTeX table body to tables/`name`, with the arm codes coloured."""
+    (TABLES / name).write_text(color_arms(body))
 
 
 def boot(values: np.ndarray, n: int = 10_000) -> tuple[float, float, float]:
@@ -144,9 +159,10 @@ LABELS = {"proposes_coordination": "proposes\ncoordination", "accepts_coordinati
 
 
 def figure_conduct() -> None:
+    """Conduct labels by model (top) and the share of sessions with a proposal by each round (bottom), one column."""
     judged = pd.read_csv(ROOT / "results/channel_c1/messages_judge.csv")
     judged = judged[judged["parse_ok"].astype(bool)] if "parse_ok" in judged else judged
-    fig, (left, right) = plt.subplots(1, 2, figsize=(6.4, 2.3), gridspec_kw={"width_ratios": [1.15, 1]})
+    fig, (left, right) = plt.subplots(2, 1, figsize=(3.35, 4.4))
     width = 0.38
     for k, model in enumerate(MODELS):
         cell = judged[judged["model"] == model]
@@ -160,7 +176,7 @@ def figure_conduct() -> None:
         rounds = np.arange(1, 50)
         share = [(first <= r).sum() / n_sessions * 100 for r in rounds]
         right.step(rounds, share, where="post", color=MODEL_COLORS[model], lw=1.8, label=NAMES[model])
-    left.set_xticks(np.arange(len(LABELS)), list(LABELS.values()), fontsize=7.5)
+    left.set_xticks(np.arange(len(LABELS)), list(LABELS.values()), fontsize=7)
     left.set_ylabel("% of judged message steps\n(mean over sessions)")
     left.set_ylim(0, 105)
     left.grid(axis="x", visible=False)
@@ -170,7 +186,7 @@ def figure_conduct() -> None:
     right.set_ylim(0, 105)
     right.set_xlim(1, 49)
     fig.tight_layout()
-    fig.savefig(FIGURES / "fig_conduct.pdf", bbox_inches="tight")
+    fig.savefig(FIGURES / "fig_conduct_col.pdf", bbox_inches="tight")
 
 
 LINEUP_ROWS = [  # (run, model column, contrast, row label); first panel of figure_extensions
@@ -194,9 +210,13 @@ RESTRICTION_ROWS = [
 
 
 def figure_extensions(column: bool = False) -> None:
-    """Forest plot: C1 - B0 by lineup (top) and the restrictions on DeepSeek's channel (bottom); `column` sizes it for one column."""
+    """Forest plot: C1 - B0 by lineup and the restrictions on DeepSeek's channel; stacked for one column, side by side for the page width."""
     tests = {run: pd.read_csv(ROOT / f"results/{run}/channel_tests.csv") for run in ("channel_c1", "channel_extensions", "luna_long", "luna_replication", "notice_checks")}
-    fig, axes = plt.subplots(2, 1, figsize=(3.35, 3.05) if column else (5.4, 3.7), sharex=True, gridspec_kw={"height_ratios": [len(LINEUP_ROWS), len(RESTRICTION_ROWS)]})
+    if column:
+        fig, axes = plt.subplots(2, 1, figsize=(3.35, 3.05), sharex=True, gridspec_kw={"height_ratios": [len(LINEUP_ROWS), len(RESTRICTION_ROWS)]})
+    else:
+        fig, axes = plt.subplots(1, 2, figsize=(7.0, 2.45))
+    size = 7 if column else 8
     for ax, rows, title in zip(axes, (LINEUP_ROWS, RESTRICTION_ROWS), ("Open channel, C1 $-$ B0, by lineup", "Restrictions on the channel"), strict=True):
         y = np.arange(len(rows))[::-1]
         for yi, (run, model, contrast, label) in zip(y, rows, strict=True):
@@ -207,14 +227,15 @@ def figure_extensions(column: bool = False) -> None:
             ax.plot([r["ci_low"], r["ci_high"]], [yi, yi], color=color, lw=1.6, solid_capstyle="round")
             ax.plot(r["mean"], yi, "o", ms=5.5, color=color, mec="white", mew=1)
             star = "*" if confirmatory and r["supported"] is True else ""
-            ax.annotate(f"{signed(r['mean'])}{star}", (max(r["ci_high"], -0.9), yi), xytext=(4, -2.5), textcoords="offset points", fontsize=7, color=INK)
-        ax.set_yticks(y, [row[3] for row in rows], fontsize=7)
+            ax.annotate(f"{signed(r['mean'])}{star}", (max(r["ci_high"], -0.9), yi), xytext=(4, -2.5), textcoords="offset points", fontsize=size, color=INK)
+        ax.set_yticks(y, [row[3] for row in rows], fontsize=size)
         ax.axvline(0, color=MUTED, lw=0.7, ls=(0, (3, 3)))
         ax.set_title(title, fontsize=8.5, color=INK, loc="left")
         ax.set_xlim(-1.15, 1.35)
         ax.grid(axis="y", visible=False)
         ax.set_ylim(-0.6, len(y) - 0.4)
-    axes[-1].set_xlabel("Paired difference in collusion index")
+    for ax in axes[-1:] if column else axes:
+        ax.set_xlabel("Paired difference in collusion index")
     fig.tight_layout()
     fig.savefig(FIGURES / ("fig_extensions_col.pdf" if column else "fig_extensions.pdf"), bbox_inches="tight")
     plt.close(fig)
@@ -253,7 +274,7 @@ def table_extensions() -> None:
             fmt_ci(cell["joint_profit_ratio"].to_numpy()), fmt_ci(cell["lowest_cost_win_share"].to_numpy(), 100, 0),
             fmt_ci(cell["tie_rate"].to_numpy(), 100, 0),
         ]) + r" \\")  # fmt: skip
-    (TABLES / "extensions.tex").write_text("\n".join(lines) + "\n")
+    write_table("extensions.tex", "\n".join(lines) + "\n")
 
 
 HYPOTHESES = [  # (id, short name, run, test file, contrast as printed); one table row per model or cell tested
@@ -310,7 +331,7 @@ def table_hypotheses() -> None:
                 hid if k == 0 else "", name if k == 0 else "", CELL_NAMES.get(r.model, r.model), contrast,
                 f"${r.mean:+.3f}$ {{\\scriptsize $[{r.ci_low:+.2f}, {r.ci_high:+.2f}]$}}", p, verdict,
             ]) + r" \\")  # fmt: skip
-    (TABLES / "hypotheses.tex").write_text("\n".join(lines) + "\n")
+    write_table("hypotheses.tex", "\n".join(lines) + "\n")
 
 
 NOTICE_COLOR = "#7a5bc9"
@@ -452,7 +473,7 @@ def table_ablations() -> None:
             fmt_ci(cell["joint_profit_ratio"].to_numpy()), fmt_ci(cell["lowest_cost_win_share"].to_numpy(), 100, 0),
             fmt_ci(cell["tie_rate"].to_numpy(), 100, 0),
         ]) + r" \\")  # fmt: skip
-    (TABLES / "ablations.tex").write_text("\n".join(lines) + "\n")
+    write_table("ablations.tex", "\n".join(lines) + "\n")
 
 
 CONDUCT_CELLS = [  # (run, lineup tag in the session id, firm model or None for both firms, cell label, arm label)
@@ -489,7 +510,7 @@ def table_ablation_conduct() -> None:
             lines.append(r"\midrule")
         lines.append(" & ".join([cell_label, arm_label, sent, f"{len(j):,}".replace(",", "{,}"),
                                  f"{j['proposes_coordination'].astype(bool).mean() * 100:.0f}", *counts, agree]) + r" \\")
-    (TABLES / "ablation_conduct.tex").write_text("\n".join(lines) + "\n")
+    write_table("ablation_conduct.tex", "\n".join(lines) + "\n")
 
 
 PARTNER_CELLS = [  # (run, lineup_id, judged firm's model, partner label, cell label) for table_partner (exploratory)
@@ -535,7 +556,7 @@ def table_partner() -> None:
             f"{steps['rejects_coordination'].astype(bool).mean() * 100:.0f}",
         ]) + r" \\")  # fmt: skip
         last = model
-    (TABLES / "partner.tex").write_text("\n".join(lines) + "\n")
+    write_table("partner.tex", "\n".join(lines) + "\n")
 
 
 RUBRIC_CELLS = [  # (run, condition tag, row label, arm label) for table_bid_rubric; tag is matched in condition_id
@@ -569,7 +590,7 @@ def table_bid_rubric() -> None:
                       for label in RUBRIC_LABELS]  # fmt: skip
             lines.append(" & ".join([row_label if j == 0 else "", arm_label if j == 0 else "", MODEL_LABELS[model],
                                      str(len(cell)), *shares]) + r" \\")
-    (TABLES / "bid_rubric.tex").write_text("\n".join(lines) + "\n")
+    write_table("bid_rubric.tex", "\n".join(lines) + "\n")
 
 
 def _bid_rows(run: str, tag: str) -> pd.DataFrame:
@@ -611,7 +632,7 @@ def table_rescaled_descriptives() -> None:
             ]) + r" \\")  # fmt: skip
         if model != MODELS[-1]:
             lines.append(r"\midrule")
-    (TABLES / "rescaled_descriptives.tex").write_text("\n".join(lines) + "\n")
+    write_table("rescaled_descriptives.tex", "\n".join(lines) + "\n")
 
 
 def table_placebo_descriptives() -> None:
@@ -633,7 +654,7 @@ def table_placebo_descriptives() -> None:
             ]) + r" \\")  # fmt: skip
         if model != MODELS[-1]:
             lines.append(r"\midrule")
-    (TABLES / "placebo_descriptives.tex").write_text("\n".join(lines) + "\n")
+    write_table("placebo_descriptives.tex", "\n".join(lines) + "\n")
 
 
 SCOREBOARD = [  # (row label, test run, contrast as declared, sign that turns it into lever minus C1, session run, arm)
@@ -692,7 +713,65 @@ def table_scoreboard() -> None:
             label, tag, f"${mean:+.2f}$ {{\\scriptsize $[{lo:+.2f}, {hi:+.2f}]$}}", p,
             f"{100 * arm_cells['lowest_cost_win_share'].mean():.0f}", replication,
         ]) + r" \\")  # fmt: skip
-    (TABLES / "scoreboard.tex").write_text("\n".join(lines) + "\n")
+    write_table("scoreboard.tex", "\n".join(lines) + "\n")
+
+
+KEY_TESTS = [  # (declared id, run, model column, lineup label); supported tests first, then the two nulls
+    ("H5_messages_raise_price", "channel_c1", "deepseek", "DeepSeek"),
+    ("H18_three_firms_messages_raise_price", "channel_extensions", "deepseek n3", "DeepSeek, 3 firms"),
+    ("H16_mixed_lineup_messages_raise_price_luna", "channel_extensions", "deepseek x gpt-luna", "DeepSeek x Luna"),
+    ("H15_oversight_notice_lowers_price", "channel_extensions", "deepseek", "DeepSeek"),
+    ("H27_notice_lowers_price_new_seeds", "notice_checks", "deepseek", "DeepSeek, new seeds"),
+    ("H6_bids_follow_replayed_level", "placebo_replay", "deepseek", "DeepSeek"),
+    ("H6_bids_follow_replayed_level", "placebo_replay", "gpt-luna", "Luna"),
+    ("H14_length_cap_lowers_price", "channel_extensions", "deepseek", "DeepSeek"),
+    ("H9_shared_workspace_raises_price", "notes_deepseek", "deepseek", "DeepSeek"),
+]
+
+
+def declared_claims() -> dict[str, str]:
+    """Every hypothesis id in configs/analysis.yaml mapped to its declared claim, whitespace collapsed."""
+    import yaml  # only this table needs it
+
+    def walk(node: object) -> list[dict]:
+        if isinstance(node, dict):
+            return ([node] if "id" in node and "claim" in node else []) + [h for v in node.values() for h in walk(v)]
+        if isinstance(node, list):
+            return [h for v in node for h in walk(v)]
+        return []
+
+    plan = yaml.safe_load((ROOT / "configs" / "analysis.yaml").read_text())
+    return {h["id"]: " ".join(str(h["claim"]).split()) for h in walk(plan)}
+
+
+def table_key_tests() -> None:
+    """LaTeX body of the main-text table of key declared tests: the declared claim, contrast, estimate, Holm p, result."""
+    claims = declared_claims()
+    lines, shown, previous = [], set(), True
+    for hid, run, model, lineup in KEY_TESTS:
+        if run == "placebo_replay":
+            tests = pd.read_csv(ROOT / f"results/{run}/placebo_tests.csv").rename(columns={"mean_diff": "mean"})
+            row = tests[(tests["model"] == model) & (tests["family"] == "confirmatory") & (tests["outcome"] == "markup_ratio")]
+            contrast = "high $-$ low replay, markup"
+        else:
+            tests = pd.read_csv(ROOT / f"results/{run}/channel_tests.csv")
+            row = tests[(tests["model"] == model) & (tests["test_id"] == hid) & (tests["outcome"] == "collusion_index")]
+            contrast = row["contrast"].iloc[0].replace(" - ", " $-$ ").replace("C1notice", "C1\\textsubscript{notice}").replace("C1cap", "C1\\textsubscript{cap}")
+        assert len(row) == 1, (hid, model)
+        r = row.iloc[0]
+        supported = r["supported"] in (True, "True")
+        if previous and not supported:
+            lines.append(r"\midrule")
+        previous = supported
+        claim = claims[hid][0].upper() + claims[hid][1:]
+        p = "$<$0.001" if round(r["p_holm"], 3) == 0 else f"{r['p_holm']:.3f}"
+        lines.append(" & ".join([
+            hid.split("_")[0] if hid not in shown else "", claim + "." if hid not in shown else "", lineup, contrast,
+            f"${r['mean']:+.2f}$ {{\\scriptsize $[{r['ci_low']:+.2f}, {r['ci_high']:+.2f}]$}}", p,
+            "supported" if supported else "not supported",
+        ]) + r" \\")  # fmt: skip
+        shown.add(hid)
+    write_table("key_tests.tex", "\n".join(lines) + "\n")
 
 
 def signed(x: float) -> str:
@@ -706,20 +785,28 @@ def fmt_ci(values: np.ndarray, scale: float = 1.0, digits: int = 2) -> str:
 
 
 def table_summary(table: pd.DataFrame) -> None:
-    """LaTeX body of the summary table: one row per model and arm, means over 12 sessions with bootstrap intervals."""
-    lines = []
+    """Summary tables, one row per model and arm with bootstrap intervals: summary_full.tex (all five outcomes) and
+    summary.tex (index, low-cost win share and tie rate, for one column)."""
+    full, short = [], []
     for model in MODELS:
         for k, arm in enumerate(ARMS):
             cell = table[(table["model"] == model) & (table["arm"] == arm)]
-            name = f"\\texttt{{{NAMES[model]}}}" if k == 0 else ""
-            lines.append(" & ".join([
-                name, ARM_NAMES[arm].split(" ", 1)[0] + " " + ARM_NAMES[arm].split(" ", 1)[1],
+            index, markup, profit, low_cost, ties = (
                 fmt_ci(cell["collusion_index"].to_numpy()), fmt_ci(cell["markup_ratio"].to_numpy()),
                 fmt_ci(cell["joint_profit_ratio"].to_numpy()), fmt_ci(cell["lowest_cost_win_share"].to_numpy(), 100, 0),
                 fmt_ci(cell["tie_rate"].to_numpy(), 100, 0),
-            ]) + r" \\")  # fmt: skip
-        lines.append(r"\midrule" if model != MODELS[-1] else "")
-    (TABLES / "summary.tex").write_text("\n".join(lines) + "\n")
+            )  # fmt: skip
+            full.append(" & ".join([f"\\texttt{{{NAMES[model]}}}" if k == 0 else "", ARM_NAMES[arm], index, markup, profit, low_cost, ties]) + r" \\")
+            short.append(" & ".join([model_short(model) if k == 0 else "", arm, index, low_cost, ties]) + r" \\")
+        for lines in (full, short):
+            lines.append(r"\midrule" if model != MODELS[-1] else "")
+    write_table("summary_full.tex", "\n".join(full) + "\n")
+    write_table("summary.tex", "\n".join(short) + "\n")
+
+
+def model_short(model: str) -> str:
+    """Short model name for narrow tables."""
+    return {"deepseek": "DeepSeek", "gpt-luna": "Luna"}[model]
 
 
 if __name__ == "__main__":
@@ -732,7 +819,7 @@ if __name__ == "__main__":
     figure_contrasts(column=True)
     figure_placebo()
     figure_conduct()
-    figure_extensions(column=True)
+    figure_extensions()
     table_extensions()
     table_hypotheses()
     figure_ablations(column=True)
@@ -744,3 +831,4 @@ if __name__ == "__main__":
     table_bid_rubric()
     table_rescaled_descriptives()
     table_placebo_descriptives()
+    table_key_tests()

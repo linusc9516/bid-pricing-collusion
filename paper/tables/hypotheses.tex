@@ -2,30 +2,30 @@ H1 & History lowers price & DeepSeek & history $-$ one-shot, $\Delta I$ & $-0.02
  &  & Luna & history $-$ one-shot, $\Delta I$ & $+0.346$ {\scriptsize $[+0.20, +0.50]$} & 0.002 & not supported \\
 H2 & One-shot bids at equilibrium & DeepSeek & one-shot $I$ within $\pm 0.05$ & $-0.027$ {\scriptsize $[-0.04, -0.01]$} & -- & supported \\
  &  & Luna & one-shot $I$ within $\pm 0.05$ & $-0.159$ {\scriptsize $[-0.18, -0.14]$} & -- & not supported \\
-H3 & Private notes change price & Luna & M1 $-$ B0 & $-0.031$ {\scriptsize $[-0.18, +0.10]$} & 0.704 & not supported \\
-H4 & Sharing notes raises price & Luna & M2 $-$ M1 & $-0.034$ {\scriptsize $[-0.09, +0.01]$} & 0.554 & not supported \\
-H5 & Messages raise price & DeepSeek & C1 $-$ B0 & $+0.885$ {\scriptsize $[+0.74, +1.02]$} & 0.001 & supported \\
- &  & Luna & C1 $-$ B0 & $+0.111$ {\scriptsize $[+0.03, +0.21]$} & 0.041 & supported \\
+H3 & Private notes change price & Luna & \textcolor{cM1}{M1} $-$ \textcolor{cB}{B0} & $-0.031$ {\scriptsize $[-0.18, +0.10]$} & 0.704 & not supported \\
+H4 & Sharing notes raises price & Luna & \textcolor{cM2}{M2} $-$ \textcolor{cM1}{M1} & $-0.034$ {\scriptsize $[-0.09, +0.01]$} & 0.554 & not supported \\
+H5 & Messages raise price & DeepSeek & \textcolor{cC}{C1} $-$ \textcolor{cB}{B0} & $+0.885$ {\scriptsize $[+0.74, +1.02]$} & 0.001 & supported \\
+ &  & Luna & \textcolor{cC}{C1} $-$ \textcolor{cB}{B0} & $+0.111$ {\scriptsize $[+0.03, +0.21]$} & 0.041 & supported \\
 H6 & Displayed bids move bids & DeepSeek & high $-$ low replay, markup & $+0.439$ {\scriptsize $[+0.28, +0.59]$} & 0.001 & supported \\
  &  & Luna & high $-$ low replay, markup & $+0.478$ {\scriptsize $[+0.33, +0.61]$} & 0.001 & supported \\
-H9 & Shared notes raise price & DeepSeek & M2 $-$ B0 & $+0.053$ {\scriptsize $[-0.02, +0.12]$} & 0.177 & not supported \\
-H10 & Private notes change price & DeepSeek & M1 $-$ B0 & $+0.079$ {\scriptsize $[+0.01, +0.15]$} & 0.129 & not supported \\
-H11 & Displayed numbers matter & DeepSeek & rescaled $-$ B0 & $-0.128$ {\scriptsize $[-0.20, -0.05]$} & 0.015 & supported \\
- &  & Luna & rescaled $-$ B0 & $-0.016$ {\scriptsize $[-0.12, +0.09]$} & 0.787 & not supported \\
-H12 & Larger collusion gain raises price & DeepSeek & reserve 100 $-$ B0 & $+0.033$ {\scriptsize $[-0.03, +0.10]$} & 0.364 & not supported \\
- &  & Luna & reserve 100 $-$ B0 & $-0.175$ {\scriptsize $[-0.32, -0.04]$} & 0.085 & not supported \\
-H13 & Third model: messages raise price & Haiku & C1 $-$ B0 & $-0.019$ {\scriptsize $[-0.09, +0.06]$} & 0.640 & not supported \\
-H14 & Length cap lowers price & DeepSeek & 50-char cap $-$ C1 & $+0.090$ {\scriptsize $[-0.02, +0.22]$} & 0.256 & not supported \\
-H15 & Oversight notice lowers price & DeepSeek & notice $-$ C1 & $-0.769$ {\scriptsize $[-1.02, -0.47]$} & 0.005 & supported \\
-H16 & Mixed lineup: messages raise price & DeepSeek x Luna & C1 $-$ B0 & $+0.433$ {\scriptsize $[+0.26, +0.61]$} & 0.003 & supported \\
-H17 & Mixed lineup: messages raise price & DeepSeek x Haiku & C1 $-$ B0 & $+0.192$ {\scriptsize $[+0.07, +0.31]$} & 0.008 & supported \\
-H18 & Three firms: messages raise price & DeepSeek, 3 firms & C1 $-$ B0 & $+0.847$ {\scriptsize $[+0.66, +1.02]$} & $<$0.001 & supported \\
-H19 & Replication at 100 rounds & Luna & C1 $-$ B0 & $+0.012$ {\scriptsize $[-0.13, +0.16]$} & 0.880 & not supported \\
-H20 & Rebid on ties lowers price & DeepSeek & BAFO $-$ C1 & $-0.118$ {\scriptsize $[-0.34, +0.12]$} & 0.706 & not supported \\
-H21 & Hiding losing bids lowers price & DeepSeek & winner only $-$ C1 & $+0.025$ {\scriptsize $[-0.13, +0.18]$} & 0.749 & not supported \\
-H22 & Reading the rival is needed & DeepSeek & undelivered $-$ C1 & $-0.719$ {\scriptsize $[-0.91, -0.50]$} & 0.001 & supported \\
-H23 & Digit filter lowers price & DeepSeek & no digits $-$ C1 & $-0.187$ {\scriptsize $[-0.40, +0.02]$} & 0.375 & not supported \\
-H24 & Channel effect survives rewording & DeepSeek & C1 $-$ B0, reworded & $+1.060$ {\scriptsize $[+0.88, +1.18]$} & $<$0.001 & supported \\
-H25 & Replication at 50 rounds & Luna & C1 $-$ B0, 24 new seeds & $+0.172$ {\scriptsize $[+0.00, +0.34]$} & 0.061 & not supported \\
-H27 & Notice replicates on new seeds & DeepSeek & notice $-$ C1 & $-0.884$ {\scriptsize $[-1.06, -0.68]$} & 0.001 & supported \\
-H28 & Notice in a mixed lineup & DeepSeek x Luna & notice $-$ C1 & $-0.527$ {\scriptsize $[-0.73, -0.33]$} & 0.001 & supported \\
+H9 & Shared notes raise price & DeepSeek & \textcolor{cM2}{M2} $-$ \textcolor{cB}{B0} & $+0.053$ {\scriptsize $[-0.02, +0.12]$} & 0.177 & not supported \\
+H10 & Private notes change price & DeepSeek & \textcolor{cM1}{M1} $-$ \textcolor{cB}{B0} & $+0.079$ {\scriptsize $[+0.01, +0.15]$} & 0.129 & not supported \\
+H11 & Displayed numbers matter & DeepSeek & rescaled $-$ \textcolor{cB}{B0} & $-0.128$ {\scriptsize $[-0.20, -0.05]$} & 0.015 & supported \\
+ &  & Luna & rescaled $-$ \textcolor{cB}{B0} & $-0.016$ {\scriptsize $[-0.12, +0.09]$} & 0.787 & not supported \\
+H12 & Larger collusion gain raises price & DeepSeek & reserve 100 $-$ \textcolor{cB}{B0} & $+0.033$ {\scriptsize $[-0.03, +0.10]$} & 0.364 & not supported \\
+ &  & Luna & reserve 100 $-$ \textcolor{cB}{B0} & $-0.175$ {\scriptsize $[-0.32, -0.04]$} & 0.085 & not supported \\
+H13 & Third model: messages raise price & Haiku & \textcolor{cC}{C1} $-$ \textcolor{cB}{B0} & $-0.019$ {\scriptsize $[-0.09, +0.06]$} & 0.640 & not supported \\
+H14 & Length cap lowers price & DeepSeek & 50-char cap $-$ \textcolor{cC}{C1} & $+0.090$ {\scriptsize $[-0.02, +0.22]$} & 0.256 & not supported \\
+H15 & Oversight notice lowers price & DeepSeek & notice $-$ \textcolor{cC}{C1} & $-0.769$ {\scriptsize $[-1.02, -0.47]$} & 0.005 & supported \\
+H16 & Mixed lineup: messages raise price & DeepSeek x Luna & \textcolor{cC}{C1} $-$ \textcolor{cB}{B0} & $+0.433$ {\scriptsize $[+0.26, +0.61]$} & 0.003 & supported \\
+H17 & Mixed lineup: messages raise price & DeepSeek x Haiku & \textcolor{cC}{C1} $-$ \textcolor{cB}{B0} & $+0.192$ {\scriptsize $[+0.07, +0.31]$} & 0.008 & supported \\
+H18 & Three firms: messages raise price & DeepSeek, 3 firms & \textcolor{cC}{C1} $-$ \textcolor{cB}{B0} & $+0.847$ {\scriptsize $[+0.66, +1.02]$} & $<$0.001 & supported \\
+H19 & Replication at 100 rounds & Luna & \textcolor{cC}{C1} $-$ \textcolor{cB}{B0} & $+0.012$ {\scriptsize $[-0.13, +0.16]$} & 0.880 & not supported \\
+H20 & Rebid on ties lowers price & DeepSeek & BAFO $-$ \textcolor{cC}{C1} & $-0.118$ {\scriptsize $[-0.34, +0.12]$} & 0.706 & not supported \\
+H21 & Hiding losing bids lowers price & DeepSeek & winner only $-$ \textcolor{cC}{C1} & $+0.025$ {\scriptsize $[-0.13, +0.18]$} & 0.749 & not supported \\
+H22 & Reading the rival is needed & DeepSeek & undelivered $-$ \textcolor{cC}{C1} & $-0.719$ {\scriptsize $[-0.91, -0.50]$} & 0.001 & supported \\
+H23 & Digit filter lowers price & DeepSeek & no digits $-$ \textcolor{cC}{C1} & $-0.187$ {\scriptsize $[-0.40, +0.02]$} & 0.375 & not supported \\
+H24 & Channel effect survives rewording & DeepSeek & \textcolor{cC}{C1} $-$ \textcolor{cB}{B0}, reworded & $+1.060$ {\scriptsize $[+0.88, +1.18]$} & $<$0.001 & supported \\
+H25 & Replication at 50 rounds & Luna & \textcolor{cC}{C1} $-$ \textcolor{cB}{B0}, 24 new seeds & $+0.172$ {\scriptsize $[+0.00, +0.34]$} & 0.061 & not supported \\
+H27 & Notice replicates on new seeds & DeepSeek & notice $-$ \textcolor{cC}{C1} & $-0.884$ {\scriptsize $[-1.06, -0.68]$} & 0.001 & supported \\
+H28 & Notice in a mixed lineup & DeepSeek x Luna & notice $-$ \textcolor{cC}{C1} & $-0.527$ {\scriptsize $[-0.73, -0.33]$} & 0.001 & supported \\

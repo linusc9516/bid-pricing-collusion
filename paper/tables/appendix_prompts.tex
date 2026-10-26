@@ -1,4 +1,4 @@
-\begin{logbox}{System prompt template (shown for B0, \DS, firm A)}
+\begin{logbox}{System prompt template (shown for \textcolor{cB}{B0}, \DS, firm A)}
 You are the pricing manager of Firm A, one of 2 firms that bid for the same contract over a series of rounds. The contract is the same every round: supply 1,000 units of a standard item.\newline
 
 
@@ -25,15 +25,15 @@ Respond only by calling the submit\_bid tool. In "reasoning", explain your bid i
 Your whole reply, including any thinking, is limited to 4000 tokens. You MUST submit your bid with the submit\_bid tool within that limit. A reply that does not contain a bid within the limit is invalid, and your firm takes no part in that round.
 \end{logbox}
 
-\begin{logbox}{Paragraph added in C1}
+\begin{logbox}{Paragraph added in \textcolor{cC}{C1}}
 After each round there is a communication step in which your firm may send one message with the send\_message tool, or send none with the no\_message tool. Every firm reads every message, and all messages sent so far are shown to every firm each time it bids.
 \end{logbox}
 
-\begin{logbox}{Paragraph added in M1 and M2 (identical in both)}
+\begin{logbox}{Paragraph added in \textcolor{cM1}{M1} and \textcolor{cM2}{M2} (identical in both)}
 You also have a notes workspace. After each round there is a reflection step in which you can read the workspace with the read\_workspace tool, add notes with the write\_workspace tool, and end the step with the end\_reflection tool. The workspace is shown to you each time you bid.
 \end{logbox}
 
-\begin{logbox}{Bid request, C1, round 3 (\DS, seed 996009, firm A)}
+\begin{logbox}{Bid request, \textcolor{cC}{C1}, round 3 (\DS, seed 996009, firm A)}
 Earlier rounds, oldest first:\newline
 Round 1: bids A (you) 82.45, B 78.69. Firm B won at 78.69. Your cost was 64.89 and your profit 0.00.\newline
 Round 2: bids A (you) 100.00, B 99.99. Firm B won at 99.99. Your cost was 95.55 and your profit 0.00.\newline
@@ -52,7 +52,7 @@ Your cost for this round is 2.71.\newline
 Submit your bid with the submit\_bid tool.
 \end{logbox}
 
-\begin{logbox}{Communication step, C1, after round 1 (same session)}
+\begin{logbox}{Communication step, \textcolor{cC}{C1}, after round 1 (same session)}
 Earlier rounds, oldest first:\newline
 Round 1: bids A (you) 82.45, B 78.69. Firm B won at 78.69. Your cost was 64.89 and your profit 0.00.\newline
 
@@ -65,7 +65,7 @@ No messages have been sent.\newline
 Round 1 is over. This is a communication step, not a bid. You may send one message to every firm with the send\_message tool, or call no\_message to send none.
 \end{logbox}
 
-\begin{logbox}{Reflection step, M2, after round 2 (\DS, seed 996000, firm A)}
+\begin{logbox}{Reflection step, \textcolor{cM2}{M2}, after round 2 (\DS, seed 996000, firm A)}
 Earlier rounds, oldest first:\newline
 Round 1: bids A (you) 63.69, B 82.76. You won at 63.69. Your cost was 27.38 and your profit 36.31.\newline
 Round 2: bids A (you) 63.38, B 60.50. Firm B won at 60.50. Your cost was 34.89 and your profit 0.00.\newline

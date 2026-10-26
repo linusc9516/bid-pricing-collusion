@@ -1,4 +1,4 @@
-# Channeling Collusion: LLM Bidders Rig Auctions by Message, and an Oversight Notice Curbs It
+# Channeling Collusion: An LLM Agent Rigs Procurement Auctions by Message, and One Sentence Curbs It
 
 Code, declared analysis plans and result tables for a study built for the Apart Research AI Collusion Research Sprint
 (23–25 October 2026), Track 1, Markets and Collusion, question 1.5: which restriction on how AI agents communicate

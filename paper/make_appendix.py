@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+from make_figures import color_arms
+
 ROOT = Path(__file__).resolve().parents[1]
 TABLES = Path(__file__).parent / "tables"
 ESCAPES = {"\\": r"\textbackslash{}", "&": r"\&", "%": r"\%", "$": r"\$", "#": r"\#", "_": r"\_", "{": r"\{", "}": r"\}",
@@ -34,7 +36,7 @@ def events(run: str, cell: str, seed: int, name: str) -> list[dict]:
 
 
 def box(title: str, body: str) -> str:
-    return f"\\begin{{logbox}}{{{title}}}\n{body}\n\\end{{logbox}}\n"
+    return f"\\begin{{logbox}}{{{color_arms(title)}}}\n{body}\n\\end{{logbox}}\n"
 
 
 def prompts() -> str:
