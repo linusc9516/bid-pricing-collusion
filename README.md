@@ -1,10 +1,12 @@
 # Channeling Collusion: An LLM Agent Rigs Procurement Auctions by Message, and One Sentence Curbs It
 
+Linus Chik · Nanyang AI Safety, NTU Singapore · [linuschik.com](https://linuschik.com)
+
 Code, declared analysis plans and result tables for a study built for the Apart Research AI Collusion Research Sprint
 (23–25 October 2026), Track 1, Markets and Collusion, question 1.5: which restriction on how AI agents communicate
 stops them from colluding?
 
-The report is [`paper/main_acl.pdf`](paper/main_acl.pdf) (source `paper/main_acl.tex`, built with `latexmk -pdf main_acl.tex` in `paper/`).
+The report is [`paper/main_acl.pdf`](paper/main_acl.pdf) (source `paper/main_acl.tex`, built with `latexmk -pdf main_acl.tex` in `paper/`). The version submitted to the sprint, authored as Kin-Hei Chik, is the `apart-submission` tag.
 
 ## Setup
 
