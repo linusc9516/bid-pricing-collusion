@@ -214,6 +214,10 @@ lever on tacit bid rotation. No exploratory setting produced rotation without a 
 that design was shelved and its configs were never run. The tie-break rule remains a single auctioneer parameter, and
 A1 uses the rebid rule as a lever on the message channel.
 
+Preexisting work: the code and the no-channel, open-message and notes runs (`baseline_no_channel`, `channel_c1`,
+`notes_deepseek`, `notes_luna`) predate the sprint (2–18 October 2026); the restrictions that answer question 1.5, their
+replications, the extensions and the paper were done during it (23–25 October).
+
 ## License
 
 [MIT](LICENSE).
