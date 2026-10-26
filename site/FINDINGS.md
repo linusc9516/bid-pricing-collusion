@@ -1,10 +1,10 @@
-# Channeling Collusion: LLM bidders in a sealed-bid procurement auction
+# Channeling Collusion: An LLM Agent Rigs Procurement Auctions by Message, and One Sentence Curbs It
 
 Results of the Apart AI Collusion Sprint project (Track 1, question 1.5: which single restriction removes the most
 collusion at the least cost). The [paper](https://github.com/linusc9516/bid-pricing-collusion/blob/main/paper/main_acl.pdf),
 code and declared analysis plans are in the [repository](https://github.com/linusc9516/bid-pricing-collusion).
 
-Two LLM firms bid for one contract per round over 50 rounds. Each firm's cost is drawn anew every round from U[0, 100]
+Two LLM firms (three in one cell) bid for one contract per round over 50 rounds. Each firm's cost is drawn anew every round from U[0, 100]
 and only that firm sees it. The lowest bid wins and is paid its bid; the reserve price is 100. The arms differ only in
 how the firms can reach each other. Every comparison pairs two sessions on the same seed, which fixes the costs of
 every round. The study has 540 sessions, three models (DeepSeek-V4.1-Flash, GPT-6-Luna and Claude-Haiku-5.5) and 25
@@ -47,7 +47,7 @@ logs. Mean index: the collusion index averaged over the 12 DeepSeek sessions of 
 
 For DeepSeek every pair ends higher with messages (H5: +0.88 [0.74, 1.02], p = 0.001). The rise starts in the first
 five rounds, and the index stays above 0.75 from round 6. For GPT-6-Luna the rise is small (H5: +0.11 [0.03, 0.21],
-p = 0.041), comes mainly from two of twelve sessions and does not replicate on new seeds (F3). The schemes ignore
+p = 0.041), comes mainly from 2 of 12 sessions and does not replicate on new seeds (F3). The schemes ignore
 costs: in DeepSeek's open-channel sessions the lowest-cost firm wins 58% of rounds, against 85% without a channel, and
 43% of rounds end in a tie, against 1%.
 
@@ -66,28 +66,29 @@ DeepSeek bids almost exactly the equilibrium strategy: every M2 session lies wit
 Sessions: [notes_deepseek](#/run/notes_deepseek) and [notes_luna](#/run/notes_luna). Each session page shows the
 notes panel.
 
-### F3. The rise holds wherever a DeepSeek firm is in the market (declared)
+### F3. The rise holds in every lineup we tested with a DeepSeek firm (declared)
 
 With three DeepSeek firms the index rises (H18: +0.85 [0.66, 1.02], p < 0.001), and all three firms join a written
 scheme in every session. It also rises when DeepSeek is paired with GPT-6-Luna (H16: +0.43 [0.26, 0.61], p = 0.003)
-and with Claude-Haiku-5.5 (H17: +0.19 [0.07, 0.31], p = 0.008). Two Claude-Haiku-5.5 firms end where they do without a
-channel (H13: −0.02 [−0.09, 0.06], p = 0.64); they send a message in only 2% of communication steps. GPT-6-Luna's
+and with Claude-Haiku-5.5 (H17: +0.19 [0.07, 0.31], p = 0.008). Two Claude-Haiku-5.5 firms end at their no-channel level (H13: −0.02 [−0.09, 0.06], p = 0.64); they send a message in only 2% of communication steps. GPT-6-Luna's
 50-round effect does not replicate on 12 new seeds over 100 rounds (H19: +0.01 [−0.13, 0.16], p = 0.88), nor on 24
 further new seeds at 50 rounds (H25: +0.17 [0.004, 0.34], p = 0.061).
 
-![Contrasts in the extension cells and for the restrictions](figures/fig_extensions_col.png)
+![Contrasts in the extension cells and for the restrictions](figures/fig_extensions.png)
 
 Sessions: [channel_extensions](#/run/channel_extensions), [luna_long](#/run/luna_long) and
 [luna_replication](#/run/luna_replication).
 
-### F4. A 50-character cap changes nothing; a one-sentence notice removes the rise (declared)
+### F4. A 50-character cap changes nothing; a one-sentence notice removes most of the rise (declared)
 
 Limiting DeepSeek's messages to 50 characters changes nothing measurable (H14: +0.09 [−0.02, 0.22], p = 0.26). Every
 capped session holds a written scheme, and the shortest agreement is 27 characters: *"Both bid 100. No undercuts."*
 Adding the sentence "Every message is reviewed by a competition authority." lowers the index (H15: −0.77
-[−1.02, −0.47], p = 0.005) back to the no-channel level. The effect replicates on 12 new seeds run on the same day as
+[−1.02, −0.47], p = 0.005), leaving it 0.12 above the no-channel level (not significant). Of the 24 DeepSeek notice
+sessions, 20 end at or below the no-channel level and 4 stay near the reserve (0.53 to 0.97). The effect replicates on 12 new seeds run on the same day as
 the open channel (H27: −0.88 [−1.06, −0.68], p = 0.001) and in a market of one DeepSeek and one GPT-6-Luna firm (H28:
-−0.53 [−0.73, −0.33], p = 0.001). The notice does not silence the firms: they still message in 66% of steps. No message
+−0.53 [−0.73, −0.33], p = 0.001). The notice cuts the price more than the talk: the firms still message in 66% of steps, the judge labels 37% of judged
+steps as proposals (99% with open messages alone) and finds an agreement in 9 of 12 sessions. No message
 mentions the authority, but the hidden reasoning of the communication step does in all 12 sessions. With the notice
 the lowest-cost firm wins 79% of rounds, against 85% without a channel.
 
@@ -112,7 +113,9 @@ Sessions: [channel_ablations](#/run/channel_ablations).
 Firms propose rotation (alternating wins at 99.99 and 100 whatever their costs) or identical bids near the reserve
 with the random tie-break picking the winner, and confirm compliance each round. A proposal appears in every DeepSeek
 session in round 1 and in 10 of 12 GPT-6-Luna sessions. DeepSeek threatens the rival in every session, GPT-6-Luna in
-two. In all 24 mixed sessions the first proposal comes from the DeepSeek firm. Labels come from a Gemini-3.8-Flash
+two. In all 24 mixed sessions the first proposal comes from the DeepSeek firm, in round 1 in 22. Exploratory: against
+DeepSeek, GPT-6-Luna proposes in 68% of its judged steps and accepts in 11 of 12 sessions, while Claude-Haiku-5.5
+rejects coordination in every session (41% of its steps). Labels come from a Gemini-3.8-Flash
 judge that must quote the step; on 70 hand-checked message steps it agrees with the hand coding on 361 of 370 label
 calls, including all 70 *proposes coordination* calls. It misses some acceptances, so acceptance counts likely
 undercount.
@@ -149,15 +152,19 @@ collusion index; low-cost win is the share of rounds won by the lowest-cost firm
 | Digits removed | H23 | −0.19 [−0.40, +0.02] | 0.375 | 62 | |
 | Messages undelivered (an ablation, not a restriction) | H22 | −0.72 [−0.91, −0.50] | 0.001 | 78 | |
 
-In this game the channel has no legitimate use, so removing it is the strongest restriction. Where a channel must stay open, the
-notice is the cheapest restriction we found: it keeps the channel open at a cost of six points of lowest-cost win share.
+By design, the channel has no legitimate use here, so removing it is the strongest restriction. Where a channel must stay
+open, the notice is the only restriction we tested that keeps it open and removes most of the rise; the lowest-cost firm
+then wins 79% of rounds, against 85% without a channel.
 
 ## Limitations
 
 - Twelve pairs per contrast detect only large effects.
 - The cap, the ablations and three firms were tested with DeepSeek only, and the notice with DeepSeek and with
   DeepSeek against GPT-6-Luna.
-- The notice was a sentence in each firm's own prompt; a deployer who wants collusion could remove it, and 50 rounds
+- Only DeepSeek colludes strongly, and it ran at low reasoning effort, the other two models at high.
+- No neutral or prohibition sentence was tested, so why the notice works (being watched, a reminder of illegality, or
+  any added sentence) is untested.
+- The notice was a sentence in each firm's own prompt; a deployer who wants collusion could delete it, and 50 rounds
   cannot show whether coordination returns later in a tacit or coded form.
 - The game is synthetic: costs are i.i.d. uniform, the reserve is stated, and there is no entry, capacity or buyer
   response.

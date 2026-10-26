@@ -141,7 +141,7 @@
     \column{0.56\textwidth}
     \centering\includegraphics[height=0.80\textheight,width=\linewidth,keepaspectratio]{fig_rounds_col.pdf}
   \end{columns}
-  \note{First finding: open messages produce the collusion, without any instruction to coordinate. Of four channel conditions, only open messages raise prices. They raise DeepSeek's index by 0.88, higher in all twelve pairs, and by 0.85 with three firms. The rise starts in the first five rounds and holds. Notes, even ones the rival secretly reads, give no significant rise. And the cheapest firm now wins only 58 percent of rounds, against 85.}
+  \note{First finding: open messages produce the collusion, without any instruction to coordinate. Only open messages raise prices significantly above the no-channel baseline. They raise DeepSeek's index by 0.88, higher in all twelve pairs, and by 0.85 with three firms. The rise starts in the first five rounds and holds. Notes, even ones the rival secretly reads, give no significant rise. And the cheapest firm now wins only 58 percent of rounds, against 85.}
 \end{frame}
 
 % ---------------------------------------------------------------- 6
@@ -167,7 +167,7 @@
     \stat{cC}{24 / 24}\par{\small mixed sessions where the DeepSeek firm makes the first proposal}\par\vspace{0.8em}
     \begin{tabular}{@{}lr@{}}
       \toprule
-      DeepSeek with & price rise \\
+      DeepSeek with & index rise \\
       \midrule
       Luna (goes along) & \textbf{+0.43} \\
       Haiku (mostly refuses) & \textbf{+0.19} \\
@@ -177,7 +177,7 @@
     \column{0.54\textwidth}
     \centering
     \begin{tikzpicture}[x=1cm,y=1cm]
-      \node[font=\small\bfseries,anchor=west] at (-0.2,4.3) {Price rise with messages (\C{} $-$ \B)};
+      \node[font=\small\bfseries,anchor=west] at (-0.2,4.3) {Index rise with messages (\C{} $-$ \B)};
       \foreach \y/\lab/\v/\c in {3.2/DeepSeek pair/0.88/cC, 2.0/DeepSeek $\times$ Luna/0.43/cC!70, 0.8/DeepSeek $\times$ Haiku/0.19/cC!40} {
         \node[font=\small,anchor=west] at (-0.2,\y+0.42) {\lab};
         \fill[pale] (0,\y-0.2) rectangle (6,\y+0.2);
@@ -187,7 +187,7 @@
       \draw[muted,dashed] (6,0.4) -- (6,3.6) node[above,font=\scriptsize,text=muted] {reserve};
     \end{tikzpicture}
   \end{columns}
-  \note{Second finding: one initiating model is enough. Paired with a different model, the DeepSeek firm makes the first proposal in all 24 mixed sessions. The partner decides how far prices go: Luna goes along, plus 0.43; Haiku mostly refuses, plus 0.19. That partner breakdown is exploratory. On their own, neither raises prices reliably.}
+  \note{Second finding: one initiating model is enough. Paired with a different model, the DeepSeek firm makes the first proposal in all 24 mixed sessions. The partner decides how far prices go: Luna goes along, and the index rises by 0.43; Haiku mostly refuses, and it rises by 0.19. That partner breakdown is exploratory. On their own, neither raises prices reliably.}
 \end{frame}
 
 % ---------------------------------------------------------------- 8

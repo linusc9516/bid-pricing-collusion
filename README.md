@@ -58,16 +58,18 @@ the declared family. Full list: Appendix "Hypothesis Index" of the paper.
 | H22 | DeepSeek | messages undelivered − C1 | −0.719 [−0.91, −0.50] | 0.001 | supported |
 | H24 | DeepSeek, reworded prompt | C1 − B0 | +1.060 [+0.88, +1.18] | <0.001 | supported |
 
-- **An open message channel produces collusion wherever a DeepSeek firm is in the market.** DeepSeek firms agree in
-  the first rounds to alternate wins or bid identically near the reserve, and threaten to undercut a deviator. In
-  mixed lineups the DeepSeek firm makes the first proposal in every session.
+- **An open message channel produces collusion, unprompted, in every lineup we tested with a DeepSeek firm.** Nothing
+  in the prompt suggests coordination, yet DeepSeek firms agree in the first rounds to alternate wins or bid identically near the reserve, and threaten to undercut a deviator. In
+  mixed lineups the DeepSeek firm makes the first proposal in every session, and the partner sets how far the index
+  rises: Luna goes along (+0.43), Haiku mostly refuses (+0.19; partner breakdown exploratory).
 - **Not every model colludes to the same degree.** Two Haiku firms rarely write. Luna writes agreements in most
   sessions but its price effect is small and is not significant in either of two declared replications.
 - **Notes show no significant rise**, private or secretly shared, though rises of up to about 0.15 are not ruled out.
 - **A 50-character limit does not stop the schemes**; the shortest agreement is 27 characters ("Both bid 100. No
   undercuts.").
-- **One sentence does.** "Every message is reviewed by a competition authority." brings DeepSeek's index back to the
-  no-channel level while the firms keep talking. It replicates on new seeds and against Luna.
+- **One sentence curbs most of it.** "Every message is reviewed by a competition authority." lowers DeepSeek's index by
+  0.77 of the 0.88 rise and replicates on new seeds and against Luna. It cuts the price more than the talk: the firms
+  keep messaging and proposing, and 4 of 24 notice sessions still end near the reserve.
 - **A rebid on ties, announcing only the winner and a digit filter do not significantly lower the price.** The rise
   needs an exchange of messages and survives a reworded prompt.
 - **Displayed bids alone move a model's bids** (H6, a placebo in which the rival replays recorded bids), so a price
